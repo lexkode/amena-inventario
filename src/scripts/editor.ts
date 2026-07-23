@@ -478,12 +478,15 @@ function panTo(clientX: number, clientY: number): void {
 }
 
 function zoomAtPoint(factor: number, clientX: number, clientY: number): void {
+  const newW = state.view.w * factor;
+  const newH = state.view.h * factor;
+  if (newW > state.initialView.w || newH > state.initialView.h) {
+    state.view = { x: 0, y: 0, ...state.initialView };
+    applyViewTransform();
+    return;
+  }
   const p0 = clientToSvg(clientX, clientY);
-  state.view = {
-    ...state.view,
-    w: state.view.w * factor,
-    h: state.view.h * factor,
-  };
+  state.view = { ...state.view, w: newW, h: newH };
   applyViewTransform();
   const p1 = clientToSvg(clientX, clientY);
   state.view.x += p0.x - p1.x;
