@@ -1,0 +1,71 @@
+---
+type Props = {
+  title: string;
+  description?: string;
+};
+
+const {
+  title,
+  description = "Residencial Amena — Lotes residenciales con casa modelo en Comalapa, El Salvador. Conoce la disponibilidad en tiempo real.",
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#0c4a6e" />
+    <title>{title}</title>
+    <style is:global>
+      :root {
+        color-scheme: light;
+        --c-disponible: #16a34a;
+        --c-reservado: #ca8a04;
+        --c-vendido: #dc2626;
+        --c-ink: #0f172a;
+        --c-ink-soft: #475569;
+        --c-line: #e2e8f0;
+        --c-bg: #f8fafc;
+        --c-card: #ffffff;
+      }
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        background: var(--c-bg);
+        color: var(--c-ink);
+        min-height: 100dvh;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        line-height: 1.5;
+      }
+      a {
+        color: #0369a1;
+      }
+      a:hover {
+        color: #075985;
+      }
+      button {
+        font-family: inherit;
+      }
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 1.25rem;
+      }
+    </style>
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>

@@ -15,6 +15,20 @@
       "when": 1784765465496,
       "tag": "0001_round_blockbuster",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1784770195865,
+      "tag": "0002_tidy_rockslide",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1784772020615,
+      "tag": "0003_unusual_imperial_guard",
+      "breakpoints": true
     }
   ]
 }
