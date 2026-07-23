@@ -1,0 +1,21 @@
+---
+import { db } from "@db/client";
+import { sql } from "drizzle-orm";
+
+const rows = db.all<{ now: string }>(sql`SELECT CURRENT_TIMESTAMP as now`);
+const ok = rows[0];
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Amena Inventario</title>
+  </head>
+  <body>
+    <h1>Amena Inventario</h1>
+    <p>Fase 1 · Paso 1 — entorno base listo.</p>
+    <pre>DB OK: {JSON.stringify(ok)}</pre>
+  </body>
+</html>
