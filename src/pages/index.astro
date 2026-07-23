@@ -9,49 +9,9 @@ const lotes = plan ? getLotes() : [];
 const modelos = getModelos();
 
 const initialData = { plan, lotes, modelos };
-
-const countByEstado = (e: "disponible" | "reservado" | "vendido"): number =>
-  lotes.filter((l) => l.estado === e).length;
-
-const counts = {
-  disponible: countByEstado("disponible"),
-  reservado: countByEstado("reservado"),
-  vendido: countByEstado("vendido"),
-  total: lotes.length,
-};
 ---
 
 <PublicLayout title="Residencial Amena · Lotes disponibles en Comalapa">
-  <header class="hero">
-    <div class="container hero-inner">
-      <p class="kicker">Comalapa · El Salvador</p>
-      <h1>Residencial Amena</h1>
-      <p class="subtitle">
-        Lotes residenciales con casa modelo incluida, en una ubicación
-        privilegiada de Comalapa. Conoce la disponibilidad en tiempo real.
-      </p>
-
-      <div class="status-counter" aria-label="Resumen de disponibilidad">
-        <div class="counter">
-          <span class="counter-num counter-disponible">{counts.disponible}</span>
-          <span class="counter-label">Disponibles</span>
-        </div>
-        <div class="counter">
-          <span class="counter-num counter-reservado">{counts.reservado}</span>
-          <span class="counter-label">Reservados</span>
-        </div>
-        <div class="counter">
-          <span class="counter-num counter-vendido">{counts.vendido}</span>
-          <span class="counter-label">Vendidos</span>
-        </div>
-        <div class="counter counter-total-wrap">
-          <span class="counter-num counter-total">{counts.total}</span>
-          <span class="counter-label">Total</span>
-        </div>
-      </div>
-    </div>
-  </header>
-
   <section class="map-section">
     <div class="container">
       {!plan ? (
@@ -133,73 +93,6 @@ const counts = {
 </PublicLayout>
 
 <style>
-  /* ===== Hero ===== */
-  .hero {
-    color: #f1f5f9;
-    padding: 5rem 0 4rem;
-    background:
-      radial-gradient(ellipse at 20% 0%, rgba(56, 189, 248, 0.25), transparent 60%),
-      radial-gradient(ellipse at 80% 100%, rgba(132, 204, 22, 0.18), transparent 55%),
-      linear-gradient(135deg, #0c4a6e 0%, #075985 45%, #064e3b 100%);
-  }
-  .hero-inner { text-align: center; }
-  .kicker {
-    margin: 0 0 0.5rem;
-    text-transform: uppercase;
-    letter-spacing: 0.18em;
-    font-size: 0.8rem;
-    color: #7dd3fc;
-    font-weight: 600;
-  }
-  .hero h1 {
-    margin: 0 0 0.75rem;
-    font-size: clamp(2.25rem, 5vw, 3.5rem);
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    line-height: 1.1;
-  }
-  .subtitle {
-    margin: 0 auto 2.5rem;
-    max-width: 620px;
-    color: #cbd5e1;
-    font-size: clamp(1rem, 1.5vw, 1.15rem);
-  }
-
-  .status-counter {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.75rem;
-    max-width: 720px;
-    margin: 0 auto;
-  }
-  .counter {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 12px;
-    padding: 1rem 0.5rem;
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-  }
-  .counter-num {
-    display: block;
-    font-size: clamp(1.6rem, 4vw, 2.4rem);
-    font-weight: 800;
-    line-height: 1;
-    font-variant-numeric: tabular-nums;
-  }
-  .counter-label {
-    display: block;
-    font-size: 0.7rem;
-    margin-top: 0.4rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: #cbd5e1;
-  }
-  .counter-disponible { color: #4ade80; }
-  .counter-reservado { color: #fbbf24; }
-  .counter-vendido { color: #f87171; }
-  .counter-total { color: #f1f5f9; }
-
   /* ===== Section ===== */
   .map-section { padding: 3rem 0 4rem; }
 
@@ -546,7 +439,6 @@ const counts = {
 
   /* ===== Responsive ===== */
   @media (max-width: 640px) {
-    .status-counter { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .filter-bar { flex-direction: column; align-items: stretch; }
     .filter-group { width: 100%; }
     .select { width: 100%; min-width: 0; }
