@@ -23,7 +23,6 @@ const counts = {
 
 <PublicLayout title="Residencial Amena · Lotes disponibles en Comalapa">
   <header class="hero">
-    <div class="hero-bg" aria-hidden="true"></div>
     <div class="container hero-inner">
       <p class="kicker">Comalapa · El Salvador</p>
       <h1>Residencial Amena</h1>
@@ -55,11 +54,6 @@ const counts = {
 
   <section class="map-section">
     <div class="container">
-      <div class="section-header">
-        <h2>Mapa interactivo</h2>
-        <p>Explora el plano del residencial. Toca un lote para ver sus detalles.</p>
-      </div>
-
       {!plan ? (
         <div class="empty card-empty">
           <h3>Próximamente</h3>
@@ -141,16 +135,8 @@ const counts = {
 <style>
   /* ===== Hero ===== */
   .hero {
-    position: relative;
     color: #f1f5f9;
     padding: 5rem 0 4rem;
-    overflow: hidden;
-    isolation: isolate;
-  }
-  .hero-bg {
-    position: absolute;
-    inset: 0;
-    z-index: -1;
     background:
       radial-gradient(ellipse at 20% 0%, rgba(56, 189, 248, 0.25), transparent 60%),
       radial-gradient(ellipse at 80% 100%, rgba(132, 204, 22, 0.18), transparent 55%),
@@ -216,13 +202,6 @@ const counts = {
 
   /* ===== Section ===== */
   .map-section { padding: 3rem 0 4rem; }
-  .section-header { margin-bottom: 1.5rem; }
-  .section-header h2 {
-    margin: 0 0 0.4rem;
-    font-size: clamp(1.4rem, 3vw, 1.75rem);
-    letter-spacing: -0.01em;
-  }
-  .section-header p { margin: 0; color: var(--c-ink-soft); }
 
   .empty {
     background: #fff;
