@@ -1,0 +1,133 @@
+---
+import AdminLayout from "@shared/layouts/AdminLayout.astro";
+import { getModelos } from "@modules/catalog";
+
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect("/admin/login");
+}
+
+const modelos = getModelos();
+const error = Astro.url.searchParams.get("error");
+
+const usd = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 0,
+});
+---
+
+<AdminLayout title="Modelos" user={user}>
+  <div class="page-header">
+    <h1>Modelos</h1>
+    <div class="actions">
+      <a href="/admin/modelos/nuevo" class="btn-primary">+ Nuevo modelo</a>
+    </div>
+  </div>
+
+  {error && <div class="alert" role="alert">{error}</div>}
+
+  {modelos.length === 0 ? (
+    <div class="empty">
+      <p style="margin:0 0 1rem">No hay modelos aún.</p>
+      <a href="/admin/modelos/nuevo" class="btn-primary">Crear el primero</a>
+    </div>
+  ) : (
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Nombre</th>
+            <th>Tipo</th>
+            <th>Precio</th>
+            <th>Terreno</th>
+            <th>Const.</th>
+            <th>Hab/Baños/Park</th>
+            <th>Orden</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {modelos.map((m) => (
+            <tr>
+              <td>{m.id}</td>
+              <td>
+                <strong>{m.nombre}</strong>
+                {m.dimensionesLote && (
+                  <div style="color:#94a3b8;font-size:.8rem;margin-top:.15rem">{m.dimensionesLote}</div>
+                )}
+              </td>
+              <td>
+                <span class={`badge badge-${m.tipo}`}>{m.tipo}</span>
+              </td>
+              <td>{usd.format(m.precioBase)}</td>
+              <td>{m.terrenoM2 ? `${m.terrenoM2}m²` : "—"}</td>
+              <td>{m.construccionM2}m²</td>
+              <td>{m.habitaciones}/{m.banos}/{m.parqueos}</td>
+              <td>{m.orden}</td>
+              <td class="row-actions">
+                <a href={`/admin/modelos/${m.id}`} class="btn-secondary">Editar</a>
+                <form
+                  method="POST"
+                  action={`/api/admin/modelos/${m.id}`}
+                  onsubmit="return confirm('¿Eliminar este modelo? Esta acción no se puede deshacer.')"
+                  style="display:inline"
+                >
+                  <input type="hidden" name="_method" value="DELETE" />
+                  <button type="submit" class="btn-danger">Eliminar</button>
+                </form>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )}
+</AdminLayout>
+
+<style>
+  .table-wrap {
+    overflow-x: auto;
+    background: #1e293b;
+    border-radius: 12px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+  th, td {
+    padding: 0.7rem 0.85rem;
+    text-align: left;
+    border-bottom: 1px solid #334155;
+    white-space: nowrap;
+  }
+  th {
+    background: #0f172a;
+    color: #94a3b8;
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: rgba(56, 189, 248, 0.05); }
+  .badge {
+    display: inline-block;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: capitalize;
+  }
+  .badge-casa { background: #166534; color: #bbf7d0; }
+  .badge-apartamento { background: #1e3a8a; color: #bfdbfe; }
+  .row-actions {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+  }
+  .row-actions form { display: inline; margin: 0; }
+</style>

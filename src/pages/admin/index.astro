@@ -1,67 +1,48 @@
 ---
+import AdminLayout from "@shared/layouts/AdminLayout.astro";
+
 const user = Astro.locals.user;
 if (!user) {
   return Astro.redirect("/admin/login");
 }
 ---
 
-<!doctype html>
-<html lang="es">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Dashboard · Amena Inventario</title>
-    <style>
-      :root { color-scheme: light dark; }
-      body {
-        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-        margin: 0; background: #0f172a; color: #e2e8f0;
-      }
-      header {
-        display: flex; justify-content: space-between; align-items: center;
-        padding: 1rem 2rem; background: #1e293b; border-bottom: 1px solid #334155;
-      }
-      main { max-width: 960px; margin: 2rem auto; padding: 0 1.5rem; }
-      h1 { margin: 0 0 .5rem; font-size: 1.5rem; }
-      .muted { color: #94a3b8; }
-      .card {
-        background: #1e293b; padding: 1.5rem; border-radius: 12px;
-        margin-top: 1.5rem; box-shadow: 0 4px 14px rgba(0,0,0,.3);
-      }
-      .badge {
-        display: inline-block; padding: .15rem .55rem; border-radius: 999px;
-        background: #0ea5e9; color: #0f172a; font-size: .8rem; font-weight: 600;
-        margin-left: .5rem;
-      }
-      button {
-        padding: .55rem 1rem; background: transparent; color: #fca5a5;
-        border: 1px solid #b91c1c; border-radius: 8px; cursor: pointer;
-        font-size: .9rem;
-      }
-      button:hover { background: #b91c1c; color: #fee2e2; }
-    </style>
-  </head>
-  <body>
-    <header>
-      <strong>Amena Inventario</strong>
-      <form method="POST" action="/api/auth/logout">
-        <button type="submit">Cerrar sesión</button>
-      </form>
-    </header>
-    <main>
-      <h1>Dashboard</h1>
-      <p class="muted">Sesión iniciada como <strong>{user.email}</strong><span class="badge">{user.role}</span></p>
+<AdminLayout title="Dashboard" user={user}>
+  <div class="page-header">
+    <h1>Dashboard</h1>
+  </div>
 
-      <section class="card">
-        <h2 style="margin-top:0;font-size:1.1rem">Bienvenido</h2>
-        <p class="muted">Esta es el área protegida. Aquí vivirán los módulos de catálogo, planes y lotes.</p>
-        <ul class="muted">
-          <li>ID: {user.id}</li>
-          <li>Email: {user.email}</li>
-          <li>Rol: {user.role}</li>
-          <li>Creado: {new Date(user.createdAt).toISOString()}</li>
-        </ul>
-      </section>
-    </main>
-  </body>
-</html>
+  <section class="card">
+    <h2 style="margin-top:0;font-size:1.15rem">Bienvenido</h2>
+    <p style="color:#94a3b8;margin:0">Sesión iniciada como <strong>{user.email}</strong>
+      <span class="role-badge">{user.role}</span>
+    </p>
+  </section>
+
+  <section class="card">
+    <h2 style="margin-top:0;font-size:1.15rem">Módulos</h2>
+    <ul style="list-style:none;padding:0;display:grid;gap:.65rem">
+      <li>
+        <a href="/admin/modelos">📦 Catálogo de modelos</a>
+        <p style="color:#94a3b8;margin:.15rem 0 0">Gestionar casas y apartamentos.</p>
+      </li>
+      <li>
+        <a href="/admin/plano">🗺 Plano base del residencial</a>
+        <p style="color:#94a3b8;margin:.15rem 0 0">Configurar imagen y dimensiones del plano.</p>
+      </li>
+    </ul>
+  </section>
+</AdminLayout>
+
+<style>
+  .role-badge {
+    display: inline-block;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    background: #0ea5e9;
+    color: #0f172a;
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-left: 0.5rem;
+  }
+</style>

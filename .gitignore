@@ -11,3 +11,5 @@ sqlite.db-wal
 *.log
 .DS_Store
 .pnpm-store
+/public/uploads/*
+!/public/uploads/.gitkeep

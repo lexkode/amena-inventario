@@ -1,0 +1,214 @@
+---
+import type { User } from "@db/schema";
+
+type Props = {
+  title: string;
+  user: User;
+};
+
+const { title, user } = Astro.props;
+const currentPath = Astro.url.pathname;
+
+type NavItem = { href: string; label: string; match: (p: string) => boolean };
+const navItems: NavItem[] = [
+  { href: "/admin", label: "Dashboard", match: (p) => p === "/admin" },
+  {
+    href: "/admin/modelos",
+    label: "Modelos",
+    match: (p) => p === "/admin/modelos" || p.startsWith("/admin/modelos/"),
+  },
+  {
+    href: "/admin/plano",
+    label: "Plano Base",
+    match: (p) => p === "/admin/plano" || p.startsWith("/admin/plano/"),
+  },
+];
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title} · Amena Inventario</title>
+    <style is:global>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        margin: 0;
+        background: #0f172a;
+        color: #e2e8f0;
+        min-height: 100dvh;
+      }
+      a { color: #38bdf8; }
+      .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+      }
+      .page-header h1 { margin: 0; font-size: 1.5rem; }
+      .page-header .actions { display: flex; gap: 0.5rem; }
+      .btn-primary {
+        padding: 0.55rem 1.1rem;
+        background: #38bdf8;
+        color: #0f172a;
+        border-radius: 6px;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 0.9rem;
+        border: 0;
+        cursor: pointer;
+      }
+      .btn-primary:hover { background: #7dd3fc; }
+      .btn-secondary {
+        padding: 0.5rem 1rem;
+        background: transparent;
+        color: #94a3b8;
+        border: 1px solid #334155;
+        border-radius: 6px;
+        text-decoration: none;
+        font-size: 0.9rem;
+      }
+      .btn-secondary:hover { color: #e2e8f0; border-color: #475569; }
+      .btn-danger {
+        padding: 0.4rem 0.85rem;
+        background: transparent;
+        color: #fca5a5;
+        border: 1px solid #b91c1c;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.85rem;
+      }
+      .btn-danger:hover { background: #b91c1c; color: #fee2e2; }
+      .alert {
+        background: #7f1d1d;
+        color: #fee2e2;
+        padding: 0.65rem 0.85rem;
+        border-radius: 6px;
+        margin-bottom: 1rem;
+        font-size: 0.9rem;
+      }
+      .alert-info {
+        background: #0c4a6e;
+        color: #e0f2fe;
+      }
+      .card {
+        background: #1e293b;
+        padding: 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+        margin-bottom: 1.5rem;
+      }
+      .empty {
+        background: #1e293b;
+        padding: 2rem;
+        border-radius: 12px;
+        text-align: center;
+        color: #94a3b8;
+      }
+    </style>
+    <style>
+      header.site {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 1.5rem;
+        padding: 0.75rem 1.5rem;
+        background: #1e293b;
+        border-bottom: 1px solid #334155;
+      }
+      .brand {
+        font-weight: 700;
+        font-size: 1.05rem;
+        color: #38bdf8;
+        text-decoration: none;
+      }
+      nav.primary {
+        display: flex;
+        gap: 0.25rem;
+        justify-content: center;
+      }
+      nav.primary a {
+        padding: 0.5rem 0.85rem;
+        color: #94a3b8;
+        text-decoration: none;
+        border-radius: 6px;
+        font-size: 0.95rem;
+        font-weight: 500;
+      }
+      nav.primary a:hover {
+        color: #e2e8f0;
+        background: #0f172a;
+      }
+      nav.primary a.active {
+        color: #38bdf8;
+        background: #0f172a;
+      }
+      .user-area {
+        display: flex;
+        align-items: center;
+        gap: 0.85rem;
+        font-size: 0.85rem;
+      }
+      .user-area .email {
+        color: #94a3b8;
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .user-area form {
+        display: inline;
+        margin: 0;
+      }
+      .user-area button {
+        padding: 0.4rem 0.85rem;
+        background: transparent;
+        color: #fca5a5;
+        border: 1px solid #b91c1c;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.85rem;
+      }
+      .user-area button:hover {
+        background: #b91c1c;
+        color: #fee2e2;
+      }
+      main {
+        max-width: 1200px;
+        margin: 2rem auto;
+        padding: 0 1.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="site">
+      <a href="/admin" class="brand">Amena Inventario</a>
+      <nav class="primary" aria-label="Navegación principal">
+        {
+          navItems.map((item) => (
+            <a href={item.href} class={item.match(currentPath) ? "active" : ""}>
+              {item.label}
+            </a>
+          ))
+        }
+      </nav>
+      <div class="user-area">
+        <span class="email" title={user.email}>{user.email}</span>
+        <form method="POST" action="/api/auth/logout">
+          <button type="submit">Salir</button>
+        </form>
+      </div>
+    </header>
+    <main>
+      <slot />
+    </main>
+  </body>
+</html>

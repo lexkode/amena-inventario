@@ -1,0 +1,24 @@
+---
+import AdminLayout from "@shared/layouts/AdminLayout.astro";
+import ModeloForm from "@shared/components/ModeloForm.astro";
+
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect("/admin/login");
+}
+
+const error = Astro.url.searchParams.get("error");
+---
+
+<AdminLayout title="Nuevo modelo" user={user}>
+  <div class="page-header">
+    <h1>Nuevo modelo</h1>
+    <a href="/admin/modelos" class="btn-secondary">← Volver</a>
+  </div>
+
+  <ModeloForm
+    action="/api/admin/modelos"
+    submitLabel="Crear modelo"
+    error={error}
+  />
+</AdminLayout>

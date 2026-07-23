@@ -1,0 +1,230 @@
+---
+import type { ModeloConCaracteristicas } from "@modules/catalog";
+
+type Props = {
+  action: string;
+  hiddenMethod?: string;
+  modelo?: ModeloConCaracteristicas | null;
+  error?: string | null;
+  submitLabel?: string;
+};
+
+const {
+  action,
+  hiddenMethod,
+  modelo = null,
+  error = null,
+  submitLabel = "Guardar",
+} = Astro.props;
+
+const caracteristicasText = modelo?.caracteristicas.join("\n") ?? "";
+---
+
+{error && <div class="alert" role="alert">{error}</div>}
+
+<form method="POST" action={action} class="modelo-form">
+  {hiddenMethod && <input type="hidden" name="_method" value={hiddenMethod} />}
+
+  <div class="field full">
+    <label for="nombre">Nombre</label>
+    <input
+      id="nombre"
+      name="nombre"
+      type="text"
+      required
+      maxlength="120"
+      value={modelo?.nombre ?? ""}
+    />
+  </div>
+
+  <div class="field full">
+    <label for="tipo">Tipo</label>
+    <select id="tipo" name="tipo" required>
+      <option value="casa" selected={modelo?.tipo === "casa" || !modelo}>Casa</option>
+      <option value="apartamento" selected={modelo?.tipo === "apartamento"}>Apartamento</option>
+    </select>
+  </div>
+
+  <div class="field">
+    <label for="precioBase">Precio Base (USD)</label>
+    <input
+      id="precioBase"
+      name="precioBase"
+      type="number"
+      step="0.01"
+      min="0"
+      required
+      value={modelo?.precioBase ?? ""}
+    />
+  </div>
+  <div class="field">
+    <label for="terrenoM2">Terreno (m²)</label>
+    <input
+      id="terrenoM2"
+      name="terrenoM2"
+      type="number"
+      step="0.01"
+      min="0"
+      required
+      value={modelo?.terrenoM2 ?? ""}
+    />
+  </div>
+  <div class="field">
+    <label for="construccionM2">Construcción (m²)</label>
+    <input
+      id="construccionM2"
+      name="construccionM2"
+      type="number"
+      step="0.01"
+      min="0"
+      required
+      value={modelo?.construccionM2 ?? ""}
+    />
+  </div>
+
+  <div class="field">
+    <label for="habitaciones">Habitaciones</label>
+    <input
+      id="habitaciones"
+      name="habitaciones"
+      type="number"
+      step="1"
+      min="0"
+      required
+      value={modelo?.habitaciones ?? 0}
+    />
+  </div>
+  <div class="field">
+    <label for="banos">Baños</label>
+    <input
+      id="banos"
+      name="banos"
+      type="number"
+      step="0.5"
+      min="0"
+      required
+      value={modelo?.banos ?? 0}
+    />
+  </div>
+  <div class="field">
+    <label for="parqueos">Parqueos</label>
+    <input
+      id="parqueos"
+      name="parqueos"
+      type="number"
+      step="1"
+      min="0"
+      value={modelo?.parqueos ?? 1}
+    />
+  </div>
+
+  <div class="field full">
+    <label for="dimensionesLote">Dimensiones del Lote</label>
+    <input
+      id="dimensionesLote"
+      name="dimensionesLote"
+      type="text"
+      placeholder="ej. 15m x 7m"
+      maxlength="64"
+      value={modelo?.dimensionesLote ?? ""}
+    />
+  </div>
+
+  <div class="field full">
+    <label for="caracteristicas">Características (una por línea)</label>
+    <textarea id="caracteristicas" name="caracteristicas" rows="8">{caracteristicasText}</textarea>
+  </div>
+
+  <div class="field full">
+    <label for="orden">Orden de visualización</label>
+    <input
+      id="orden"
+      name="orden"
+      type="number"
+      step="1"
+      value={modelo?.orden ?? 0}
+    />
+  </div>
+
+  <div class="actions full">
+    <a href="/admin/modelos" class="btn-cancel">Cancelar</a>
+    <button type="submit">{submitLabel}</button>
+  </div>
+</form>
+
+<style>
+  .modelo-form {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem 1.25rem;
+    background: #1e293b;
+    padding: 1.5rem;
+    border-radius: 12px;
+  }
+  .field { display: flex; flex-direction: column; }
+  .field.full { grid-column: 1 / -1; }
+  .field label {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    margin-bottom: 0.35rem;
+    font-weight: 500;
+  }
+  .field input,
+  .field select,
+  .field textarea {
+    padding: 0.55rem 0.75rem;
+    background: #0f172a;
+    color: #e2e8f0;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    font-family: inherit;
+  }
+  .field textarea {
+    resize: vertical;
+    min-height: 140px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+  .field input:focus,
+  .field select:focus,
+  .field textarea:focus {
+    outline: 2px solid #38bdf8;
+    border-color: transparent;
+  }
+  .actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    margin-top: 0.5rem;
+  }
+  .actions button {
+    padding: 0.6rem 1.5rem;
+    background: #38bdf8;
+    color: #0f172a;
+    border: 0;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.95rem;
+  }
+  .actions button:hover { background: #7dd3fc; }
+  .btn-cancel {
+    padding: 0.6rem 1.5rem;
+    background: transparent;
+    color: #94a3b8;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 0.95rem;
+    display: inline-block;
+  }
+  .btn-cancel:hover {
+    color: #e2e8f0;
+    border-color: #475569;
+  }
+  @media (max-width: 720px) {
+    .modelo-form { grid-template-columns: 1fr; }
+  }
+</style>

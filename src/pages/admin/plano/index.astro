@@ -1,0 +1,187 @@
+---
+import AdminLayout from "@shared/layouts/AdminLayout.astro";
+import { getPlanoActivo } from "@modules/plan";
+
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect("/admin/login");
+}
+
+const plan = getPlanoActivo();
+const error = Astro.url.searchParams.get("error");
+const ok = Astro.url.searchParams.get("ok");
+---
+
+<AdminLayout title="Plano Base" user={user}>
+  <div class="page-header">
+    <h1>Plano Base del Residencial</h1>
+  </div>
+
+  {error && <div class="alert" role="alert">{error}</div>}
+  {ok && <div class="alert alert-info" role="status">Plano guardado correctamente.</div>}
+
+  {plan && (
+    <section class="card">
+      <h2 style="margin-top:0;font-size:1.1rem">Plano actual</h2>
+      <dl class="kv">
+        <dt>Nombre</dt><dd>{plan.nombre}</dd>
+        <dt>Dimensiones originales</dt>
+        <dd>{plan.anchoPx} × {plan.altoPx} px</dd>
+        <dt>Actualizado</dt>
+        <dd>{new Date(plan.createdAt).toLocaleString("es-SV")}</dd>
+      </dl>
+      <div class="preview">
+        <img src={plan.imagenPath} alt={plan.nombre} />
+      </div>
+    </section>
+  )}
+
+  <section class="card">
+    <h2 style="margin-top:0;font-size:1.1rem">
+      {plan ? "Actualizar plano" : "Subir primer plano"}
+    </h2>
+
+    <form method="POST" action="/api/admin/plano" enctype="multipart/form-data" class="plano-form">
+      <div class="field full">
+        <label for="nombre">Nombre</label>
+        <input
+          id="nombre"
+          name="nombre"
+          type="text"
+          maxlength="120"
+          value={plan?.nombre ?? "Plano General Residencial Amena"}
+        />
+      </div>
+
+      <div class="field full">
+        <label for="imagen">Imagen del plano {plan ? "(opcional, dejar vacío para conservar la actual)" : "(requerido)"}</label>
+        <input
+          id="imagen"
+          name="imagen"
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+          required={!plan}
+        />
+        <small style="color:#94a3b8;margin-top:.35rem">PNG, JPG, WEBP, GIF o SVG. Máximo 10MB.</small>
+      </div>
+
+      <div class="field">
+        <label for="anchoPx">Ancho original (px)</label>
+        <input
+          id="anchoPx"
+          name="anchoPx"
+          type="number"
+          min="1"
+          step="1"
+          required
+          value={plan?.anchoPx ?? ""}
+        />
+      </div>
+      <div class="field">
+        <label for="altoPx">Alto original (px)</label>
+        <input
+          id="altoPx"
+          name="altoPx"
+          type="number"
+          min="1"
+          step="1"
+          required
+          value={plan?.altoPx ?? ""}
+        />
+      </div>
+
+      <div class="actions full">
+        <a href="/admin" class="btn-cancel">Cancelar</a>
+        <button type="submit">{plan ? "Guardar cambios" : "Subir plano"}</button>
+      </div>
+    </form>
+  </section>
+</AdminLayout>
+
+<style>
+  .kv {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.35rem 1rem;
+    margin: 0 0 1rem;
+    font-size: 0.9rem;
+  }
+  .kv dt { color: #94a3b8; }
+  .kv dd { margin: 0; }
+  .preview {
+    margin-top: 0.75rem;
+    background: #0f172a;
+    padding: 0.5rem;
+    border-radius: 8px;
+    border: 1px solid #334155;
+    overflow: auto;
+    max-height: 70vh;
+  }
+  .preview img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+  .plano-form {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem 1.25rem;
+  }
+  .field { display: flex; flex-direction: column; }
+  .field.full { grid-column: 1 / -1; }
+  .field label {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    margin-bottom: 0.35rem;
+    font-weight: 500;
+  }
+  .field input {
+    padding: 0.55rem 0.75rem;
+    background: #0f172a;
+    color: #e2e8f0;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    font-family: inherit;
+  }
+  .field input[type="file"] {
+    padding: 0.5rem;
+  }
+  .field input:focus {
+    outline: 2px solid #38bdf8;
+    border-color: transparent;
+  }
+  .actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    margin-top: 0.5rem;
+  }
+  .actions button {
+    padding: 0.6rem 1.5rem;
+    background: #38bdf8;
+    color: #0f172a;
+    border: 0;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.95rem;
+  }
+  .actions button:hover { background: #7dd3fc; }
+  .btn-cancel {
+    padding: 0.6rem 1.5rem;
+    background: transparent;
+    color: #94a3b8;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 0.95rem;
+  }
+  .btn-cancel:hover {
+    color: #e2e8f0;
+    border-color: #475569;
+  }
+  @media (max-width: 640px) {
+    .plano-form { grid-template-columns: 1fr; }
+  }
+</style>
