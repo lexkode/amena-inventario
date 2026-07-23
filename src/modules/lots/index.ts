@@ -12,9 +12,13 @@ export const ESTADOS_LOTE: readonly LoteEstado[] = [
   "vendido",
 ] as const;
 
+type ModeloConCaracteristicas = Omit<Modelo, "caracteristicasJson"> & {
+  caracteristicas: string[];
+};
+
 export type LoteConModelo = Omit<Lote, "poligonoJson"> & {
   poligono: Punto[];
-  modelo: Modelo | null;
+  modelo: ModeloConCaracteristicas | null;
 };
 
 export type CreateLoteInput = {
@@ -48,14 +52,30 @@ function parsePoligono(json: string): Punto[] {
   }
 }
 
+function parseCaracteristicas(json: string | null): string[] {
+  if (!json) return [];
+  try {
+    const parsed: unknown = JSON.parse(json);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((c): c is string => typeof c === "string");
+  } catch {
+    return [];
+  }
+}
+
 type JoinRow = { lote: Lote; modelo: Modelo | null };
+
+function parseModelo(row: Modelo): ModeloConCaracteristicas {
+  const { caracteristicasJson, ...rest } = row;
+  return { ...rest, caracteristicas: parseCaracteristicas(caracteristicasJson) };
+}
 
 function toLoteConModelo(row: JoinRow): LoteConModelo {
   const { poligonoJson, ...rest } = row.lote;
   return {
     ...rest,
     poligono: parsePoligono(poligonoJson),
-    modelo: row.modelo,
+    modelo: row.modelo ? parseModelo(row.modelo) : null,
   };
 }
 
