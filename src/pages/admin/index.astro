@@ -13,36 +13,61 @@ if (!user) {
   </div>
 
   <section class="card">
-    <h2 style="margin-top:0;font-size:1.15rem">Bienvenido</h2>
-    <p style="color:#94a3b8;margin:0">Sesión iniciada como <strong>{user.email}</strong>
+    <h2 class="card-title">Bienvenido</h2>
+    <p class="muted welcome-line">
+      Sesión iniciada como <strong>{user.email}</strong>
       <span class="role-badge">{user.role}</span>
     </p>
   </section>
 
   <section class="card">
-    <h2 style="margin-top:0;font-size:1.15rem">Módulos</h2>
-    <ul style="list-style:none;padding:0;display:grid;gap:.65rem">
+    <h2 class="card-title">Módulos</h2>
+    <ul class="module-list">
       <li>
         <a href="/admin/modelos">📦 Catálogo de modelos</a>
-        <p style="color:#94a3b8;margin:.15rem 0 0">Gestionar casas y apartamentos.</p>
+        <p class="muted">Gestionar casas y apartamentos.</p>
       </li>
       <li>
         <a href="/admin/plano">🗺 Plano base del residencial</a>
-        <p style="color:#94a3b8;margin:.15rem 0 0">Configurar imagen y dimensiones del plano.</p>
+        <p class="muted">Configurar imagen y dimensiones del plano.</p>
+      </li>
+      <li>
+        <a href="/admin/editor">✏️ Editor de lotes</a>
+        <p class="muted">Dibujar y editar los polígonos sobre el plano.</p>
       </li>
     </ul>
   </section>
 </AdminLayout>
 
 <style>
+  .card-title {
+    margin: 0 0 0.5rem;
+    font-size: 1.15rem;
+  }
+  .welcome-line {
+    margin: 0;
+  }
   .role-badge {
     display: inline-block;
     padding: 0.15rem 0.55rem;
-    border-radius: 999px;
-    background: #0ea5e9;
-    color: #0f172a;
-    font-size: 0.8rem;
+    border-radius: var(--r-pill);
+    background: var(--c-accent);
+    color: var(--c-white);
+    font-size: 0.75rem;
     font-weight: 600;
     margin-left: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .module-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 0.65rem;
+  }
+  .module-list p {
+    margin: 0.15rem 0 0;
+    font-size: 0.9rem;
   }
 </style>

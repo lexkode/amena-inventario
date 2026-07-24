@@ -1,0 +1,280 @@
+/* ============================================================
+   Residencial Amena — Design Tokens & Global Reset
+   Source of truth for both public site and admin.
+   ============================================================ */
+
+:root {
+  color-scheme: light;
+
+  /* --- Brand palette --- */
+  --c-text: #244858;
+  --c-text-muted: #5a7682;
+  --c-accent: #dc832f;
+  --c-accent-hover: #b8681d;
+
+  /* --- Surfaces --- */
+  --c-bg: #b6c6c3;
+  --c-bg-light: #c0cfcc;
+  --c-bg-dark: #244858;
+  --c-white: #ffffff;
+  --c-surface: #ffffff;
+  --c-surface-muted: #eef3f1;
+  --c-line: #c0cfcc;
+
+  /* --- Focus / overlays --- */
+  --c-focus: #dc832f;
+  --c-overlay-strong: rgba(15, 23, 42, 0.78);
+  --c-overlay-mid: rgba(15, 23, 42, 0.6);
+
+  /* --- Shadows --- */
+  --c-shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --c-shadow-medium: 0 4px 14px rgba(15, 23, 42, 0.08);
+  --c-shadow-strong: 0 25px 60px -10px rgba(0, 0, 0, 0.5);
+
+  /* --- Floating UI (public logo) --- */
+  --c-float-bg: rgba(89, 89, 89, 0.5);
+  --c-float-border: rgba(39, 82, 102, 0.5);
+
+  /* --- Lot states (used on both sides) --- */
+  --c-disponible: #16a34a;
+  --c-reservado: #dc832f;
+  --c-vendido: #dc2626;
+  --c-disponible-bg: #dcfce7;
+  --c-disponible-fg: #166534;
+  --c-reservado-bg: #fef9c3;
+  --c-reservado-fg: #854d0e;
+  --c-vendido-bg: #fee2e2;
+  --c-vendido-fg: #991b1b;
+  --c-disponible-glow: rgba(34, 197, 94, 0.75);
+  --c-reservado-glow: rgba(234, 179, 8, 0.55);
+  --c-vendido-glow: rgba(239, 68, 68, 0.55);
+
+  /* --- Admin: danger / status alerts --- */
+  --c-danger: #b91c1c;
+  --c-danger-strong: #7f1d1d;
+  --c-danger-soft: #fee2e2;
+  --c-danger-fg: #991b1b;
+
+  /* --- Admin: header (sits on --c-bg-dark) --- */
+  --c-header-fg: rgba(255, 255, 255, 0.92);
+  --c-header-fg-muted: rgba(255, 255, 255, 0.65);
+
+  /* --- Admin: badges for "casa" / "apartamento" --- */
+  --c-badge-casa-bg: #dcfce7;
+  --c-badge-casa-fg: #166534;
+  --c-badge-apto-bg: #dbeafe;
+  --c-badge-apto-fg: #1e3a8a;
+
+  /* --- Radii --- */
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 14px;
+  --r-2xl: 16px;
+  --r-pill: 999px;
+}
+
+/* ============================================================
+   Reset
+   ============================================================ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--c-bg);
+  color: var(--c-text);
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
+}
+a {
+  color: var(--c-text);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--c-accent);
+}
+button {
+  font-family: inherit;
+}
+
+/* ============================================================
+   Shared utility classes (used by both layouts)
+   ============================================================ */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+}
+
+/* Buttons */
+.btn-primary {
+  display: inline-block;
+  padding: 0.55rem 1.1rem;
+  background: var(--c-accent);
+  color: var(--c-white);
+  border-radius: var(--r-sm);
+  font-weight: 600;
+  font-size: 0.9rem;
+  border: 0;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 200ms ease;
+}
+.btn-primary:hover {
+  background: var(--c-accent-hover);
+  color: var(--c-white);
+}
+.btn-primary:disabled {
+  background: var(--c-bg-light);
+  color: var(--c-text-muted);
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  background: transparent;
+  color: var(--c-text);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-sm);
+  font-size: 0.9rem;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 200ms ease, color 200ms ease, background-color 200ms ease;
+}
+.btn-secondary:hover {
+  color: var(--c-accent);
+  border-color: var(--c-accent);
+  background: var(--c-surface);
+}
+
+.btn-danger {
+  display: inline-block;
+  padding: 0.4rem 0.85rem;
+  background: transparent;
+  color: var(--c-danger);
+  border: 1px solid var(--c-danger);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: background-color 200ms ease, color 200ms ease;
+}
+.btn-danger:hover {
+  background: var(--c-danger);
+  color: var(--c-white);
+}
+
+.btn-cancel {
+  display: inline-block;
+  padding: 0.6rem 1.5rem;
+  background: transparent;
+  color: var(--c-text-muted);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-sm);
+  text-decoration: none;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: border-color 200ms ease, color 200ms ease;
+}
+.btn-cancel:hover {
+  color: var(--c-text);
+  border-color: var(--c-text-muted);
+}
+
+/* Alerts */
+.alert {
+  background: var(--c-danger-soft);
+  color: var(--c-danger-fg);
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--r-sm);
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  border: 1px solid var(--c-danger);
+}
+.alert-info {
+  background: #e0f2fe;
+  color: #075985;
+  border-color: #0ea5e9;
+}
+
+/* Cards / panels */
+.card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  padding: 1.5rem;
+  border-radius: var(--r-lg);
+  box-shadow: var(--c-shadow-medium);
+  margin-bottom: 1.5rem;
+}
+.empty {
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  padding: 2rem;
+  border-radius: var(--r-lg);
+  text-align: center;
+  color: var(--c-text-muted);
+}
+
+/* Inputs (shared) */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="file"],
+input[type="search"],
+select,
+textarea {
+  padding: 0.55rem 0.75rem;
+  background: var(--c-white);
+  color: var(--c-text);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-sm);
+  font-size: 0.95rem;
+  font-family: inherit;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+input[type="file"] {
+  padding: 0.5rem;
+}
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--c-accent);
+  box-shadow: 0 0 0 3px rgba(220, 131, 47, 0.18);
+}
+
+/* Page header (admin + plano + editor) */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+.page-header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: var(--c-text);
+}
+.page-header .actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Muted helper */
+.muted {
+  color: var(--c-text-muted);
+}

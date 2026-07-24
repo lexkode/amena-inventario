@@ -36,8 +36,8 @@ const initialData = { plan, lotes, modelos };
 
   {!plan ? (
     <div class="empty">
-      <p style="margin:0 0 1rem">No hay un plano configurado todavía.</p>
-      <p style="color:#94a3b8;margin:0 0 1.5rem">El editor necesita la imagen del plano base para poder dibujar lotes encima.</p>
+      <p class="empty-title">No hay un plano configurado todavía.</p>
+      <p class="muted">El editor necesita la imagen del plano base para poder dibujar lotes encima.</p>
       <a href="/admin/plano" class="btn-primary">Configurar plano</a>
     </div>
   ) : (
@@ -76,29 +76,31 @@ const initialData = { plan, lotes, modelos };
   .mode-group,
   .zoom-group {
     display: inline-flex;
-    background: #1e293b;
-    border-radius: 8px;
+    background: var(--c-surface);
+    border-radius: var(--r-md);
     padding: 0.25rem;
-    border: 1px solid #334155;
+    border: 1px solid var(--c-line);
+    box-shadow: var(--c-shadow-soft);
   }
   .mode-btn,
   .zoom-btn {
     padding: 0.4rem 0.85rem;
     background: transparent;
-    color: #94a3b8;
+    color: var(--c-text-muted);
     border: 0;
-    border-radius: 6px;
+    border-radius: var(--r-sm);
     cursor: pointer;
     font-size: 0.85rem;
     font-weight: 500;
+    transition: color 150ms ease, background-color 150ms ease;
   }
   .mode-btn:hover,
   .zoom-btn:hover {
-    color: #e2e8f0;
+    color: var(--c-text);
   }
   .mode-btn.active {
-    background: #38bdf8;
-    color: #0f172a;
+    background: var(--c-accent);
+    color: var(--c-white);
   }
   .zoom-btn {
     min-width: 2rem;
@@ -107,13 +109,15 @@ const initialData = { plan, lotes, modelos };
     display: inline-flex;
     align-items: center;
     padding: 0 0.6rem;
-    color: #cbd5e1;
+    color: var(--c-text-muted);
     font-size: 0.8rem;
     font-variant-numeric: tabular-nums;
     min-width: 3.5rem;
     justify-content: center;
   }
-  .zoom-fit { padding: 0.4rem 0.6rem; }
+  .zoom-fit {
+    padding: 0.4rem 0.6rem;
+  }
 
   .editor-container {
     display: grid;
@@ -124,10 +128,11 @@ const initialData = { plan, lotes, modelos };
   }
   .canvas-wrap {
     position: relative;
-    background: #0f172a;
-    border-radius: 12px;
+    background: var(--c-bg-dark);
+    border-radius: var(--r-lg);
     overflow: hidden;
-    border: 1px solid #334155;
+    border: 1px solid var(--c-bg-dark);
+    box-shadow: var(--c-shadow-medium);
     min-height: 0;
   }
   #canvas {
@@ -137,34 +142,33 @@ const initialData = { plan, lotes, modelos };
     user-select: none;
   }
   .side-panel {
-    background: #1e293b;
-    border-radius: 12px;
+    background: var(--c-surface);
+    border-radius: var(--r-lg);
     padding: 1.25rem;
     overflow-y: auto;
-    border: 1px solid #334155;
+    border: 1px solid var(--c-line);
+    box-shadow: var(--c-shadow-medium);
   }
-  .side-panel h2 { font-size: 1.1rem; }
-  .side-panel .field { display: flex; flex-direction: column; margin-top: 0.85rem; }
+  .side-panel h2 {
+    font-size: 1.1rem;
+  }
+  .empty-title {
+    margin: 0 0 1rem;
+  }
+  .side-panel .field {
+    display: flex;
+    flex-direction: column;
+    margin-top: 0.85rem;
+  }
   .side-panel .field label {
     font-size: 0.8rem;
-    color: #94a3b8;
+    color: var(--c-text-muted);
     margin-bottom: 0.3rem;
     font-weight: 500;
   }
   .side-panel .field input,
   .side-panel .field select {
-    padding: 0.5rem 0.7rem;
-    background: #0f172a;
-    color: #e2e8f0;
-    border: 1px solid #334155;
-    border-radius: 6px;
     font-size: 0.9rem;
-    font-family: inherit;
-  }
-  .side-panel .field input:focus,
-  .side-panel .field select:focus {
-    outline: 2px solid #38bdf8;
-    border-color: transparent;
   }
   .side-panel .actions {
     display: flex;
@@ -172,39 +176,31 @@ const initialData = { plan, lotes, modelos };
     margin-top: 1.25rem;
     flex-wrap: wrap;
   }
-  .side-panel .btn-primary,
-  .side-panel .btn-secondary,
-  .side-panel .btn-danger {
-    padding: 0.55rem 1rem;
-    border-radius: 6px;
-    font-weight: 600;
-    font-size: 0.9rem;
-    cursor: pointer;
-    border: 0;
-  }
-  .side-panel .btn-primary { background: #38bdf8; color: #0f172a; }
-  .side-panel .btn-primary:disabled { background: #334155; color: #94a3b8; cursor: not-allowed; }
-  .side-panel .btn-secondary { background: transparent; color: #94a3b8; border: 1px solid #334155; }
-  .side-panel .btn-danger { background: transparent; color: #fca5a5; border: 1px solid #b91c1c; }
   .form-error {
     margin-top: 0.85rem;
     padding: 0.5rem 0.75rem;
-    background: #7f1d1d;
-    color: #fee2e2;
-    border-radius: 6px;
+    background: var(--c-danger-soft);
+    color: var(--c-danger-fg);
+    border: 1px solid var(--c-danger);
+    border-radius: var(--r-sm);
     font-size: 0.85rem;
   }
   kbd {
     display: inline-block;
     padding: 0 0.35rem;
-    background: #0f172a;
-    border: 1px solid #334155;
+    background: var(--c-surface-muted);
+    border: 1px solid var(--c-line);
     border-radius: 4px;
     font-family: ui-monospace, monospace;
     font-size: 0.8em;
   }
   @media (max-width: 900px) {
-    .editor-container { grid-template-columns: 1fr; height: auto; }
-    .canvas-wrap { height: 60dvh; }
+    .editor-container {
+      grid-template-columns: 1fr;
+      height: auto;
+    }
+    .canvas-wrap {
+      height: 60dvh;
+    }
   }
 </style>

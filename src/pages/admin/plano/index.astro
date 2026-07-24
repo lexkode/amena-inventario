@@ -22,7 +22,7 @@ const ok = Astro.url.searchParams.get("ok");
 
   {plan && (
     <section class="card">
-      <h2 style="margin-top:0;font-size:1.1rem">Plano actual</h2>
+      <h2 class="card-title">Plano actual</h2>
       <dl class="kv">
         <dt>Nombre</dt><dd>{plan.nombre}</dd>
         <dt>Dimensiones originales</dt>
@@ -37,7 +37,7 @@ const ok = Astro.url.searchParams.get("ok");
   )}
 
   <section class="card">
-    <h2 style="margin-top:0;font-size:1.1rem">
+    <h2 class="card-title">
       {plan ? "Actualizar plano" : "Subir primer plano"}
     </h2>
 
@@ -62,7 +62,7 @@ const ok = Astro.url.searchParams.get("ok");
           accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
           required={!plan}
         />
-        <small style="color:#94a3b8;margin-top:.35rem">PNG, JPG, WEBP, GIF o SVG. Máximo 10MB.</small>
+        <small class="hint">PNG, JPG, WEBP, GIF o SVG. Máximo 10MB.</small>
       </div>
 
       <div class="field">
@@ -92,13 +92,17 @@ const ok = Astro.url.searchParams.get("ok");
 
       <div class="actions full">
         <a href="/admin" class="btn-cancel">Cancelar</a>
-        <button type="submit">{plan ? "Guardar cambios" : "Subir plano"}</button>
+        <button type="submit" class="btn-primary">{plan ? "Guardar cambios" : "Subir plano"}</button>
       </div>
     </form>
   </section>
 </AdminLayout>
 
 <style>
+  .card-title {
+    margin: 0 0 1rem;
+    font-size: 1.1rem;
+  }
   .kv {
     display: grid;
     grid-template-columns: max-content 1fr;
@@ -106,14 +110,18 @@ const ok = Astro.url.searchParams.get("ok");
     margin: 0 0 1rem;
     font-size: 0.9rem;
   }
-  .kv dt { color: #94a3b8; }
-  .kv dd { margin: 0; }
+  .kv dt {
+    color: var(--c-text-muted);
+  }
+  .kv dd {
+    margin: 0;
+  }
   .preview {
     margin-top: 0.75rem;
-    background: #0f172a;
+    background: var(--c-bg-dark);
     padding: 0.5rem;
-    border-radius: 8px;
-    border: 1px solid #334155;
+    border-radius: var(--r-md);
+    border: 1px solid var(--c-bg-dark);
     overflow: auto;
     max-height: 70vh;
   }
@@ -127,29 +135,23 @@ const ok = Astro.url.searchParams.get("ok");
     grid-template-columns: repeat(2, 1fr);
     gap: 1rem 1.25rem;
   }
-  .field { display: flex; flex-direction: column; }
-  .field.full { grid-column: 1 / -1; }
+  .field {
+    display: flex;
+    flex-direction: column;
+  }
+  .field.full {
+    grid-column: 1 / -1;
+  }
   .field label {
     font-size: 0.85rem;
-    color: #94a3b8;
+    color: var(--c-text-muted);
     margin-bottom: 0.35rem;
     font-weight: 500;
   }
-  .field input {
-    padding: 0.55rem 0.75rem;
-    background: #0f172a;
-    color: #e2e8f0;
-    border: 1px solid #334155;
-    border-radius: 6px;
-    font-size: 0.95rem;
-    font-family: inherit;
-  }
-  .field input[type="file"] {
-    padding: 0.5rem;
-  }
-  .field input:focus {
-    outline: 2px solid #38bdf8;
-    border-color: transparent;
+  .field small.hint {
+    color: var(--c-text-muted);
+    margin-top: 0.35rem;
+    font-size: 0.8rem;
   }
   .actions {
     display: flex;
@@ -157,31 +159,9 @@ const ok = Astro.url.searchParams.get("ok");
     justify-content: flex-end;
     margin-top: 0.5rem;
   }
-  .actions button {
-    padding: 0.6rem 1.5rem;
-    background: #38bdf8;
-    color: #0f172a;
-    border: 0;
-    border-radius: 6px;
-    font-weight: 600;
-    cursor: pointer;
-    font-size: 0.95rem;
-  }
-  .actions button:hover { background: #7dd3fc; }
-  .btn-cancel {
-    padding: 0.6rem 1.5rem;
-    background: transparent;
-    color: #94a3b8;
-    border: 1px solid #334155;
-    border-radius: 6px;
-    text-decoration: none;
-    font-size: 0.95rem;
-  }
-  .btn-cancel:hover {
-    color: #e2e8f0;
-    border-color: #475569;
-  }
   @media (max-width: 640px) {
-    .plano-form { grid-template-columns: 1fr; }
+    .plano-form {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

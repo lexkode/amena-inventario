@@ -210,7 +210,7 @@ function renderOverlayLayer(): void {
       state.currentPolygon.map((p) => `${p.x},${p.y}`).join(" "),
     );
     polyline.setAttribute("fill", "none");
-    polyline.setAttribute("stroke", "#38bdf8");
+    polyline.setAttribute("stroke", "#dc832f");
     polyline.setAttribute("stroke-width", "2");
     polyline.setAttribute("stroke-dasharray", "6,4");
     overlayLayer.appendChild(polyline);
@@ -220,7 +220,7 @@ function renderOverlayLayer(): void {
       c.setAttribute("cx", String(p.x));
       c.setAttribute("cy", String(p.y));
       c.setAttribute("r", "8");
-      c.setAttribute("fill", "#38bdf8");
+      c.setAttribute("fill", "#dc832f");
       c.setAttribute("stroke", "#fff");
       c.setAttribute("stroke-width", "2");
       overlayLayer.appendChild(c);
@@ -237,7 +237,7 @@ function renderOverlayLayer(): void {
         handle.setAttribute("cy", String(p.y));
         handle.setAttribute("r", "12");
         handle.setAttribute("fill", "#fff");
-        handle.setAttribute("stroke", "#38bdf8");
+        handle.setAttribute("stroke", "#dc832f");
         handle.setAttribute("stroke-width", "3");
         handle.setAttribute("class", "vertex-handle");
         handle.setAttribute("data-lote-id", String(lote.id));
@@ -264,14 +264,14 @@ function renderSidePanel(): void {
     if (state.currentPolygon.length === 0) {
       sidePanel.innerHTML = `
         <h2 style="margin-top:0">Modo Dibujar</h2>
-        <p style="color:#94a3b8;font-size:.9rem">Haz clic en el plano para colocar el primer vértice del polígono.</p>
-        <p style="color:#64748b;font-size:.8rem;margin-top:1rem">Shift+arrastrar o botón central para panear. Rueda para zoom.</p>
+        <p style="color:#5a7682;font-size:.9rem">Haz clic en el plano para colocar el primer vértice del polígono.</p>
+        <p style="color:#5a7682;font-size:.8rem;margin-top:1rem">Shift+arrastrar o botón central para panear. Rueda para zoom.</p>
       `;
     } else {
       const canClose = state.currentPolygon.length >= 3;
       sidePanel.innerHTML = `
         <h2 style="margin-top:0">Dibujando: ${state.currentPolygon.length} puntos</h2>
-        <p style="color:#94a3b8;font-size:.85rem">Mínimo 3 vértices para cerrar.</p>
+        <p style="color:#5a7682;font-size:.85rem">Mínimo 3 vértices para cerrar.</p>
         <div class="actions">
           <button id="close-polygon" class="btn-primary" ${canClose ? "" : "disabled"}>Cerrar polígono</button>
           <button id="cancel-draw" class="btn-secondary">Cancelar</button>
@@ -297,13 +297,13 @@ function renderSidePanel(): void {
 
   sidePanel.innerHTML = `
     <h2 style="margin-top:0">Editor de Plano</h2>
-    <p style="color:#94a3b8;font-size:.9rem">Selecciona un modo para comenzar:</p>
-    <ul style="color:#cbd5e1;font-size:.85rem;line-height:1.7;padding-left:1.2rem;margin-top:.75rem">
+    <p style="color:#5a7682;font-size:.9rem">Selecciona un modo para comenzar:</p>
+    <ul style="color:#5a7682;font-size:.85rem;line-height:1.7;padding-left:1.2rem;margin-top:.75rem">
       <li><strong>Ver</strong>: pan y zoom del plano</li>
       <li><strong>Dibujar</strong>: clic para crear un nuevo lote</li>
       <li><strong>Editar</strong>: clic en un lote existente para modificarlo</li>
     </ul>
-    <p style="color:#64748b;font-size:.8rem;margin-top:1rem">Tip: <kbd>Shift</kbd>+arrastrar = panear en cualquier modo. Rueda = zoom. <kbd>Esc</kbd> = cancelar.</p>
+    <p style="color:#5a7682;font-size:.8rem;margin-top:1rem">Tip: <kbd>Shift</kbd>+arrastrar = panear en cualquier modo. Rueda = zoom. <kbd>Esc</kbd> = cancelar.</p>
   `;
 }
 

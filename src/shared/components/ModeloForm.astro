@@ -148,7 +148,7 @@ const caracteristicasText = modelo?.caracteristicas.join("\n") ?? "";
 
   <div class="actions full">
     <a href="/admin/modelos" class="btn-cancel">Cancelar</a>
-    <button type="submit">{submitLabel}</button>
+    <button type="submit" class="btn-primary">{submitLabel}</button>
   </div>
 </form>
 
@@ -157,28 +157,24 @@ const caracteristicasText = modelo?.caracteristicas.join("\n") ?? "";
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 1rem 1.25rem;
-    background: #1e293b;
+    background: var(--c-surface);
+    border: 1px solid var(--c-line);
     padding: 1.5rem;
-    border-radius: 12px;
+    border-radius: var(--r-lg);
+    box-shadow: var(--c-shadow-medium);
   }
-  .field { display: flex; flex-direction: column; }
-  .field.full { grid-column: 1 / -1; }
+  .field {
+    display: flex;
+    flex-direction: column;
+  }
+  .field.full {
+    grid-column: 1 / -1;
+  }
   .field label {
     font-size: 0.85rem;
-    color: #94a3b8;
+    color: var(--c-text-muted);
     margin-bottom: 0.35rem;
     font-weight: 500;
-  }
-  .field input,
-  .field select,
-  .field textarea {
-    padding: 0.55rem 0.75rem;
-    background: #0f172a;
-    color: #e2e8f0;
-    border: 1px solid #334155;
-    border-radius: 6px;
-    font-size: 0.95rem;
-    font-family: inherit;
   }
   .field textarea {
     resize: vertical;
@@ -187,44 +183,15 @@ const caracteristicasText = modelo?.caracteristicas.join("\n") ?? "";
     font-size: 0.9rem;
     line-height: 1.5;
   }
-  .field input:focus,
-  .field select:focus,
-  .field textarea:focus {
-    outline: 2px solid #38bdf8;
-    border-color: transparent;
-  }
   .actions {
     display: flex;
     gap: 0.75rem;
     justify-content: flex-end;
     margin-top: 0.5rem;
   }
-  .actions button {
-    padding: 0.6rem 1.5rem;
-    background: #38bdf8;
-    color: #0f172a;
-    border: 0;
-    border-radius: 6px;
-    font-weight: 600;
-    cursor: pointer;
-    font-size: 0.95rem;
-  }
-  .actions button:hover { background: #7dd3fc; }
-  .btn-cancel {
-    padding: 0.6rem 1.5rem;
-    background: transparent;
-    color: #94a3b8;
-    border: 1px solid #334155;
-    border-radius: 6px;
-    text-decoration: none;
-    font-size: 0.95rem;
-    display: inline-block;
-  }
-  .btn-cancel:hover {
-    color: #e2e8f0;
-    border-color: #475569;
-  }
   @media (max-width: 720px) {
-    .modelo-form { grid-template-columns: 1fr; }
+    .modelo-form {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

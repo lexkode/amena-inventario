@@ -29,7 +29,7 @@ const usd = new Intl.NumberFormat("en-US", {
 
   {modelos.length === 0 ? (
     <div class="empty">
-      <p style="margin:0 0 1rem">No hay modelos aún.</p>
+      <p class="empty-title">No hay modelos aún.</p>
       <a href="/admin/modelos/nuevo" class="btn-primary">Crear el primero</a>
     </div>
   ) : (
@@ -55,7 +55,7 @@ const usd = new Intl.NumberFormat("en-US", {
               <td>
                 <strong>{m.nombre}</strong>
                 {m.dimensionesLote && (
-                  <div style="color:#94a3b8;font-size:.8rem;margin-top:.15rem">{m.dimensionesLote}</div>
+                  <div class="sub">{m.dimensionesLote}</div>
                 )}
               </td>
               <td>
@@ -72,7 +72,7 @@ const usd = new Intl.NumberFormat("en-US", {
                   method="POST"
                   action={`/api/admin/modelos/${m.id}`}
                   onsubmit="return confirm('¿Eliminar este modelo? Esta acción no se puede deshacer.')"
-                  style="display:inline"
+                  class="row-form"
                 >
                   <input type="hidden" name="_method" value="DELETE" />
                   <button type="submit" class="btn-danger">Eliminar</button>
@@ -89,45 +89,71 @@ const usd = new Intl.NumberFormat("en-US", {
 <style>
   .table-wrap {
     overflow-x: auto;
-    background: #1e293b;
-    border-radius: 12px;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+    background: var(--c-surface);
+    border: 1px solid var(--c-line);
+    border-radius: var(--r-lg);
+    box-shadow: var(--c-shadow-medium);
   }
   table {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.9rem;
   }
-  th, td {
+  th,
+  td {
     padding: 0.7rem 0.85rem;
     text-align: left;
-    border-bottom: 1px solid #334155;
+    border-bottom: 1px solid var(--c-line);
     white-space: nowrap;
   }
   th {
-    background: #0f172a;
-    color: #94a3b8;
+    background: var(--c-surface-muted);
+    color: var(--c-text-muted);
     font-weight: 600;
     font-size: 0.8rem;
     text-transform: uppercase;
     letter-spacing: 0.03em;
   }
-  tbody tr:last-child td { border-bottom: 0; }
-  tbody tr:hover { background: rgba(56, 189, 248, 0.05); }
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  tbody tr {
+    transition: background-color 150ms ease;
+  }
+  tbody tr:hover {
+    background: rgba(220, 131, 47, 0.06);
+  }
+  .sub {
+    color: var(--c-text-muted);
+    font-size: 0.8rem;
+    margin-top: 0.15rem;
+  }
+  .empty-title {
+    margin: 0 0 1rem;
+  }
   .badge {
     display: inline-block;
     padding: 0.15rem 0.55rem;
-    border-radius: 999px;
+    border-radius: var(--r-pill);
     font-size: 0.75rem;
     font-weight: 600;
     text-transform: capitalize;
   }
-  .badge-casa { background: #166534; color: #bbf7d0; }
-  .badge-apartamento { background: #1e3a8a; color: #bfdbfe; }
+  .badge-casa {
+    background: var(--c-badge-casa-bg);
+    color: var(--c-badge-casa-fg);
+  }
+  .badge-apartamento {
+    background: var(--c-badge-apto-bg);
+    color: var(--c-badge-apto-fg);
+  }
   .row-actions {
     display: flex;
     gap: 0.4rem;
     align-items: center;
   }
-  .row-actions form { display: inline; margin: 0; }
+  .row-form {
+    display: inline;
+    margin: 0;
+  }
 </style>
