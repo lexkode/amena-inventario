@@ -14,7 +14,8 @@
       "@/*": ["src/*"],
       "@db/*": ["src/db/*"],
       "@modules/*": ["src/modules/*"],
-      "@shared/*": ["src/shared/*"]
+      "@shared/*": ["src/shared/*"],
+      "@assets/*": ["src/assets/*"]
     },
     "verbatimModuleSyntax": true
   }

@@ -22,13 +22,31 @@ const {
       :root {
         color-scheme: light;
         --c-disponible: #16a34a;
-        --c-reservado: #ca8a04;
+        --c-reservado: #dc832f;
         --c-vendido: #dc2626;
-        --c-ink: #0f172a;
-        --c-ink-soft: #475569;
-        --c-line: #e2e8f0;
-        --c-bg: #f8fafc;
-        --c-card: #ffffff;
+        --c-disponible-bg: #dcfce7;
+        --c-disponible-fg: #166534;
+        --c-reservado-bg: #fef9c3;
+        --c-reservado-fg: #854d0e;
+        --c-vendido-bg: #fee2e2;
+        --c-vendido-fg: #991b1b;
+        --c-disponible-glow: rgba(34, 197, 94, 0.75);
+        --c-reservado-glow: rgba(234, 179, 8, 0.55);
+        --c-vendido-glow: rgba(239, 68, 68, 0.55);
+        --c-text: #244858;
+        --c-accent: #dc832f;
+        --c-line: #c0cfcc;
+        --c-bg: #b6c6c3;
+        --c-bg-light: #c0cfcc;
+        --c-bg-dark: #244858;
+        --c-white: #ffffff;
+        --c-focus: #38bdf8;
+        --c-overlay-strong: rgba(15, 23, 42, 0.78);
+        --c-overlay-mid: rgba(15, 23, 42, 0.6);
+        --c-shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.04);
+        --c-shadow-strong: 0 25px 60px -10px rgba(0, 0, 0, 0.5);
+        --c-float-bg: rgba(89, 89, 89, 0.5);
+        --c-float-border: rgba(39, 82, 102, 0.5);
       }
       *,
       *::before,
@@ -43,17 +61,17 @@ const {
       body {
         font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
         background: var(--c-bg);
-        color: var(--c-ink);
+        color: var(--c-text);
         min-height: 100dvh;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
         line-height: 1.5;
       }
       a {
-        color: #0369a1;
+        color: var(--c-text);
       }
       a:hover {
-        color: #075985;
+        color: var(--c-accent);
       }
       button {
         font-family: inherit;

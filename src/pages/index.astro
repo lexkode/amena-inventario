@@ -3,6 +3,8 @@ import PublicLayout from "@shared/layouts/PublicLayout.astro";
 import { getPlanoActivo } from "@modules/plan";
 import { getLotes } from "@modules/lots";
 import { getModelos } from "@modules/catalog";
+import mapBg from "@assets/logo-bg-transparency.webp";
+import logo from "@assets/logo-AMENA.webp";
 
 const plan = getPlanoActivo();
 const lotes = plan ? getLotes() : [];
@@ -13,578 +15,756 @@ const initialData = { plan, lotes, modelos };
 
 <PublicLayout title="Residencial Amena · Lotes disponibles en Comalapa">
   <section class="map-section">
+    <div class="logo-float">
+      <img src={logo} alt="Residencial Amena" />
+    </div>
     <div class="container">
-      {!plan ? (
-        <div class="empty card-empty">
-          <h3>Próximamente</h3>
-          <p>
-            Estamos preparando el plano del residencial. Vuelve pronto
-            para descubrir los lotes disponibles.
-          </p>
-        </div>
-      ) : (
-        <>
-          <div class="filter-bar">
-            <div class="filter-group">
-              <span class="filter-label">Estado</span>
-              <div class="pills" role="tablist" aria-label="Filtrar por estado">
-                <button data-status="all" class="pill active" type="button">Todos</button>
-                <button data-status="disponible" class="pill pill-disponible" type="button">Disponibles</button>
-                <button data-status="reservado" class="pill pill-reservado" type="button">Reservados</button>
-                <button data-status="vendido" class="pill pill-vendido" type="button">Vendidos</button>
-              </div>
-            </div>
-            <div class="filter-group">
-              <label for="modelo-filter" class="filter-label">Modelo de casa</label>
-              <select id="modelo-filter" class="select">
-                <option value="">Todos los modelos</option>
-              </select>
-            </div>
+      {
+        !plan ? (
+          <div class="empty card-empty">
+            <h3>Próximamente</h3>
+            <p>
+              Estamos preparando el plano del residencial. Vuelve pronto para
+              descubrir los lotes disponibles.
+            </p>
           </div>
-
-          <div class="canvas-wrap" style={`aspect-ratio: ${plan.anchoPx}/${plan.altoPx}`}>
-            <svg
-              id="canvas"
-              viewBox={`0 0 ${plan.anchoPx} ${plan.altoPx}`}
-              preserveAspectRatio="xMidYMid meet"
-            >
-              <image
-                id="plan-image"
-                href={plan.imagenPath}
-                x="0"
-                y="0"
-                width={plan.anchoPx}
-                height={plan.altoPx}
-                preserveAspectRatio="xMidYMid meet"
-              />
-              <g id="lots-layer"></g>
-            </svg>
-            <div class="zoom-controls" role="group" aria-label="Controles de zoom">
-              <button id="zoom-out" class="zoom-btn" type="button" aria-label="Reducir">−</button>
-              <span id="zoom-display" class="zoom-display">100%</span>
-              <button id="zoom-in" class="zoom-btn" type="button" aria-label="Aumentar">+</button>
-              <button id="zoom-fit" class="zoom-btn zoom-fit" type="button">Fit</button>
-            </div>
-          </div>
-
-          <div class="modal-backdrop" id="lot-modal-backdrop" aria-hidden="true">
+        ) : (
+          <>
             <div
-              class="modal"
-              id="lot-modal"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="lot-modal-title"
+              class="canvas-wrap"
+              style={`aspect-ratio: ${plan.anchoPx}/${plan.altoPx}`}
             >
-              <button
-                class="modal-close"
-                id="lot-modal-close"
-                type="button"
-                aria-label="Cerrar"
-              >×</button>
-              <div class="modal-grid">
-                <div class="modal-gallery" id="lot-modal-gallery"></div>
-                <div class="modal-info" id="lot-modal-info"></div>
+              <svg
+                id="canvas"
+                viewBox={`0 0 ${plan.anchoPx} ${plan.altoPx}`}
+                preserveAspectRatio="xMidYMid meet"
+              >
+                <image
+                  id="plan-image"
+                  href={plan.imagenPath}
+                  x="0"
+                  y="0"
+                  width={plan.anchoPx}
+                  height={plan.altoPx}
+                  preserveAspectRatio="xMidYMid meet"
+                />
+                <g id="lots-layer" />
+              </svg>
+              <div class="filter-bar">
+                <div class="filter-group">
+                  <span class="filter-label">Estado</span>
+                  <div
+                    class="pills"
+                    role="tablist"
+                    aria-label="Filtrar por estado"
+                  >
+                    <button data-status="all" class="pill active" type="button">
+                      Todos
+                    </button>
+                    <button
+                      data-status="disponible"
+                      class="pill pill-disponible"
+                      type="button"
+                    >
+                      Disponibles
+                    </button>
+                    <button
+                      data-status="reservado"
+                      class="pill pill-reservado"
+                      type="button"
+                    >
+                      Reservados
+                    </button>
+                    <button
+                      data-status="vendido"
+                      class="pill pill-vendido"
+                      type="button"
+                    >
+                      Vendidos
+                    </button>
+                  </div>
+                </div>
+                <div class="filter-group">
+                  <label for="modelo-filter" class="filter-label">
+                    Modelo de casa
+                  </label>
+                  <select id="modelo-filter" class="select">
+                    <option value="">Todos los modelos</option>
+                  </select>
+                </div>
+              </div>
+              <div
+                class="zoom-controls"
+                role="group"
+                aria-label="Controles de zoom"
+              >
+                <button
+                  id="zoom-out"
+                  class="zoom-btn"
+                  type="button"
+                  aria-label="Reducir"
+                >
+                  −
+                </button>
+                <span id="zoom-display" class="zoom-display">
+                  100%
+                </span>
+                <button
+                  id="zoom-in"
+                  class="zoom-btn"
+                  type="button"
+                  aria-label="Aumentar"
+                >
+                  +
+                </button>
+                <button id="zoom-fit" class="zoom-btn zoom-fit" type="button">
+                  Fit
+                </button>
               </div>
             </div>
-          </div>
 
-          <div class="modal-backdrop contact-backdrop" id="contact-modal-backdrop" aria-hidden="true">
-            <div class="modal contact-modal" id="contact-modal" role="dialog" aria-modal="true">
-              <button
-                class="modal-close"
-                id="contact-modal-close"
-                type="button"
-                aria-label="Cerrar"
-              >×</button>
-              <div class="contact-header" id="contact-header"></div>
-              <div class="contact-body">
-                <div
-                  id="client-form-embed-placeholder"
-                  class="form-embed-placeholder"
+            <div
+              class="modal-backdrop"
+              id="lot-modal-backdrop"
+              aria-hidden="true"
+            >
+              <div
+                class="modal"
+                id="lot-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="lot-modal-title"
+              >
+                <button
+                  class="modal-close"
+                  id="lot-modal-close"
+                  type="button"
+                  aria-label="Cerrar"
                 >
-                  <p class="form-embed-text">
-                    [ Formulario de contacto embebido del cliente ]
-                  </p>
+                  ×
+                </button>
+                <div class="modal-grid">
+                  <div class="modal-gallery" id="lot-modal-gallery" />
+                  <div class="modal-info" id="lot-modal-info" />
                 </div>
               </div>
             </div>
-          </div>
-        </>
-      )}
+
+            <div
+              class="modal-backdrop contact-backdrop"
+              id="contact-modal-backdrop"
+              aria-hidden="true"
+            >
+              <div
+                class="modal contact-modal"
+                id="contact-modal"
+                role="dialog"
+                aria-modal="true"
+              >
+                <button
+                  class="modal-close"
+                  id="contact-modal-close"
+                  type="button"
+                  aria-label="Cerrar"
+                >
+                  ×
+                </button>
+                <div class="contact-header" id="contact-header" />
+                <div class="contact-body">
+                  <div
+                    id="client-form-embed-placeholder"
+                    class="form-embed-placeholder"
+                  >
+                    <p class="form-embed-text">[ Formulario de contacto ]</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        )
+      }
     </div>
   </section>
 
-  <footer class="footer">
-    <div class="container">
-      <p>© 2026 Residencial Amena · Comalapa, El Salvador</p>
-    </div>
-  </footer>
+  <style>
+    /* ===== Buttons ===== */
+    button {
+      background: transparent;
+      transition: background-color 300ms ease 0ms;
+      border-radius: 6px;
+    }
+    /* ===== Section ===== */
+    .logo-float {
+      position: absolute;
+      top: 1rem;
+      left: 1rem;
+      z-index: 10;
+      padding: 1rem;
+      max-width: 200px;
+      background-color: var(--c-float-bg);
+      border-width: 0px;
+      border-color: var(--c-float-border);
+      border-radius: 1rem;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .logo-float img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    .map-section {
+      height: 100vh;
+      position: relative;
+      background-color: var(--c-bg);
+      background-image: url(${mapBg});
+      background-position: center;
+      background-size: cover;
+      background-repeat: no-repeat;
+    }
+    .map-section > .container {
+      padding: 0;
+      height: 100%;
+      max-width: none;
+    }
 
-  <script id="map-data" type="application/json" is:inline set:html={JSON.stringify(initialData)}></script>
-  {!plan ? null : (
-    <script>
-      import { initPublicMap } from "../scripts/public-map";
-      initPublicMap();
-    </script>
-  )}
-</PublicLayout>
+    .empty {
+      background: var(--c-white);
+      border: 1px solid var(--c-line);
+      border-radius: 14px;
+      padding: 3rem 1.5rem;
+      text-align: center;
+    }
+    .empty h3 {
+      margin: 0 0 0.5rem;
+      font-size: 1.3rem;
+    }
+    .empty p {
+      margin: 0;
+      color: var(--c-text);
+      max-width: 480px;
+      margin-inline: auto;
+    }
 
-<style>
-  /* ===== Section ===== */
-  .map-section { padding: 3rem 0 4rem; }
+    /* ===== Filter bar ===== */
+    .filter-bar {
+      position: absolute;
+      bottom: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      width: 90%;
+      max-width: 800px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.25rem 1.75rem;
+      align-items: flex-end;
+      justify-content: space-between;
+      background: var(--c-white);
+      border: 1px solid var(--c-line);
+      border-radius: 14px;
+      padding: 1rem 1.25rem;
+      box-shadow: var(--c-shadow-soft);
+    }
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+    .filter-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--c-text);
+      font-weight: 600;
+    }
+    .pills {
+      display: flex;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+    .pill {
+      border-width: 0px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 6px 12px;
+      cursor: pointer;
+      color: var(--c-text);
+      background: var(--c-bg-light);
+    }
+    .pill[data-status="all"].active,
+    .pill[data-status="all"]:hover {
+      background: var(--c-bg-dark);
+      color: var(--c-white);
+    }
+    .pill-disponible.active,
+    .pill-disponible:hover {
+      background: var(--c-disponible);
+      color: var(--c-white);
+    }
+    .pill-reservado.active,
+    .pill-reservado:hover {
+      background: var(--c-reservado);
+      color: var(--c-white);
+    }
+    .pill-vendido.active,
+    .pill-vendido:hover {
+      background: var(--c-vendido);
+      color: var(--c-white);
+    }
 
-  .empty {
-    background: #fff;
-    border: 1px solid var(--c-line);
-    border-radius: 14px;
-    padding: 3rem 1.5rem;
-    text-align: center;
-  }
-  .empty h3 { margin: 0 0 0.5rem; font-size: 1.3rem; }
-  .empty p { margin: 0; color: var(--c-ink-soft); max-width: 480px; margin-inline: auto; }
+    .select {
+      padding: 0.5rem 0.75rem;
+      background: var(--c-white);
+      color: var(--c-text);
+      border: 1px solid var(--c-line);
+      border-radius: 8px;
+      font-size: 0.9rem;
+      min-width: 220px;
+      cursor: pointer;
+    }
+    .select:focus {
+      outline: 2px solid var(--c-focus);
+      border-color: transparent;
+    }
 
-  /* ===== Filter bar ===== */
-  .filter-bar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1.25rem 1.75rem;
-    align-items: flex-end;
-    justify-content: space-between;
-    background: #fff;
-    border: 1px solid var(--c-line);
-    border-radius: 14px;
-    padding: 1rem 1.25rem;
-    margin-bottom: 1.25rem;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-  }
-  .filter-group { display: flex; flex-direction: column; gap: 0.4rem; }
-  .filter-label {
-    font-size: 0.72rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--c-ink-soft);
-    font-weight: 600;
-  }
-  .pills { display: flex; gap: 0.4rem; flex-wrap: wrap; }
-  .pill {
-    padding: 0.45rem 0.95rem;
-    border: 1px solid var(--c-line);
-    background: #fff;
-    color: var(--c-ink-soft);
-    border-radius: 999px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
-  }
-  .pill:hover { background: #f1f5f9; color: var(--c-ink); }
-  .pill.active {
-    background: var(--c-ink);
-    color: #fff;
-    border-color: var(--c-ink);
-  }
-  .pill-disponible.active { background: var(--c-disponible); border-color: var(--c-disponible); }
-  .pill-reservado.active { background: var(--c-reservado); border-color: var(--c-reservado); }
-  .pill-vendido.active { background: var(--c-vendido); border-color: var(--c-vendido); }
+    /* ===== Canvas ===== */
+    .canvas-wrap {
+      position: relative;
+      overflow: visible;
+      width: 100%;
+      height: 100%;
+    }
+    #canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+      touch-action: none;
+      overflow: visible;
+      padding: 2rem 2rem 8rem;
+    }
+    #canvas:active {
+      cursor: grabbing;
+    }
 
-  .select {
-    padding: 0.5rem 0.75rem;
-    background: #fff;
-    color: var(--c-ink);
-    border: 1px solid var(--c-line);
-    border-radius: 8px;
-    font-size: 0.9rem;
-    min-width: 220px;
-    cursor: pointer;
-  }
-  .select:focus { outline: 2px solid #38bdf8; border-color: transparent; }
-
-  /* ===== Canvas ===== */
-  .canvas-wrap {
-    position: relative;
-    background: #0f172a;
-    border-radius: 14px;
-    overflow: hidden;
-    border: 1px solid var(--c-line);
-    width: 100%;
-  }
-  #canvas {
-    display: block;
-    width: 100%;
-    height: 100%;
-    cursor: grab;
-    touch-action: none;
-  }
-  #canvas:active { cursor: grabbing; }
-
-  /* Polygons y labels se crean desde el script (sin data-astro-cid-*),
+    /* Polygons y labels se crean desde el script (sin data-astro-cid-*),
      por eso usamos :global() para que el scope no las oculte. */
-  :global(.lote-polygon) {
-    cursor: pointer;
-    transition: filter 0.15s, stroke-width 0.15s, opacity 0.15s;
-  }
-  :global(.lote-polygon):hover { stroke-width: 3; }
-  :global(.lote-polygon.lote-disponible):hover {
-    filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.75));
-  }
-  :global(.lote-polygon.lote-reservado):hover {
-    filter: drop-shadow(0 0 6px rgba(234, 179, 8, 0.55));
-  }
-  :global(.lote-polygon.lote-vendido):hover {
-    filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.55));
-  }
-  :global(.lote-polygon.dimmed) {
-    opacity: 0.3;
-    pointer-events: none;
-  }
-  :global(.lote-polygon.selected) {
-    stroke-width: 4;
-  }
+    :global(.lote-polygon) {
+      cursor: pointer;
+      transition:
+        filter 0.15s,
+        stroke-width 0.15s,
+        opacity 0.15s;
+    }
+    :global(.lote-polygon):hover {
+      stroke-width: 3;
+    }
+    :global(.lote-polygon.lote-disponible):hover {
+      filter: drop-shadow(0 0 6px var(--c-disponible-glow));
+    }
+    :global(.lote-polygon.lote-reservado):hover {
+      filter: drop-shadow(0 0 6px var(--c-reservado-glow));
+    }
+    :global(.lote-polygon.lote-vendido):hover {
+      filter: drop-shadow(0 0 6px var(--c-vendido-glow));
+    }
+    :global(.lote-polygon.dimmed) {
+      opacity: 0.4;
+      pointer-events: none;
+    }
+    :global(.lote-polygon.selected) {
+      stroke-width: 4;
+    }
 
-  .zoom-controls {
-    position: absolute;
-    right: 1rem;
-    bottom: 1rem;
-    display: inline-flex;
-    align-items: center;
-    background: rgba(15, 23, 42, 0.78);
-    border-radius: 10px;
-    padding: 0.25rem;
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-  }
-  .zoom-btn {
-    width: 2.25rem;
-    height: 2.25rem;
-    background: transparent;
-    color: #e2e8f0;
-    border: 0;
-    border-radius: 7px;
-    font-size: 1.05rem;
-    font-weight: 600;
-    cursor: pointer;
-  }
-  .zoom-btn:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
-  .zoom-fit {
-    width: auto;
-    padding: 0 0.6rem;
-    font-size: 0.8rem;
-  }
-  .zoom-display {
-    color: #cbd5e1;
-    font-size: 0.78rem;
-    padding: 0 0.4rem;
-    min-width: 3.4rem;
-    text-align: center;
-    font-variant-numeric: tabular-nums;
-  }
+    .zoom-controls {
+      position: absolute;
+      right: 1rem;
+      bottom: 1rem;
+      display: inline-flex;
+      align-items: center;
+      background: var(--c-bg-dark);
+      border-radius: 10px;
+      padding: 0.25rem;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+    .zoom-btn {
+      border-width: 0px;
+      border-radius: 6px;
+      color: var(--c-white);
+      font-size: 14px;
+      font-weight: 600;
+      padding: 6px;
+      width: 2.25rem;
+      height: 2.25rem;
+      cursor: pointer;
+    }
+    .zoom-fit {
+      width: auto;
+      padding: 0 0.6rem;
+      font-size: 0.8rem;
+    }
+    .zoom-display {
+      color: var(--c-line);
+      font-size: 0.78rem;
+      padding: 0 0.4rem;
+      min-width: 3.4rem;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
 
-  /* ===== Modals (centered) ===== */
-  .modal-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(15, 23, 42, 0.6);
-    z-index: 100;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    padding: 5vh 5vw;
-    opacity: 0;
-    transition: opacity 0.2s ease;
-  }
-  .modal-backdrop.open {
-    display: flex;
-    opacity: 1;
-  }
-  .modal {
-    background: #fff;
-    border-radius: 16px;
-    width: 90%;
-    max-width: 1400px;
-    max-height: 90vh;
-    overflow: hidden;
-    box-shadow: 0 25px 60px -10px rgba(0, 0, 0, 0.5);
-    display: flex;
-    flex-direction: column;
-    position: relative;
-    transform: translateY(8px) scale(0.98);
-    opacity: 0;
-    transition: transform 0.2s ease, opacity 0.2s ease;
-  }
-  .modal-backdrop.open .modal {
-    transform: none;
-    opacity: 1;
-  }
-  .modal-close {
-    position: absolute;
-    top: 0.85rem;
-    right: 0.85rem;
-    z-index: 5;
-    width: 2.25rem;
-    height: 2.25rem;
-    background: #f1f5f9;
-    color: var(--c-ink-soft);
-    border: 0;
-    border-radius: 999px;
-    font-size: 1.4rem;
-    line-height: 1;
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s;
-  }
-  .modal-close:hover { background: #e2e8f0; color: var(--c-ink); }
+    /* ===== Modals (centered) ===== */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: var(--c-overlay-mid);
+      z-index: 100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 5vh 5vw;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+    .modal-backdrop.open {
+      display: flex;
+      opacity: 1;
+    }
+    .modal {
+      background: var(--c-white);
+      border-radius: 16px;
+      width: 90%;
+      max-width: 1400px;
+      max-height: 90vh;
+      overflow: hidden;
+      box-shadow: var(--c-shadow-strong);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      transform: translateY(8px) scale(0.98);
+      opacity: 0;
+      transition:
+        transform 0.2s ease,
+        opacity 0.2s ease;
+    }
+    .modal-backdrop.open .modal {
+      transform: none;
+      opacity: 1;
+    }
+    .modal-close {
+      position: absolute;
+      top: 0.85rem;
+      right: 0.85rem;
+      z-index: 5;
+      width: 2.25rem;
+      height: 2.25rem;
+      border: 0;
+      border-radius: 999px;
+      font-size: 1.4rem;
+      line-height: 1;
+      cursor: pointer;
+    }
 
-  .modal-grid {
-    display: grid;
-    grid-template-columns: 1fr 400px;
-    flex: 1;
-    min-height: 0;
-  }
-  .modal-gallery {
-    position: relative;
-    background: #0f172a;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-    min-height: 0;
-  }
-  :global(.gallery-svg) {
-    width: 100%;
-    height: 100%;
-    display: block;
-  }
-  :global(.gallery-caption) {
-    position: absolute;
-    left: 1rem;
-    bottom: 1rem;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0.9rem;
-    background: rgba(15, 23, 42, 0.78);
-    color: #f1f5f9;
-    border-radius: 8px;
-    font-size: 0.85rem;
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    pointer-events: none;
-  }
-  :global(.gallery-caption-lote) { font-weight: 700; }
-  :global(.gallery-caption-divider) { color: #94a3b8; }
-  :global(.gallery-caption-modelo) { color: #cbd5e1; }
-
-  .modal-info {
-    background: #fff;
-    border-left: 1px solid var(--c-line);
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-  :global(.modal-info .info-header) {
-    padding: 1.5rem 1.5rem 0;
-  }
-  :global(.modal-info .info-eyebrow) {
-    margin: 0 0 0.15rem;
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--c-ink-soft);
-    font-weight: 600;
-  }
-  :global(.modal-info .info-title) {
-    margin: 0 0 0.5rem;
-    font-size: 1.75rem;
-    font-weight: 800;
-    letter-spacing: -0.01em;
-  }
-  :global(.modal-info .status-badge) {
-    display: inline-block;
-    padding: 0.2rem 0.7rem;
-    border-radius: 999px;
-    font-size: 0.78rem;
-    font-weight: 700;
-    text-transform: capitalize;
-  }
-  :global(.modal-info .status-disponible) { background: #dcfce7; color: #166534; }
-  :global(.modal-info .status-reservado) { background: #fef9c3; color: #854d0e; }
-  :global(.modal-info .status-vendido) { background: #fee2e2; color: #991b1b; }
-
-  :global(.modal-info .info-body) {
-    flex: 1;
-    padding: 1.5rem;
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
-    overflow-y: auto;
-  }
-  :global(.modal-info .lot-specs),
-  :global(.modal-info .modelo-specs) {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.5rem 1rem;
-    margin: 0;
-    background: #f8fafc;
-    border: 1px solid var(--c-line);
-    border-radius: 10px;
-    padding: 0.85rem 1rem;
-  }
-  :global(.modal-info .lot-specs div),
-  :global(.modal-info .modelo-specs div) {
-    display: flex;
-    flex-direction: column;
-    gap: 0.1rem;
-  }
-  :global(.modal-info .lot-specs dt),
-  :global(.modal-info .modelo-specs dt) {
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--c-ink-soft);
-    font-weight: 600;
-  }
-  :global(.modal-info .lot-specs dd),
-  :global(.modal-info .modelo-specs dd) {
-    margin: 0;
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: var(--c-ink);
-  }
-  :global(.modal-info .modelo-block) { }
-  :global(.modal-info .modelo-block.muted) { color: var(--c-ink-soft); }
-  :global(.modal-info .modelo-eyebrow) {
-    margin: 0 0 0.25rem;
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--c-ink-soft);
-    font-weight: 600;
-  }
-  :global(.modal-info .modelo-block h3) {
-    margin: 0 0 0.5rem;
-    font-size: 1.25rem;
-    font-weight: 700;
-  }
-  :global(.modal-info .modelo-price) {
-    margin: 0 0 0.85rem;
-    font-size: 1.5rem;
-    font-weight: 800;
-    color: #075985;
-  }
-  :global(.modal-info .features) {
-    list-style: none;
-    padding: 0;
-    margin: 0.5rem 0 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-  }
-  :global(.modal-info .features li) {
-    padding-left: 1.2rem;
-    position: relative;
-    font-size: 0.9rem;
-    color: var(--c-ink);
-  }
-  :global(.modal-info .features li::before) {
-    content: "✓";
-    position: absolute;
-    left: 0;
-    color: var(--c-disponible);
-    font-weight: 700;
-  }
-  :global(.modal-info .info-footer) {
-    border-top: 1px solid var(--c-line);
-    padding: 1rem 1.5rem 1.25rem;
-    background: #fff;
-  }
-  :global(.modal-info .info-cta) {
-    display: block;
-    width: 100%;
-    text-align: center;
-    padding: 0.9rem 1rem;
-    background: #0c4a6e;
-    color: #fff;
-    border: 0;
-    border-radius: 10px;
-    font-weight: 700;
-    font-size: 0.95rem;
-    cursor: pointer;
-    transition: background 0.15s;
-    font-family: inherit;
-  }
-  :global(.modal-info .info-cta:hover) { background: #075985; }
-  :global(.modal-info .info-cta-note) {
-    margin: 0.5rem 0 0;
-    text-align: center;
-    font-size: 0.75rem;
-    color: var(--c-ink-soft);
-  }
-
-  /* ===== Contact Modal (sub-modal) ===== */
-  .contact-backdrop { z-index: 110; }
-  .contact-modal { max-width: 720px; }
-  .contact-header {
-    padding: 1.25rem 1.5rem;
-    border-bottom: 1px solid var(--c-line);
-  }
-  :global(.contact-header-eyebrow) {
-    margin: 0 0 0.25rem;
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--c-ink-soft);
-    font-weight: 600;
-  }
-  :global(.contact-header-title) {
-    margin: 0;
-    font-size: 1.2rem;
-    font-weight: 700;
-  }
-  :global(.contact-header-title strong) { color: #075985; }
-  :global(.contact-header-title-divider) { color: #94a3b8; margin: 0 0.4rem; }
-  :global(.contact-header-title-modelo) { color: var(--c-ink-soft); font-weight: 600; }
-  .contact-body { padding: 1.5rem; }
-  .form-embed-placeholder {
-    padding: 1.5rem;
-    background: #f8fafc;
-    border: 1px dashed #cbd5e1;
-    border-radius: 8px;
-    text-align: center;
-    min-height: 320px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .form-embed-text {
-    font-size: 0.875rem;
-    color: #64748b;
-    margin: 0;
-  }
-
-  /* ===== Footer ===== */
-  .footer {
-    padding: 1.5rem 0;
-    border-top: 1px solid var(--c-line);
-    background: #fff;
-    color: var(--c-ink-soft);
-    font-size: 0.85rem;
-  }
-  .footer p { margin: 0; text-align: center; }
-
-  /* ===== Responsive ===== */
-  @media (max-width: 768px) {
     .modal-grid {
-      grid-template-columns: 1fr;
-      grid-template-rows: minmax(220px, 45vh) auto;
+      display: grid;
+      grid-template-columns: 1fr 400px;
+      flex: 1;
+      min-height: 0;
     }
+    .modal-gallery {
+      position: relative;
+      background: var(--c-bg-dark);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      min-height: 0;
+    }
+    :global(.gallery-svg) {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    :global(.gallery-caption) {
+      position: absolute;
+      left: 1rem;
+      bottom: 1rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.9rem;
+      background: var(--c-overlay-strong);
+      color: var(--c-white);
+      border-radius: 8px;
+      font-size: 0.85rem;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      pointer-events: none;
+    }
+    :global(.gallery-caption-lote) {
+      font-weight: 700;
+    }
+    :global(.gallery-caption-divider) {
+      color: var(--c-line);
+    }
+    :global(.gallery-caption-modelo) {
+      color: var(--c-line);
+    }
+
     .modal-info {
-      border-left: 0;
-      border-top: 1px solid var(--c-line);
-      max-height: 55vh;
+      background: var(--c-white);
+      border-left: 1px solid var(--c-line);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
     }
+    :global(.modal-info .info-header) {
+      padding: 1.5rem 1.5rem 0;
+    }
+    :global(.modal-info .info-eyebrow) {
+      margin: 0 0 0.15rem;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--c-text);
+      font-weight: 600;
+    }
+    :global(.modal-info .info-title) {
+      margin: 0 0 0.5rem;
+      font-size: 1.75rem;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+    }
+    :global(.modal-info .status-badge) {
+      display: inline-block;
+      padding: 0.2rem 0.7rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: capitalize;
+    }
+    :global(.modal-info .status-disponible) {
+      background: var(--c-disponible-bg);
+      color: var(--c-disponible-fg);
+    }
+    :global(.modal-info .status-reservado) {
+      background: var(--c-reservado-bg);
+      color: var(--c-reservado-fg);
+    }
+    :global(.modal-info .status-vendido) {
+      background: var(--c-vendido-bg);
+      color: var(--c-vendido-fg);
+    }
+
+    :global(.modal-info .info-body) {
+      flex: 1;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      overflow-y: auto;
+    }
+    :global(.modal-info .lot-specs),
+    :global(.modal-info .modelo-specs) {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.5rem 1rem;
+      margin: 0;
+      background: var(--c-white);
+      border: 1px solid var(--c-line);
+      border-radius: 10px;
+      padding: 0.85rem 1rem;
+    }
+    :global(.modal-info .lot-specs div),
+    :global(.modal-info .modelo-specs div) {
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+    }
+    :global(.modal-info .lot-specs dt),
+    :global(.modal-info .modelo-specs dt) {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--c-text);
+      font-weight: 600;
+    }
+    :global(.modal-info .lot-specs dd),
+    :global(.modal-info .modelo-specs dd) {
+      margin: 0;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--c-text);
+    }
+    :global(.modal-info .modelo-block) {
+    }
+    :global(.modal-info .modelo-block.muted) {
+      color: var(--c-text);
+    }
+    :global(.modal-info .modelo-eyebrow) {
+      margin: 0 0 0.25rem;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--c-text);
+      font-weight: 600;
+    }
+    :global(.modal-info .modelo-block h3) {
+      margin: 0 0 0.5rem;
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+    :global(.modal-info .modelo-price) {
+      margin: 0 0 0.85rem;
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: var(--c-text);
+    }
+    :global(.modal-info .features) {
+      list-style: none;
+      padding: 0;
+      margin: 0.5rem 0 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    :global(.modal-info .features li) {
+      padding-left: 1.2rem;
+      position: relative;
+      font-size: 0.9rem;
+      color: var(--c-text);
+    }
+    :global(.modal-info .features li::before) {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: var(--c-disponible);
+      font-weight: 700;
+    }
+    :global(.modal-info .info-footer) {
+      border-top: 1px solid var(--c-line);
+      padding: 1rem 1.5rem 1.25rem;
+      background: var(--c-white);
+    }
+    :global(.modal-info .info-cta) {
+      color: var(--c-white);
+      border-width: 0px;
+      border-radius: 6px;
+      font-size: 18px;
+      font-weight: 600;
+      background-color: var(--c-bg-dark);
+      display: block;
+      width: 100%;
+      text-align: center;
+      padding: 0.9rem 1rem;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    :global(.modal-info .info-cta:hover) {
+      background-color: var(--c-accent);
+    }
+    :global(.modal-info .info-cta-note) {
+      margin: 0.5rem 0 0;
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--c-text);
+    }
+
+    /* ===== Contact Modal (sub-modal) ===== */
+    .contact-backdrop {
+      z-index: 110;
+    }
+    .contact-modal {
+      max-width: 720px;
+    }
+    .contact-header {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--c-line);
+    }
+    :global(.contact-header-eyebrow) {
+      margin: 0 0 0.25rem;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--c-text);
+      font-weight: 600;
+    }
+    :global(.contact-header-title) {
+      margin: 0;
+      font-size: 1.2rem;
+      font-weight: 700;
+    }
+    :global(.contact-header-title strong) {
+      color: var(--c-text);
+    }
+    :global(.contact-header-title-divider) {
+      color: var(--c-line);
+      margin: 0 0.4rem;
+    }
+    :global(.contact-header-title-modelo) {
+      color: var(--c-text);
+      font-weight: 600;
+    }
+    .contact-body {
+      padding: 1.5rem;
+    }
+    .form-embed-placeholder {
+      padding: 1.5rem;
+      background: var(--c-white);
+      border: 1px dashed var(--c-line);
+      border-radius: 8px;
+      text-align: center;
+      min-height: 320px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .form-embed-text {
+      font-size: 0.875rem;
+      color: var(--c-text);
+      margin: 0;
+    }
+
+    /* ===== Responsive ===== */
+    @media (max-width: 768px) {
+      .modal-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(220px, 45vh) auto;
+      }
+      .modal-info {
+        border-left: 0;
+        border-top: 1px solid var(--c-line);
+        max-height: 55vh;
+      }
+    }
+    @media (max-width: 640px) {
+      .filter-bar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .filter-group {
+        width: 100%;
+      }
+      .select {
+        width: 100%;
+        min-width: 0;
+      }
+    }
+  </style>
+
+  <script
+    id="map-data"
+    type="application/json"
+    is:inline
+    set:html={JSON.stringify(initialData)}
+  />
+  {
+    !plan ? null : (
+      <script>
+        import {initPublicMap} from "../scripts/public-map"; initPublicMap();
+      </script>
+    )
   }
-  @media (max-width: 640px) {
-    .filter-bar { flex-direction: column; align-items: stretch; }
-    .filter-group { width: 100%; }
-    .select { width: 100%; min-width: 0; }
-  }
-</style>
+</PublicLayout>

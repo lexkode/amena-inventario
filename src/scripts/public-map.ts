@@ -64,9 +64,9 @@ type State = {
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 const ESTADO_FILL: Record<LoteEstado, string> = {
-  disponible: "rgba(34, 197, 94, 0.45)",
-  reservado: "rgba(234, 179, 8, 0.45)",
-  vendido: "rgba(239, 68, 68, 0.45)",
+  disponible: "rgba(34, 197, 94, 0.7)",
+  reservado: "rgba(234, 179, 8, 0.7)",
+  vendido: "rgba(239, 68, 68, 0.7)",
 };
 
 const ESTADO_STROKE: Record<LoteEstado, string> = {

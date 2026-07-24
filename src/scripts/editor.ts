@@ -106,9 +106,9 @@ function clientToSvg(clientX: number, clientY: number): Punto {
 
 function getEstadoFill(estado: LoteEstado): string {
   return {
-    disponible: "rgba(34, 197, 94, 0.45)",
-    reservado: "rgba(234, 179, 8, 0.45)",
-    vendido: "rgba(239, 68, 68, 0.45)",
+    disponible: "rgba(34, 197, 94, 0.7)",
+    reservado: "rgba(234, 179, 8, 0.7)",
+    vendido: "rgba(239, 68, 68, 0.7)",
   }[estado];
 }
 
