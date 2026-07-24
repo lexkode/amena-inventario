@@ -16,7 +16,7 @@ const initialData = { plan, lotes, modelos };
 <PublicLayout title="Residencial Amena · Lotes disponibles en Comalapa">
   <section class="map-section">
     <div class="logo-float">
-      <img src={logo} alt="Residencial Amena" />
+      <img src={logo.src} alt="Residencial Amena" />
     </div>
     <div class="container">
       {
@@ -186,7 +186,7 @@ const initialData = { plan, lotes, modelos };
     </div>
   </section>
 
-  <style>
+  <style define:vars={{ mapBgSrc: `url("${mapBg.src}")` }}>
     /* ===== Buttons ===== */
     button {
       background: transparent;
@@ -217,7 +217,7 @@ const initialData = { plan, lotes, modelos };
       height: 100vh;
       position: relative;
       background-color: var(--c-bg);
-      background-image: url(${mapBg});
+      background-image: var(--mapBgSrc);
       background-position: center;
       background-size: cover;
       background-repeat: no-repeat;
