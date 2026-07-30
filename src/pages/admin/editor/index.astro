@@ -155,22 +155,22 @@ const initialData = { plan, lotes, modelos };
   .empty-title {
     margin: 0 0 1rem;
   }
-  .side-panel .field {
+  .side-panel :global(.field) {
     display: flex;
     flex-direction: column;
     margin-top: 0.85rem;
   }
-  .side-panel .field label {
+  .side-panel :global(.field label) {
     font-size: 0.8rem;
     color: var(--c-text-muted);
     margin-bottom: 0.3rem;
     font-weight: 500;
   }
-  .side-panel .field input,
-  .side-panel .field select {
+  .side-panel :global(.field input),
+  .side-panel :global(.field select) {
     font-size: 0.9rem;
   }
-  .side-panel .actions {
+  .side-panel :global(.actions) {
     display: flex;
     gap: 0.5rem;
     margin-top: 1.25rem;
