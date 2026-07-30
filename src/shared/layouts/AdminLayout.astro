@@ -2,7 +2,6 @@
 import "@styles/global.css";
 import type { User } from "@db/schema";
 import Sidebar from "@shared/components/admin/Sidebar.astro";
-import Header from "@shared/components/admin/Header.astro";
 
 type Props = {
   title: string;
@@ -36,9 +35,31 @@ const { title, user } = Astro.props;
   </head>
   <body class="admin-body">
     <div class="admin-shell">
-      <Sidebar />
+      <Sidebar user={user} />
       <div class="admin-main" id="admin-main">
-        <Header title={title} user={user} />
+        <!-- Mobile: floating hamburger (replaces old top header) -->
+        <button
+          class="mobile-fab"
+          id="mobile-menu-toggle"
+          type="button"
+          aria-label="Abrir menú"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <line x1="4" x2="20" y1="6" y2="6" />
+            <line x1="4" x2="20" y1="12" y2="12" />
+            <line x1="4" x2="20" y1="18" y2="18" />
+          </svg>
+        </button>
         <main class="admin-content">
           <slot />
         </main>
@@ -63,7 +84,6 @@ const { title, user } = Astro.props;
     min-width: 0;
     display: flex;
     flex-direction: column;
-    transition: margin-left 300ms ease;
   }
 
   .admin-content {
@@ -72,14 +92,35 @@ const { title, user } = Astro.props;
     max-width: 100%;
   }
 
-  /* Remove the old max-width constraint so views expand naturally */
   .admin-content :global(.page-header) {
     margin-bottom: 1.25rem;
+  }
+
+  .mobile-fab {
+    display: none;
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    z-index: 45;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: var(--c-surface);
+    color: var(--c-text);
+    border: 1px solid var(--c-line);
+    border-radius: var(--r-sm);
+    cursor: pointer;
+    box-shadow: var(--c-shadow-medium);
   }
 
   @media (max-width: 860px) {
     .admin-content {
       padding: 1rem;
+      padding-top: 4rem;
+    }
+    .mobile-fab {
+      display: inline-flex;
     }
   }
 </style>

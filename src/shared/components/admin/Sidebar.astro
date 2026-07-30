@@ -1,13 +1,12 @@
 ---
 import logo from "@assets/logo-AMENA.webp";
+import type { User } from "@db/schema";
 
-type NavItem = {
-  href: string;
-  label: string;
-  icon: string;
-  match: (p: string) => boolean;
+type Props = {
+  user: User;
 };
 
+const { user } = Astro.props;
 const currentPath = Astro.url.pathname;
 
 const navItems: NavItem[] = [
@@ -69,6 +68,35 @@ const icons: Record<string, string> = {
         ))
       }
     </nav>
+
+    <!-- User info -->
+    <div class="sidebar-user">
+      <div class="user-meta">
+        <span class="user-email" title={user.email}>{user.email}</span>
+        <span class="role-badge">{user.role}</span>
+      </div>
+      <form method="POST" action="/api/auth/logout" class="logout-form">
+        <button type="submit" class="logout-btn" aria-label="Cerrar sesión">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" x2="9" y1="12" y2="12" />
+          </svg>
+          <span class="logout-label">Salir</span>
+        </button>
+      </form>
+    </div>
 
     <!-- Toggle (desktop) -->
     <button
@@ -217,9 +245,71 @@ const icons: Record<string, string> = {
     box-shadow: var(--c-shadow-medium);
     z-index: 50;
   }
-  .admin-sidebar.collapsed .nav-item:hover::after {
+  .admin-sidebar.collapsed .nav-item:hover::after,
+  :global([data-amena-sidebar="collapsed"]) .admin-sidebar .nav-item:hover::after {
     opacity: 1;
     transform: translateY(-50%) translateX(0);
+  }
+
+  /* ---- User info ---- */
+  .sidebar-user {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.5rem 0.5rem 0.75rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .user-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    min-width: 0;
+  }
+  .user-email {
+    color: var(--c-header-fg);
+    font-size: 0.8rem;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .role-badge {
+    display: inline-block;
+    align-self: flex-start;
+    padding: 0.1rem 0.5rem;
+    border-radius: var(--r-pill);
+    background: var(--c-accent);
+    color: var(--c-white);
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .logout-form {
+    margin: 0;
+  }
+  .logout-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    width: 100%;
+    padding: 0.4rem 0.6rem;
+    background: transparent;
+    color: var(--c-header-fg-muted);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: var(--r-sm);
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 500;
+    transition: color 150ms ease, border-color 150ms ease, background-color 150ms ease;
+  }
+  .logout-btn:hover {
+    color: var(--c-white);
+    background: var(--c-danger);
+    border-color: var(--c-danger);
+  }
+  .logout-label {
+    line-height: 1;
   }
 
   /* ---- Toggle button ---- */
@@ -296,6 +386,55 @@ const icons: Record<string, string> = {
     .admin-sidebar.collapsed .nav-label,
     :global([data-amena-sidebar="collapsed"]) .admin-sidebar .nav-label {
       display: none;
+    }
+    .admin-sidebar.collapsed .user-meta,
+    :global([data-amena-sidebar="collapsed"]) .admin-sidebar .user-meta {
+      display: none;
+    }
+    .admin-sidebar.collapsed .sidebar-user,
+    :global([data-amena-sidebar="collapsed"]) .admin-sidebar .sidebar-user {
+      padding: 0.5rem 0;
+      border-top: 0;
+      align-items: center;
+    }
+    .admin-sidebar.collapsed .logout-btn,
+    :global([data-amena-sidebar="collapsed"]) .admin-sidebar .logout-btn {
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      justify-content: center;
+    }
+    .admin-sidebar.collapsed .logout-label,
+    :global([data-amena-sidebar="collapsed"]) .admin-sidebar .logout-label {
+      display: none;
+    }
+    .admin-sidebar.collapsed .logout-btn::after,
+    :global([data-amena-sidebar="collapsed"]) .admin-sidebar .logout-btn::after {
+      content: "Salir";
+      position: absolute;
+      left: calc(100% + 12px);
+      top: 50%;
+      transform: translateY(-50%) translateX(-4px);
+      padding: 0.35rem 0.6rem;
+      background: var(--c-bg-dark);
+      color: var(--c-white);
+      font-size: 0.8rem;
+      font-weight: 500;
+      border-radius: var(--r-sm);
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 150ms ease, transform 150ms ease;
+      box-shadow: var(--c-shadow-medium);
+      z-index: 50;
+    }
+    .admin-sidebar.collapsed .logout-btn:hover::after,
+    :global([data-amena-sidebar="collapsed"]) .admin-sidebar .logout-btn:hover::after {
+      opacity: 1;
+      transform: translateY(-50%) translateX(0);
+    }
+    .logout-btn {
+      position: relative;
     }
     .sidebar-toggle {
       display: inline-flex;

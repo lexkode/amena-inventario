@@ -20,85 +20,92 @@ const ok = Astro.url.searchParams.get("ok");
   {error && <div class="alert" role="alert">{error}</div>}
   {ok && <div class="alert alert-info" role="status">Plano guardado correctamente.</div>}
 
-  {plan && (
+  <div class="plano-grid">
+    {plan && (
+      <section class="card">
+        <h2 class="card-title">Plano actual</h2>
+        <dl class="kv">
+          <dt>Nombre</dt><dd>{plan.nombre}</dd>
+          <dt>Dimensiones originales</dt>
+          <dd>{plan.anchoPx} × {plan.altoPx} px</dd>
+          <dt>Actualizado</dt>
+          <dd>{new Date(plan.createdAt).toLocaleString("es-SV")}</dd>
+        </dl>
+        <div class="preview">
+          <img src={plan.imagenPath} alt={plan.nombre} />
+        </div>
+      </section>
+    )}
+
     <section class="card">
-      <h2 class="card-title">Plano actual</h2>
-      <dl class="kv">
-        <dt>Nombre</dt><dd>{plan.nombre}</dd>
-        <dt>Dimensiones originales</dt>
-        <dd>{plan.anchoPx} × {plan.altoPx} px</dd>
-        <dt>Actualizado</dt>
-        <dd>{new Date(plan.createdAt).toLocaleString("es-SV")}</dd>
-      </dl>
-      <div class="preview">
-        <img src={plan.imagenPath} alt={plan.nombre} />
-      </div>
+      <h2 class="card-title">
+        {plan ? "Actualizar plano" : "Subir primer plano"}
+      </h2>
+
+      <form method="POST" action="/api/admin/plano" enctype="multipart/form-data" class="plano-form">
+        <div class="field full">
+          <label for="nombre">Nombre</label>
+          <input
+            id="nombre"
+            name="nombre"
+            type="text"
+            maxlength="120"
+            value={plan?.nombre ?? "Plano General Residencial Amena"}
+          />
+        </div>
+
+        <div class="field full">
+          <label for="imagen">Imagen del plano {plan ? "(opcional, dejar vacío para conservar la actual)" : "(requerido)"}</label>
+          <input
+            id="imagen"
+            name="imagen"
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+            required={!plan}
+          />
+          <small class="hint">PNG, JPG, WEBP, GIF o SVG. Máximo 10MB.</small>
+        </div>
+
+        <div class="field">
+          <label for="anchoPx">Ancho original (px)</label>
+          <input
+            id="anchoPx"
+            name="anchoPx"
+            type="number"
+            min="1"
+            step="1"
+            required
+            value={plan?.anchoPx ?? ""}
+          />
+        </div>
+        <div class="field">
+          <label for="altoPx">Alto original (px)</label>
+          <input
+            id="altoPx"
+            name="altoPx"
+            type="number"
+            min="1"
+            step="1"
+            required
+            value={plan?.altoPx ?? ""}
+          />
+        </div>
+
+        <div class="actions full">
+          <a href="/admin" class="btn-cancel">Cancelar</a>
+          <button type="submit" class="btn-primary">{plan ? "Guardar cambios" : "Subir plano"}</button>
+        </div>
+      </form>
     </section>
-  )}
-
-  <section class="card">
-    <h2 class="card-title">
-      {plan ? "Actualizar plano" : "Subir primer plano"}
-    </h2>
-
-    <form method="POST" action="/api/admin/plano" enctype="multipart/form-data" class="plano-form">
-      <div class="field full">
-        <label for="nombre">Nombre</label>
-        <input
-          id="nombre"
-          name="nombre"
-          type="text"
-          maxlength="120"
-          value={plan?.nombre ?? "Plano General Residencial Amena"}
-        />
-      </div>
-
-      <div class="field full">
-        <label for="imagen">Imagen del plano {plan ? "(opcional, dejar vacío para conservar la actual)" : "(requerido)"}</label>
-        <input
-          id="imagen"
-          name="imagen"
-          type="file"
-          accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
-          required={!plan}
-        />
-        <small class="hint">PNG, JPG, WEBP, GIF o SVG. Máximo 10MB.</small>
-      </div>
-
-      <div class="field">
-        <label for="anchoPx">Ancho original (px)</label>
-        <input
-          id="anchoPx"
-          name="anchoPx"
-          type="number"
-          min="1"
-          step="1"
-          required
-          value={plan?.anchoPx ?? ""}
-        />
-      </div>
-      <div class="field">
-        <label for="altoPx">Alto original (px)</label>
-        <input
-          id="altoPx"
-          name="altoPx"
-          type="number"
-          min="1"
-          step="1"
-          required
-          value={plan?.altoPx ?? ""}
-        />
-      </div>
-
-      <div class="actions full">
-        <a href="/admin" class="btn-cancel">Cancelar</a>
-        <button type="submit" class="btn-primary">{plan ? "Guardar cambios" : "Subir plano"}</button>
-      </div>
-    </form>
-  </section>
+  </div>
 </AdminLayout>
 
 <style>
+  .plano-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
   .card-title {
     margin: 0 0 1rem;
     font-size: 1.1rem;
@@ -118,10 +125,10 @@ const ok = Astro.url.searchParams.get("ok");
   }
   .preview {
     margin-top: 0.75rem;
-    background: var(--c-bg-dark);
+    background: var(--c-bg-light);
     padding: 0.5rem;
     border-radius: var(--r-md);
-    border: 1px solid var(--c-bg-dark);
+    border: 1px solid var(--c-line);
     overflow: auto;
     max-height: 70vh;
   }
@@ -158,6 +165,11 @@ const ok = Astro.url.searchParams.get("ok");
     gap: 0.75rem;
     justify-content: flex-end;
     margin-top: 0.5rem;
+  }
+  @media (max-width: 900px) {
+    .plano-grid {
+      grid-template-columns: 1fr;
+    }
   }
   @media (max-width: 640px) {
     .plano-form {
