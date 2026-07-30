@@ -1,0 +1,372 @@
+---
+import logo from "@assets/logo-AMENA.webp";
+
+type NavItem = {
+  href: string;
+  label: string;
+  icon: string;
+  match: (p: string) => boolean;
+};
+
+const currentPath = Astro.url.pathname;
+
+const navItems: NavItem[] = [
+  {
+    href: "/admin",
+    label: "Dashboard",
+    icon: "dashboard",
+    match: (p) => p === "/admin",
+  },
+  {
+    href: "/admin/modelos",
+    label: "Modelos",
+    icon: "modelos",
+    match: (p) => p === "/admin/modelos" || p.startsWith("/admin/modelos/"),
+  },
+  {
+    href: "/admin/plano",
+    label: "Plano Base",
+    icon: "plano",
+    match: (p) => p === "/admin/plano" || p.startsWith("/admin/plano/"),
+  },
+  {
+    href: "/admin/editor",
+    label: "Editor",
+    icon: "editor",
+    match: (p) => p === "/admin/editor" || p.startsWith("/admin/editor/"),
+  },
+];
+
+const icons: Record<string, string> = {
+  dashboard: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>`,
+  modelos: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>`,
+  plano: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/></svg>`,
+  editor: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.707 21.293a1 1 0 0 1-1.414 0l-1.586-1.586a1 1 0 0 1 0-1.414l5.586-5.586a1 1 0 0 1 1.414 0l1.586 1.586a1 1 0 0 1 0 1.414z"/><path d="m18 13-1.375-6.874a1 1 0 0 0-.746-.776L3.235 2.028a1 1 0 0 0-1.207 1.207L5.35 15.879a1 1 0 0 0 .776.746L13 18"/><path d="m2.3 2.3 7.286 7.286"/><circle cx="11" cy="11" r="2"/></svg>`,
+};
+---
+
+<aside class="admin-sidebar" id="admin-sidebar" aria-label="Navegación lateral">
+  <div class="sidebar-inner">
+    <!-- Brand -->
+    <a href="/admin" class="sidebar-brand" aria-label="Residencial Amena — Inicio">
+      <img src={logo.src} alt="Residencial Amena" class="brand-full" />
+      <span class="brand-icon" aria-hidden="true">A</span>
+    </a>
+
+    <!-- Navigation -->
+    <nav class="sidebar-nav" aria-label="Navegación principal">
+      {
+        navItems.map((item) => (
+          <a
+            href={item.href}
+            class={`nav-item ${item.match(currentPath) ? "active" : ""}`}
+            data-label={item.label}
+            aria-current={item.match(currentPath) ? "page" : undefined}
+          >
+            <span class="nav-icon" set:html={icons[item.icon]} />
+            <span class="nav-label">{item.label}</span>
+          </a>
+        ))
+      }
+    </nav>
+
+    <!-- Toggle (desktop) -->
+    <button
+      class="sidebar-toggle"
+      id="sidebar-toggle"
+      type="button"
+      aria-label="Expandir menú"
+      aria-expanded="false"
+    >
+      <svg
+        class="chevron"
+        xmlns="http://www.w3.org/2000/svg"
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="m15 18-6-6 6-6" />
+      </svg>
+    </button>
+  </div>
+</aside>
+
+<!-- Overlay for mobile -->
+<div class="sidebar-overlay" id="sidebar-overlay" aria-hidden="true"></div>
+
+<style>
+  /* ---- Sidebar shell ---- */
+  .admin-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 40;
+    width: 240px;
+    background: var(--c-bg-dark);
+    color: var(--c-header-fg);
+    transform: translateX(-100%);
+    transition: transform 300ms ease, width 300ms ease;
+  }
+  .sidebar-inner {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 1rem 0.75rem;
+    gap: 1rem;
+  }
+
+  /* ---- Brand ---- */
+  .sidebar-brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    border-radius: var(--r-md);
+    transition: background-color 150ms ease;
+  }
+  .sidebar-brand:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .brand-full {
+    display: block;
+    height: 30px;
+    width: auto;
+  }
+  .brand-icon {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: var(--c-accent);
+    color: var(--c-white);
+    font-weight: 700;
+    font-size: 1rem;
+    border-radius: var(--r-sm);
+    line-height: 1;
+  }
+
+  /* ---- Navigation ---- */
+  .sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    flex: 1;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: var(--r-md);
+    color: var(--c-header-fg-muted);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: color 150ms ease, background-color 150ms ease;
+    position: relative;
+  }
+  .nav-item:hover {
+    color: var(--c-white);
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .nav-item.active {
+    color: var(--c-white);
+    background: var(--c-accent);
+  }
+  .nav-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+  }
+  .nav-icon svg {
+    width: 20px;
+    height: 20px;
+  }
+  .nav-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: opacity 200ms ease;
+  }
+
+  /* ---- Tooltip (only when collapsed) ---- */
+  .nav-item::after {
+    content: attr(data-label);
+    position: absolute;
+    left: calc(100% + 12px);
+    top: 50%;
+    transform: translateY(-50%) translateX(-4px);
+    padding: 0.35rem 0.6rem;
+    background: var(--c-bg-dark);
+    color: var(--c-white);
+    font-size: 0.8rem;
+    font-weight: 500;
+    border-radius: var(--r-sm);
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 150ms ease, transform 150ms ease;
+    box-shadow: var(--c-shadow-medium);
+    z-index: 50;
+  }
+  .admin-sidebar.collapsed .nav-item:hover::after {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
+
+  /* ---- Toggle button ---- */
+  .sidebar-toggle {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    margin-left: auto;
+    background: transparent;
+    color: var(--c-header-fg-muted);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: var(--r-sm);
+    cursor: pointer;
+    transition: color 150ms ease, border-color 150ms ease, background-color 150ms ease;
+  }
+  .sidebar-toggle:hover {
+    color: var(--c-white);
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.35);
+  }
+  .chevron {
+    transition: transform 300ms ease;
+  }
+  .admin-sidebar.collapsed .chevron {
+    transform: rotate(180deg);
+  }
+
+  /* ---- Overlay ---- */
+  .sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 35;
+    background: var(--c-overlay-mid);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 300ms ease;
+  }
+
+  /* ---- Desktop ---- */
+  @media (min-width: 861px) {
+    .admin-sidebar {
+      position: sticky;
+      top: 0;
+      height: 100dvh;
+      transform: none;
+      width: 240px;
+      flex-shrink: 0;
+    }
+    .admin-sidebar.collapsed,
+    :global([data-amena-sidebar="collapsed"]) .admin-sidebar {
+      width: 64px;
+    }
+    .admin-sidebar.collapsed .sidebar-inner,
+    :global([data-amena-sidebar="collapsed"]) .admin-sidebar .sidebar-inner {
+      padding-inline: 0.5rem;
+      align-items: center;
+    }
+    .admin-sidebar.collapsed .brand-full,
+    :global([data-amena-sidebar="collapsed"]) .admin-sidebar .brand-full {
+      display: none;
+    }
+    .admin-sidebar.collapsed .brand-icon,
+    :global([data-amena-sidebar="collapsed"]) .admin-sidebar .brand-icon {
+      display: inline-flex;
+    }
+    .admin-sidebar.collapsed .nav-item,
+    :global([data-amena-sidebar="collapsed"]) .admin-sidebar .nav-item {
+      justify-content: center;
+      padding-inline: 0;
+      width: 44px;
+    }
+    .admin-sidebar.collapsed .nav-label,
+    :global([data-amena-sidebar="collapsed"]) .admin-sidebar .nav-label {
+      display: none;
+    }
+    .sidebar-toggle {
+      display: inline-flex;
+    }
+    .admin-sidebar.collapsed .sidebar-toggle,
+    :global([data-amena-sidebar="collapsed"]) .admin-sidebar .sidebar-toggle {
+      margin: 0 auto;
+    }
+  }
+
+  /* ---- Mobile ---- */
+  @media (max-width: 860px) {
+    .admin-sidebar {
+      width: 260px;
+    }
+    .admin-sidebar.open {
+      transform: translateX(0);
+    }
+    .admin-sidebar.open ~ .sidebar-overlay {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+</style>
+
+<script>
+  const sidebar = document.getElementById("admin-sidebar");
+  const toggle = document.getElementById("sidebar-toggle");
+  const overlay = document.getElementById("sidebar-overlay");
+
+  const STORAGE_KEY = "amena-sidebar-collapsed";
+
+  // Sync class with the html attribute that the head script set (no flash).
+  if (document.documentElement.getAttribute("data-amena-sidebar") === "collapsed") {
+    sidebar?.classList.add("collapsed");
+  }
+  if (window.innerWidth >= 861) {
+    const collapsed = sidebar?.classList.contains("collapsed");
+    toggle?.setAttribute("aria-expanded", String(!collapsed));
+    toggle?.setAttribute("aria-label", collapsed ? "Expandir menú" : "Colapsar menú");
+  }
+
+  // Desktop toggle
+  toggle?.addEventListener("click", () => {
+    const isCollapsed = sidebar?.classList.toggle("collapsed");
+    localStorage.setItem(STORAGE_KEY, String(isCollapsed));
+    if (isCollapsed) {
+      document.documentElement.setAttribute("data-amena-sidebar", "collapsed");
+    } else {
+      document.documentElement.removeAttribute("data-amena-sidebar");
+    }
+    toggle.setAttribute("aria-expanded", String(!isCollapsed));
+    toggle.setAttribute("aria-label", isCollapsed ? "Expandir menú" : "Colapsar menú");
+  });
+
+  // Mobile: hamburger in header opens sidebar
+  const mobileToggle = document.getElementById("mobile-menu-toggle");
+  mobileToggle?.addEventListener("click", () => {
+    sidebar?.classList.add("open");
+  });
+
+  overlay?.addEventListener("click", () => {
+    sidebar?.classList.remove("open");
+  });
+
+  // Close mobile sidebar on nav click
+  sidebar?.querySelectorAll(".nav-item").forEach((item) => {
+    item.addEventListener("click", () => {
+      if (window.innerWidth <= 860) {
+        sidebar?.classList.remove("open");
+      }
+    });
+  });
+</script>

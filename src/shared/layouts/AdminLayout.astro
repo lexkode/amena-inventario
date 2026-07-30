@@ -1,7 +1,8 @@
 ---
 import "@styles/global.css";
 import type { User } from "@db/schema";
-import logo from "@assets/logo-AMENA.webp";
+import Sidebar from "@shared/components/admin/Sidebar.astro";
+import Header from "@shared/components/admin/Header.astro";
 
 type Props = {
   title: string;
@@ -9,27 +10,6 @@ type Props = {
 };
 
 const { title, user } = Astro.props;
-const currentPath = Astro.url.pathname;
-
-type NavItem = { href: string; label: string; match: (p: string) => boolean };
-const navItems: NavItem[] = [
-  { href: "/admin", label: "Dashboard", match: (p) => p === "/admin" },
-  {
-    href: "/admin/modelos",
-    label: "Modelos",
-    match: (p) => p === "/admin/modelos" || p.startsWith("/admin/modelos/"),
-  },
-  {
-    href: "/admin/plano",
-    label: "Plano Base",
-    match: (p) => p === "/admin/plano" || p.startsWith("/admin/plano/"),
-  },
-  {
-    href: "/admin/editor",
-    label: "Editor",
-    match: (p) => p === "/admin/editor" || p.startsWith("/admin/editor/"),
-  },
-];
 ---
 
 <!doctype html>
@@ -38,31 +18,32 @@ const navItems: NavItem[] = [
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title} · Amena Inventario</title>
+    <script is:inline>
+      (function () {
+        try {
+          if (
+            localStorage.getItem("amena-sidebar-collapsed") === "true" &&
+            window.innerWidth >= 861
+          ) {
+            document.documentElement.setAttribute(
+              "data-amena-sidebar",
+              "collapsed"
+            );
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body class="admin-body">
-    <header class="site">
-      <a href="/admin" class="brand" aria-label="Residencial Amena — Inicio">
-        <img src={logo.src} alt="Residencial Amena" />
-      </a>
-      <nav class="primary" aria-label="Navegación principal">
-        {
-          navItems.map((item) => (
-            <a href={item.href} class={item.match(currentPath) ? "active" : ""}>
-              {item.label}
-            </a>
-          ))
-        }
-      </nav>
-      <div class="user-area">
-        <span class="email" title={user.email}>{user.email}</span>
-        <form method="POST" action="/api/auth/logout">
-          <button type="submit">Salir</button>
-        </form>
+    <div class="admin-shell">
+      <Sidebar />
+      <div class="admin-main" id="admin-main">
+        <Header title={title} user={user} />
+        <main class="admin-content">
+          <slot />
+        </main>
       </div>
-    </header>
-    <main>
-      <slot />
-    </main>
+    </div>
   </body>
 </html>
 
@@ -72,109 +53,33 @@ const navItems: NavItem[] = [
     color: var(--c-text);
   }
 
-  header.site {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: center;
-    gap: 1.5rem;
-    padding: 0.75rem 1.5rem;
-    background: var(--c-bg-dark);
-    border-bottom: 1px solid var(--c-bg-dark);
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
-  }
-  .brand {
-    display: inline-flex;
-    align-items: center;
-    text-decoration: none;
-    line-height: 0;
-  }
-  .brand img {
-    display: block;
-    height: 30px;
-    width: auto;
-    transition: opacity 150ms ease;
-  }
-  .brand:hover img {
-    opacity: 0.85;
-  }
-
-  nav.primary {
+  .admin-shell {
     display: flex;
-    gap: 0.25rem;
-    justify-content: center;
-  }
-  nav.primary a {
-    padding: 0.5rem 0.85rem;
-    color: var(--c-header-fg-muted);
-    text-decoration: none;
-    border-radius: var(--r-sm);
-    font-size: 0.95rem;
-    font-weight: 500;
-    transition: color 150ms ease, background-color 150ms ease;
-  }
-  nav.primary a:hover {
-    color: var(--c-white);
-    background: rgba(255, 255, 255, 0.06);
-  }
-  nav.primary a.active {
-    color: var(--c-accent);
-    background: rgba(255, 255, 255, 0.08);
+    min-height: 100dvh;
   }
 
-  .user-area {
+  .admin-main {
+    flex: 1;
+    min-width: 0;
     display: flex;
-    align-items: center;
-    gap: 0.85rem;
-    font-size: 0.85rem;
-  }
-  .user-area .email {
-    color: var(--c-header-fg-muted);
-    max-width: 200px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .user-area form {
-    display: inline;
-    margin: 0;
-  }
-  .user-area button {
-    padding: 0.4rem 0.85rem;
-    background: transparent;
-    color: var(--c-header-fg-muted);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: var(--r-sm);
-    cursor: pointer;
-    font-size: 0.85rem;
-    transition: color 150ms ease, border-color 150ms ease, background-color 150ms ease;
-  }
-  .user-area button:hover {
-    background: var(--c-danger);
-    color: var(--c-white);
-    border-color: var(--c-danger);
+    flex-direction: column;
+    transition: margin-left 300ms ease;
   }
 
-  main {
-    max-width: 1200px;
-    margin: 2rem auto;
-    padding: 0 1.5rem;
+  .admin-content {
+    flex: 1;
+    padding: 1.5rem;
+    max-width: 100%;
   }
 
-  @media (max-width: 720px) {
-    header.site {
-      grid-template-columns: 1fr;
-      gap: 0.75rem;
+  /* Remove the old max-width constraint so views expand naturally */
+  .admin-content :global(.page-header) {
+    margin-bottom: 1.25rem;
+  }
+
+  @media (max-width: 860px) {
+    .admin-content {
       padding: 1rem;
-    }
-    nav.primary {
-      justify-content: flex-start;
-      flex-wrap: wrap;
-    }
-    .user-area {
-      justify-content: space-between;
     }
   }
 </style>
