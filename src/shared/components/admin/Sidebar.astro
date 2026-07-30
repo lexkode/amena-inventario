@@ -1,5 +1,6 @@
 ---
 import logo from "@assets/logo-AMENA.webp";
+import logoColapsado from "@assets/logo-AMENA-colapsado.webp";
 import type { User } from "@db/schema";
 
 type Props = {
@@ -49,7 +50,7 @@ const icons: Record<string, string> = {
     <!-- Brand -->
     <a href="/admin" class="sidebar-brand" aria-label="Residencial Amena — Inicio">
       <img src={logo.src} alt="Residencial Amena" class="brand-full" />
-      <span class="brand-icon" aria-hidden="true">A</span>
+      <img src={logoColapsado.src} alt="Residencial Amena" class="brand-icon" />
     </a>
 
     <!-- Navigation -->
@@ -166,16 +167,8 @@ const icons: Record<string, string> = {
   }
   .brand-icon {
     display: none;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    background: var(--c-accent);
-    color: var(--c-white);
-    font-weight: 700;
-    font-size: 1rem;
-    border-radius: var(--r-sm);
-    line-height: 1;
+    height: 30px;
+    width: auto;
   }
 
   /* ---- Navigation ---- */
@@ -467,10 +460,15 @@ const icons: Record<string, string> = {
 
   const STORAGE_KEY = "amena-sidebar-collapsed";
 
-  // Sync class with the html attribute that the head script set (no flash).
+  // The head <script> already set data-amena-sidebar + the CSS uses
+  // :global([data-amena-sidebar="collapsed"]) so the sidebar renders in the
+  // correct state on first paint. We only need to set the class now so the
+  // toggle handler has a single source of truth going forward.
   if (document.documentElement.getAttribute("data-amena-sidebar") === "collapsed") {
     sidebar?.classList.add("collapsed");
   }
+
+  // Sync aria attributes (no-op for layout, so safe to run anytime).
   if (window.innerWidth >= 861) {
     const collapsed = sidebar?.classList.contains("collapsed");
     toggle?.setAttribute("aria-expanded", String(!collapsed));

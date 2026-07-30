@@ -99,13 +99,13 @@ const { title, user } = Astro.props;
   .mobile-fab {
     display: none;
     position: fixed;
-    top: 1rem;
-    left: 1rem;
+    top: 0.75rem;
+    right: 0.75rem;
     z-index: 45;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     background: var(--c-surface);
     color: var(--c-text);
     border: 1px solid var(--c-line);
@@ -116,8 +116,7 @@ const { title, user } = Astro.props;
 
   @media (max-width: 860px) {
     .admin-content {
-      padding: 1rem;
-      padding-top: 4rem;
+      padding: 0.75rem;
     }
     .mobile-fab {
       display: inline-flex;
