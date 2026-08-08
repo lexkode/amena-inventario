@@ -45,6 +45,12 @@ type InitialData = {
   plan: Plan | null;
   lotes: Lote[];
   modelos: Modelo[];
+  counts: {
+    all: number;
+    disponible: number;
+    reservado: number;
+    vendido: number;
+  };
 };
 
 type State = {
@@ -236,6 +242,25 @@ function renderFilterUI(): void {
   if (modeloFilter) {
     modeloFilter.value = state.filter.modeloId === null ? "" : String(state.filter.modeloId);
   }
+  renderPillCounts();
+}
+
+function renderPillCounts(): void {
+  const filtered = state.lotes.filter((l) =>
+    state.filter.modeloId === null ? true : l.modeloId === state.filter.modeloId,
+  );
+  const counts = {
+    all: filtered.length,
+    disponible: filtered.filter((l) => l.estado === "disponible").length,
+    reservado: filtered.filter((l) => l.estado === "reservado").length,
+    vendido: filtered.filter((l) => l.estado === "vendido").length,
+  };
+  document.querySelectorAll<HTMLElement>("[data-status]").forEach((btn) => {
+    const status = btn.dataset.status as FilterStatus | undefined;
+    if (!status) return;
+    const span = btn.querySelector<HTMLElement>(".pill-count");
+    if (span) span.textContent = String(counts[status]);
+  });
 }
 
 // ============ Render: lot modal ============

@@ -10,7 +10,14 @@ const plan = getPlanoActivo();
 const lotes = plan ? getLotes() : [];
 const modelos = getModelos();
 
-const initialData = { plan, lotes, modelos };
+const counts = {
+  all: lotes.length,
+  disponible: lotes.filter((l) => l.estado === "disponible").length,
+  reservado: lotes.filter((l) => l.estado === "reservado").length,
+  vendido: lotes.filter((l) => l.estado === "vendido").length,
+};
+
+const initialData = { plan, lotes, modelos, counts };
 ---
 
 <PublicLayout title="Residencial Amena · Lotes disponibles en Comalapa">
@@ -59,28 +66,28 @@ const initialData = { plan, lotes, modelos };
                     aria-label="Filtrar por estado"
                   >
                     <button data-status="all" class="pill active" type="button">
-                      Todos
+                      Todos <span class="pill-count">{counts.all}</span>
                     </button>
                     <button
                       data-status="disponible"
                       class="pill pill-disponible"
                       type="button"
                     >
-                      Disponibles
+                      Disponibles <span class="pill-count">{counts.disponible}</span>
                     </button>
                     <button
                       data-status="reservado"
                       class="pill pill-reservado"
                       type="button"
                     >
-                      Reservados
+                      Reservados <span class="pill-count">{counts.reservado}</span>
                     </button>
                     <button
                       data-status="vendido"
                       class="pill pill-vendido"
                       type="button"
                     >
-                      Vendidos
+                      Vendidos <span class="pill-count">{counts.vendido}</span>
                     </button>
                   </div>
                 </div>
@@ -292,6 +299,22 @@ const initialData = { plan, lotes, modelos };
       cursor: pointer;
       color: var(--c-text);
       background: var(--c-bg-light);
+    }
+    .pill-count {
+      display: inline-block;
+      margin-left: 0.4rem;
+      min-width: 1.5rem;
+      padding: 0.05rem 0.45rem;
+      border-radius: 999px;
+      background: rgba(36, 72, 88, 0.12);
+      font-size: 0.72rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+      line-height: 1.3;
+    }
+    .pill.active .pill-count {
+      background: rgba(255, 255, 255, 0.22);
     }
     .pill[data-status="all"].active,
     .pill[data-status="all"]:hover {
