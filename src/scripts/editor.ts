@@ -85,6 +85,8 @@ const state: State = {
 };
 
 const SVG_NS = "http://www.w3.org/2000/svg";
+const VERTEX_RADIUS = 6; // radio unificado (mitad del original más grande)
+const VERTEX_STROKE = 2; // borde unificado
 let svg!: SVGSVGElement;
 let lotsLayer!: SVGGElement;
 let overlayLayer!: SVGGElement;
@@ -219,10 +221,10 @@ function renderOverlayLayer(): void {
       const c = document.createElementNS(SVG_NS, "circle");
       c.setAttribute("cx", String(p.x));
       c.setAttribute("cy", String(p.y));
-      c.setAttribute("r", "8");
-      c.setAttribute("fill", "#dc832f");
-      c.setAttribute("stroke", "#fff");
-      c.setAttribute("stroke-width", "2");
+      c.setAttribute("r", String(VERTEX_RADIUS));
+      c.setAttribute("fill", "#fff");
+      c.setAttribute("stroke", "#dc832f");
+      c.setAttribute("stroke-width", String(VERTEX_STROKE));
       overlayLayer.appendChild(c);
     }
   }
@@ -235,10 +237,10 @@ function renderOverlayLayer(): void {
         const handle = document.createElementNS(SVG_NS, "circle");
         handle.setAttribute("cx", String(p.x));
         handle.setAttribute("cy", String(p.y));
-        handle.setAttribute("r", "12");
+        handle.setAttribute("r", String(VERTEX_RADIUS));
         handle.setAttribute("fill", "#fff");
         handle.setAttribute("stroke", "#dc832f");
-        handle.setAttribute("stroke-width", "3");
+        handle.setAttribute("stroke-width", String(VERTEX_STROKE));
         handle.setAttribute("class", "vertex-handle");
         handle.setAttribute("data-lote-id", String(lote.id));
         handle.setAttribute("data-vertex-index", String(i));
