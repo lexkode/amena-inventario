@@ -51,6 +51,7 @@ type State = {
   currentPolygon: Punto[];
   pendingNewLote: NewLote | null;
   selectedLoteId: number | null;
+  selectedVertex: { loteId: number; index: number } | null;
   draggingVertex: { loteId: number; index: number } | null;
   lotes: Lote[];
   modelos: Modelo[];
@@ -79,6 +80,7 @@ const state: State = {
   currentPolygon: [],
   pendingNewLote: null,
   selectedLoteId: null,
+  selectedVertex: null,
   draggingVertex: null,
   lotes: [],
   modelos: [],
@@ -164,6 +166,10 @@ function renderLotsLayer(): void {
       "stroke-width",
       lote.id === state.selectedLoteId ? "3" : "2",
     );
+    polygon.setAttribute(
+      "stroke-opacity",
+      lote.id === state.selectedLoteId ? "0.5" : "1",
+    );
     polygon.setAttribute("data-lote-id", String(lote.id));
     polygon.classList.add("lote-polygon");
     if (lote.id === state.selectedLoteId) {
@@ -245,10 +251,21 @@ function renderOverlayLayer(): void {
         handle.setAttribute("data-lote-id", String(lote.id));
         handle.setAttribute("data-vertex-index", String(i));
         handle.style.cursor = "move";
+        if (
+          state.selectedVertex !== null &&
+          state.selectedVertex.loteId === lote.id &&
+          state.selectedVertex.index === i
+        ) {
+          handle.setAttribute("opacity", "0.5");
+        }
         handle.addEventListener("mousedown", (e) => {
           if (e.button !== 0) return;
           e.stopPropagation();
           state.draggingVertex = { loteId: lote.id, index: i };
+        });
+        handle.addEventListener("click", () => {
+          state.selectedVertex = { loteId: lote.id, index: i };
+          render();
         });
         overlayLayer.appendChild(handle);
       }
@@ -424,6 +441,7 @@ function setMode(mode: Mode): void {
   state.mode = mode;
   state.currentPolygon = [];
   state.pendingNewLote = null;
+  state.selectedVertex = null;
   if (mode !== "edit") {
     state.selectedLoteId = null;
   }
@@ -432,6 +450,7 @@ function setMode(mode: Mode): void {
 
 function selectLote(id: number | null): void {
   state.selectedLoteId = id;
+  state.selectedVertex = null;
   state.pendingNewLote = null;
   state.currentPolygon = [];
   render();
@@ -574,10 +593,24 @@ function handleKeyDown(e: KeyboardEvent): void {
       state.currentPolygon = [];
     } else if (state.selectedLoteId !== null) {
       state.selectedLoteId = null;
+      state.selectedVertex = null;
     }
     render();
   } else if ((e.key === "Delete" || e.key === "Backspace") && state.selectedLoteId !== null && state.mode === "edit") {
     if (confirm("¿Eliminar este lote?")) void deleteLote();
+  } else if (state.selectedVertex !== null && state.mode === "edit") {
+    const lote = state.lotes.find((l) => l.id === state.selectedVertex!.loteId);
+    if (lote) {
+      const dx = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
+      const dy = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
+      if (dx !== 0 || dy !== 0) {
+        const idx = state.selectedVertex!.index;
+        const p = lote.poligono[idx];
+        lote.poligono[idx] = { x: p.x + dx, y: p.y + dy };
+        e.preventDefault();
+        render();
+      }
+    }
   }
 }
 
