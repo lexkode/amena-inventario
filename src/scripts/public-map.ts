@@ -1,50 +1,25 @@
 // ============ Types ============
 
-type Punto = { x: number; y: number };
-type LoteEstado = "disponible" | "reservado" | "vendido";
+import type { LoteEstado, LoteConModelo } from "@features/lots/lote.types";
+import type { ModeloConCaracteristicas } from "@features/catalog/modelo.types";
+import type { Plano } from "@db/schema";
+import {
+  applyViewTransform as applySvgView,
+  fitView as makeFitView,
+  panTo as panView,
+  zoomAtPoint as zoomViewAt,
+  zoomBy as zoomViewBy,
+} from "@shared/map/viewport";
+import { escapeHtml } from "@shared/map/svg-utils";
+import { createLotLabel, createLotPolygon } from "@shared/map/lot-renderer";
+import { ESTADO_FILL, ESTADO_LABEL, ESTADO_STROKE } from "@shared/map/lot-colors";
+
 type FilterStatus = "all" | LoteEstado;
 
-type Modelo = {
-  id: number;
-  nombre: string;
-  tipo: "casa" | "apartamento";
-  precioBase: number;
-  terrenoM2: number;
-  construccionM2: number;
-  habitaciones: number;
-  banos: number;
-  parqueos: number;
-  dimensionesLote: string | null;
-  caracteristicas: string[];
-  orden: number;
-  createdAt: number;
-};
-
-type Lote = {
-  id: number;
-  numeroLote: string;
-  estado: LoteEstado;
-  poligono: Punto[];
-  modeloId: number | null;
-  modelo: Modelo | null;
-  terrenoM2: number | null;
-  dimensionesLote: string | null;
-  createdAt: number;
-  updatedAt: number;
-};
-
-type Plan = {
-  id: number;
-  nombre: string;
-  imagenPath: string;
-  anchoPx: number;
-  altoPx: number;
-};
-
 type InitialData = {
-  plan: Plan | null;
-  lotes: Lote[];
-  modelos: Modelo[];
+  plan: Plano | null;
+  lotes: LoteConModelo[];
+  modelos: ModeloConCaracteristicas[];
   counts: {
     all: number;
     disponible: number;
@@ -61,31 +36,11 @@ type State = {
   filter: { status: FilterStatus; modeloId: number | null };
   lotModalLoteId: number | null;
   contactModalLoteId: number | null;
-  lotes: Lote[];
-  modelos: Modelo[];
+  lotes: LoteConModelo[];
+  modelos: ModeloConCaracteristicas[];
 };
 
 // ============ Constants ============
-
-const SVG_NS = "http://www.w3.org/2000/svg";
-
-const ESTADO_FILL: Record<LoteEstado, string> = {
-  disponible: "rgba(34, 197, 94, 0.7)",
-  reservado: "rgba(234, 179, 8, 0.7)",
-  vendido: "rgba(239, 68, 68, 0.7)",
-};
-
-const ESTADO_STROKE: Record<LoteEstado, string> = {
-  disponible: "#16a34a",
-  reservado: "#ca8a04",
-  vendido: "#dc2626",
-};
-
-const ESTADO_LABEL: Record<LoteEstado, string> = {
-  disponible: "Disponible",
-  reservado: "Reservado",
-  vendido: "Vendido",
-};
 
 const usdFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -125,37 +80,21 @@ let suppressNextClick = false;
 
 // ============ Helpers ============
 
-function clientToSvg(clientX: number, clientY: number): Punto {
-  const pt = svg.createSVGPoint();
-  pt.x = clientX;
-  pt.y = clientY;
-  const ctm = svg.getScreenCTM();
-  if (!ctm) return { x: 0, y: 0 };
-  const p = pt.matrixTransform(ctm.inverse());
-  return { x: Math.round(p.x), y: Math.round(p.y) };
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c,
-  );
-}
-
 function formatUSD(n: number): string {
   return usdFormatter.format(n);
 }
 
-function isLoteMatching(lote: Lote): boolean {
+function isLoteMatching(lote: LoteConModelo): boolean {
   if (state.filter.status !== "all" && lote.estado !== state.filter.status) return false;
   if (state.filter.modeloId !== null && lote.modeloId !== state.filter.modeloId) return false;
   return true;
 }
 
-function getLoteById(id: number): Lote | undefined {
+function getLoteById(id: number): LoteConModelo | undefined {
   return state.lotes.find((l) => l.id === id);
 }
 
-function getLoteBBox(lote: Lote): { minX: number; minY: number; maxX: number; maxY: number; w: number; h: number } {
+function getLoteBBox(lote: LoteConModelo): { minX: number; minY: number; maxX: number; maxY: number; w: number; h: number } {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const p of lote.poligono) {
     if (p.x < minX) minX = p.x;
@@ -168,31 +107,20 @@ function getLoteBBox(lote: Lote): { minX: number; minY: number; maxX: number; ma
 
 // ============ Render: lots layer (main canvas) ============
 
-function applyViewTransform(): void {
-  const { x, y, w, h } = state.view;
-  svg.setAttribute("viewBox", `${x} ${y} ${w} ${h}`);
-  if (zoomDisplay) {
-    const zoom = state.initialView.w / w;
-    zoomDisplay.textContent = `${Math.round(zoom * 100)}%`;
-  }
+function renderViewTransform(): void {
+  applySvgView(svg, state.view, state.initialView.w, zoomDisplay);
 }
 
 function renderLotsLayer(): void {
   while (lotsLayer.firstChild) lotsLayer.removeChild(lotsLayer.firstChild);
 
   for (const lote of state.lotes) {
-    const polygon = document.createElementNS(SVG_NS, "polygon");
-    polygon.setAttribute(
-      "points",
-      lote.poligono.map((p) => `${p.x},${p.y}`).join(" "),
-    );
-    polygon.setAttribute("fill", ESTADO_FILL[lote.estado]);
-    polygon.setAttribute("stroke", ESTADO_STROKE[lote.estado]);
-    polygon.setAttribute("stroke-width", "2");
-    polygon.setAttribute("data-lote-id", String(lote.id));
-    polygon.classList.add("lote-polygon", `lote-${lote.estado}`);
-    if (!isLoteMatching(lote)) polygon.classList.add("dimmed");
-    if (lote.id === state.lotModalLoteId) polygon.classList.add("selected");
+    const polygon = createLotPolygon(lote, {
+      fill: ESTADO_FILL[lote.estado],
+      stroke: ESTADO_STROKE[lote.estado],
+      selected: lote.id === state.lotModalLoteId,
+      dimmed: !isLoteMatching(lote),
+    });
     polygon.addEventListener("click", (e) => {
       e.stopPropagation();
       if (polygon.classList.contains("dimmed")) return;
@@ -200,24 +128,8 @@ function renderLotsLayer(): void {
     });
     lotsLayer.appendChild(polygon);
 
-    if (lote.poligono.length > 0) {
-      const cx = lote.poligono.reduce((s, p) => s + p.x, 0) / lote.poligono.length;
-      const cy = lote.poligono.reduce((s, p) => s + p.y, 0) / lote.poligono.length;
-      const text = document.createElementNS(SVG_NS, "text");
-      text.setAttribute("x", String(cx));
-      text.setAttribute("y", String(cy));
-      text.setAttribute("text-anchor", "middle");
-      text.setAttribute("dominant-baseline", "middle");
-      text.setAttribute("fill", "#fff");
-      text.setAttribute("stroke", "#000");
-      text.setAttribute("stroke-width", "0.6");
-      text.setAttribute("paint-order", "stroke fill");
-      text.setAttribute("font-size", "20");
-      text.setAttribute("font-weight", "700");
-      text.setAttribute("pointer-events", "none");
-      text.textContent = lote.numeroLote;
-      lotsLayer.appendChild(text);
-    }
+    const label = createLotLabel(lote);
+    if (label) lotsLayer.appendChild(label);
   }
 }
 
@@ -265,7 +177,7 @@ function renderPillCounts(): void {
 
 // ============ Render: lot modal ============
 
-function renderLotGallery(lote: Lote, plan: Plan): void {
+function renderLotGallery(lote: LoteConModelo, plan: Plano): void {
   while (lotModalGallery.firstChild) lotModalGallery.removeChild(lotModalGallery.firstChild);
 
   const bbox = getLoteBBox(lote);
@@ -278,12 +190,12 @@ function renderLotGallery(lote: Lote, plan: Plan): void {
   const cx = (bbox.minX + bbox.maxX) / 2;
   const cy = (bbox.minY + bbox.maxY) / 2;
 
-  const svgEl = document.createElementNS(SVG_NS, "svg");
+  const svgEl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svgEl.setAttribute("viewBox", `${vbX} ${vbY} ${vbW} ${vbH}`);
   svgEl.setAttribute("preserveAspectRatio", "xMidYMid meet");
   svgEl.classList.add("gallery-svg");
 
-  const image = document.createElementNS(SVG_NS, "image");
+  const image = document.createElementNS("http://www.w3.org/2000/svg", "image");
   image.setAttribute("href", plan.imagenPath);
   image.setAttribute("x", "0");
   image.setAttribute("y", "0");
@@ -292,7 +204,7 @@ function renderLotGallery(lote: Lote, plan: Plan): void {
   image.setAttribute("preserveAspectRatio", "xMidYMid meet");
   svgEl.appendChild(image);
 
-  const polygon = document.createElementNS(SVG_NS, "polygon");
+  const polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
   polygon.setAttribute(
     "points",
     lote.poligono.map((p) => `${p.x},${p.y}`).join(" "),
@@ -304,7 +216,7 @@ function renderLotGallery(lote: Lote, plan: Plan): void {
   polygon.style.filter = `drop-shadow(0 0 ${Math.max(bbox.w / 12, 24)}px ${ESTADO_STROKE[lote.estado]})`;
   svgEl.appendChild(polygon);
 
-  const label = document.createElementNS(SVG_NS, "text");
+  const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
   label.setAttribute("x", String(cx));
   label.setAttribute("y", String(cy));
   label.setAttribute("text-anchor", "middle");
@@ -338,7 +250,7 @@ function renderLotGallery(lote: Lote, plan: Plan): void {
   lotModalGallery.appendChild(caption);
 }
 
-function renderLotInfo(lote: Lote): void {
+function renderLotInfo(lote: LoteConModelo): void {
   const modelo = lote.modelo;
   const topFeatures = modelo ? modelo.caracteristicas.slice(0, 6) : [];
 
@@ -463,7 +375,7 @@ function renderContactModal(): void {
 // ============ Render entry ============
 
 function render(): void {
-  applyViewTransform();
+  renderViewTransform();
   renderLotsLayer();
   renderFilterUI();
   renderLotModal();
@@ -519,39 +431,30 @@ function startPan(clientX: number, clientY: number): void {
 }
 
 function panTo(clientX: number, clientY: number): void {
-  const ctm = svg.getScreenCTM();
-  if (!ctm) return;
-  const scale = ctm.a;
-  state.view.x = state.panStart.vbX - (clientX - state.panStart.clientX) / scale;
-  state.view.y = state.panStart.vbY - (clientY - state.panStart.clientY) / scale;
-  applyViewTransform();
+  state.view = panView(state.view, state.panStart, svg, clientX, clientY);
+  renderViewTransform();
 }
 
 function zoomAtPoint(factor: number, clientX: number, clientY: number): void {
-  const newW = state.view.w * factor;
-  const newH = state.view.h * factor;
-  if (newW > state.initialView.w || newH > state.initialView.h) {
-    state.view = { x: 0, y: 0, ...state.initialView };
-    applyViewTransform();
-    return;
-  }
-  const p0 = clientToSvg(clientX, clientY);
-  state.view = { ...state.view, w: newW, h: newH };
-  applyViewTransform();
-  const p1 = clientToSvg(clientX, clientY);
-  state.view.x += p0.x - p1.x;
-  state.view.y += p0.y - p1.y;
-  applyViewTransform();
+  state.view = zoomViewAt(
+    state.view,
+    factor,
+    clientX,
+    clientY,
+    state.initialView,
+    svg,
+  );
+  renderViewTransform();
 }
 
 function zoomBy(factor: number): void {
-  const rect = svg.getBoundingClientRect();
-  zoomAtPoint(factor, rect.left + rect.width / 2, rect.top + rect.height / 2);
+  state.view = zoomViewBy(state.view, factor, state.initialView, svg);
+  renderViewTransform();
 }
 
 function fitView(): void {
-  state.view = { x: 0, y: 0, ...state.initialView };
-  applyViewTransform();
+  state.view = makeFitView(state.initialView);
+  renderViewTransform();
 }
 
 // ============ Event handlers ============

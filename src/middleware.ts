@@ -1,5 +1,5 @@
 import { defineMiddleware } from "astro:middleware";
-import { SESSION_COOKIE, validateSession } from "@modules/auth/session";
+import { SESSION_COOKIE, validateSession } from "@features/auth/session.service";
 
 const PROTECTED_PREFIX = "/admin";
 const PUBLIC_ADMIN_PATH = "/admin/login";

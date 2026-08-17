@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
-import { hashPassword } from "../modules/auth/password";
+import { hashPassword } from "../features/auth/password.service";
 import { modelos, users, type NewModelo } from "./schema";
 
 const ADMIN_EMAIL = "lexkode@gmail.com";

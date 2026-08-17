@@ -1,6 +1,6 @@
 import { and, eq, gt, lt } from "drizzle-orm";
-import { db } from "@db/client";
-import { sessions, users, type User } from "@db/schema";
+import { db } from "@core/db/client";
+import { sessions, users, type User } from "@core/db/schema";
 
 export const SESSION_COOKIE = "app_session_id";
 export const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000;

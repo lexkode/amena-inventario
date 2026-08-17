@@ -2,52 +2,43 @@ import type { APIRoute } from "astro";
 import { eq } from "drizzle-orm";
 import { db } from "@db/client";
 import { users } from "@db/schema";
-import { verifyPassword } from "@modules/auth/password";
+import { verifyPassword } from "@features/auth/password.service";
 import {
   SESSION_COOKIE,
   SESSION_MAX_AGE_SECONDS,
   createSession,
-} from "@modules/auth/session";
+} from "@features/auth/session.service";
+import { loginSchema } from "@features/auth/auth.types";
+import { formToObject, parse } from "@core/validation/parse";
+import { json, redirect } from "@core/http/json";
 
 const errorRedirect = (code: "missing" | "invalid" | "error"): Response =>
-  new Response(null, {
-    status: 303,
-    headers: { Location: `/admin/login?error=${code}` },
-  });
+  redirect(`/admin/login?error=${code}`);
 
 export const POST: APIRoute = async ({ request, cookies }) => {
   const contentType = request.headers.get("content-type") ?? "";
   const isJson = contentType.includes("application/json");
 
-  let email = "";
-  let password = "";
-
-  try {
-    if (isJson) {
-      const body = (await request.json()) as Record<string, unknown>;
-      email = typeof body.email === "string" ? body.email.trim() : "";
-      password = typeof body.password === "string" ? body.password : "";
-    } else {
-      const form = await request.formData();
-      email = (form.get("email")?.toString() ?? "").trim();
-      password = form.get("password")?.toString() ?? "";
+  let body: unknown;
+  if (isJson) {
+    try {
+      body = await request.json();
+    } catch {
+      return json({ ok: false, error: "Invalid request body" }, 400);
     }
-  } catch {
-    if (isJson) {
-      return new Response(
-        JSON.stringify({ ok: false, error: "Invalid request body" }),
-        { status: 400, headers: { "content-type": "application/json" } },
-      );
-    }
-    return errorRedirect("error");
+  } else {
+    body = formToObject(await request.formData());
   }
 
-  if (!email || !password) {
+  let email = "";
+  let password = "";
+  try {
+    const input = parse(body, loginSchema);
+    email = input.email;
+    password = input.password;
+  } catch {
     if (isJson) {
-      return new Response(
-        JSON.stringify({ ok: false, error: "Email and password are required" }),
-        { status: 400, headers: { "content-type": "application/json" } },
-      );
+      return json({ ok: false, error: "Email and password are required" }, 400);
     }
     return errorRedirect("missing");
   }
@@ -62,10 +53,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   if (!user || !valid) {
     if (isJson) {
-      return new Response(
-        JSON.stringify({ ok: false, error: "Invalid email or password" }),
-        { status: 401, headers: { "content-type": "application/json" } },
-      );
+      return json({ ok: false, error: "Invalid email or password" }, 401);
     }
     return errorRedirect("invalid");
   }
@@ -81,17 +69,14 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   });
 
   if (isJson) {
-    return new Response(
-      JSON.stringify({
+    return json(
+      {
         ok: true,
         user: { id: user.id, email: user.email, role: user.role },
-      }),
-      { status: 200, headers: { "content-type": "application/json" } },
+      },
+      200,
     );
   }
 
-  return new Response(null, {
-    status: 303,
-    headers: { Location: "/admin" },
-  });
+  return redirect("/admin");
 };

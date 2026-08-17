@@ -1,37 +1,20 @@
 // ============ Types ============
 
-type Punto = { x: number; y: number };
-type LoteEstado = "disponible" | "reservado" | "vendido";
+import type { Punto, LoteEstado, LoteConModelo } from "@features/lots/lote.types";
+import type { ModeloConCaracteristicas } from "@features/catalog/modelo.types";
+import {
+  applyViewTransform as applySvgView,
+  clientToSvg as svgToPoint,
+  fitView as makeFitView,
+  panTo as panView,
+  zoomAtPoint as zoomViewAt,
+  zoomBy as zoomViewBy,
+} from "@shared/map/viewport";
+import { SVG_NS, escapeHtml } from "@shared/map/svg-utils";
+import { createLotLabel, createLotPolygon } from "@shared/map/lot-renderer";
+import { ESTADO_FILL, ESTADO_STROKE } from "@shared/map/lot-colors";
+
 type Mode = "view" | "draw" | "edit";
-
-type Modelo = {
-  id: number;
-  nombre: string;
-  tipo: "casa" | "apartamento";
-  precioBase: number;
-  terrenoM2: number;
-  construccionM2: number;
-  habitaciones: number;
-  banos: number;
-  parqueos: number;
-  dimensionesLote: string | null;
-  caracteristicas: string[];
-  orden: number;
-  createdAt: number;
-};
-
-type Lote = {
-  id: number;
-  numeroLote: string;
-  estado: LoteEstado;
-  poligono: Punto[];
-  modeloId: number | null;
-  modelo: Modelo | null;
-  terrenoM2: number | null;
-  dimensionesLote: string | null;
-  createdAt: number;
-  updatedAt: number;
-};
 
 type NewLote = {
   numeroLote: string;
@@ -53,8 +36,8 @@ type State = {
   selectedLoteId: number | null;
   selectedVertex: { loteId: number; index: number } | null;
   draggingVertex: { loteId: number; index: number } | null;
-  lotes: Lote[];
-  modelos: Modelo[];
+  lotes: LoteConModelo[];
+  modelos: ModeloConCaracteristicas[];
 };
 
 type InitialData = {
@@ -65,8 +48,8 @@ type InitialData = {
     anchoPx: number;
     altoPx: number;
   } | null;
-  lotes: Lote[];
-  modelos: Modelo[];
+  lotes: LoteConModelo[];
+  modelos: ModeloConCaracteristicas[];
 };
 
 // ============ State ============
@@ -86,7 +69,6 @@ const state: State = {
   modelos: [],
 };
 
-const SVG_NS = "http://www.w3.org/2000/svg";
 const VERTEX_RADIUS = 6; // radio unificado (mitad del original más grande)
 const VERTEX_STROKE = 2; // borde unificado
 let svg!: SVGSVGElement;
@@ -96,47 +78,10 @@ let sidePanel!: HTMLElement;
 let zoomDisplay!: HTMLElement;
 let initialData: InitialData;
 
-// ============ Helpers ============
-
-function clientToSvg(clientX: number, clientY: number): Punto {
-  const pt = svg.createSVGPoint();
-  pt.x = clientX;
-  pt.y = clientY;
-  const ctm = svg.getScreenCTM();
-  if (!ctm) return { x: 0, y: 0 };
-  const p = pt.matrixTransform(ctm.inverse());
-  return { x: Math.round(p.x), y: Math.round(p.y) };
-}
-
-function getEstadoFill(estado: LoteEstado): string {
-  return {
-    disponible: "rgba(34, 197, 94, 0.7)",
-    reservado: "rgba(234, 179, 8, 0.7)",
-    vendido: "rgba(239, 68, 68, 0.7)",
-  }[estado];
-}
-
-function getEstadoStroke(estado: LoteEstado): string {
-  return {
-    disponible: "#16a34a",
-    reservado: "#ca8a04",
-    vendido: "#dc2626",
-  }[estado];
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c,
-  );
-}
-
 // ============ Render ============
 
-function applyViewTransform(): void {
-  const { x, y, w, h } = state.view;
-  svg.setAttribute("viewBox", `${x} ${y} ${w} ${h}`);
-  const zoom = state.initialView.w / w;
-  if (zoomDisplay) zoomDisplay.textContent = `${Math.round(zoom * 100)}%`;
+function renderViewTransform(): void {
+  applySvgView(svg, state.view, state.initialView.w, zoomDisplay);
 }
 
 function updateCursor(): void {
@@ -155,26 +100,14 @@ function renderLotsLayer(): void {
   while (lotsLayer.firstChild) lotsLayer.removeChild(lotsLayer.firstChild);
 
   for (const lote of state.lotes) {
-    const polygon = document.createElementNS(SVG_NS, "polygon");
-    polygon.setAttribute(
-      "points",
-      lote.poligono.map((p) => `${p.x},${p.y}`).join(" "),
-    );
-    polygon.setAttribute("fill", getEstadoFill(lote.estado));
-    polygon.setAttribute("stroke", getEstadoStroke(lote.estado));
-    polygon.setAttribute(
-      "stroke-width",
-      lote.id === state.selectedLoteId ? "3" : "2",
-    );
-    polygon.setAttribute(
-      "stroke-opacity",
-      lote.id === state.selectedLoteId ? "0.5" : "1",
-    );
-    polygon.setAttribute("data-lote-id", String(lote.id));
-    polygon.classList.add("lote-polygon");
-    if (lote.id === state.selectedLoteId) {
-      polygon.classList.add("selected");
-    }
+    const isSelected = lote.id === state.selectedLoteId;
+    const polygon = createLotPolygon(lote, {
+      fill: ESTADO_FILL[lote.estado],
+      stroke: ESTADO_STROKE[lote.estado],
+      selected: isSelected,
+      strokeWidth: isSelected ? 3 : 2,
+      strokeOpacity: isSelected ? 0.5 : 1,
+    });
     polygon.style.cursor = state.mode === "edit" ? "pointer" : "default";
     polygon.addEventListener("mousedown", (e) => {
       if (e.button !== 0 || e.shiftKey) return;
@@ -185,26 +118,8 @@ function renderLotsLayer(): void {
     });
     lotsLayer.appendChild(polygon);
 
-    if (lote.poligono.length > 0) {
-      const cx =
-        lote.poligono.reduce((s, p) => s + p.x, 0) / lote.poligono.length;
-      const cy =
-        lote.poligono.reduce((s, p) => s + p.y, 0) / lote.poligono.length;
-      const text = document.createElementNS(SVG_NS, "text");
-      text.setAttribute("x", String(cx));
-      text.setAttribute("y", String(cy));
-      text.setAttribute("text-anchor", "middle");
-      text.setAttribute("dominant-baseline", "middle");
-      text.setAttribute("fill", "#fff");
-      text.setAttribute("stroke", "#000");
-      text.setAttribute("stroke-width", "0.5");
-      text.setAttribute("paint-order", "stroke fill");
-      text.setAttribute("font-size", "22");
-      text.setAttribute("font-weight", "700");
-      text.setAttribute("pointer-events", "none");
-      text.textContent = lote.numeroLote;
-      lotsLayer.appendChild(text);
-    }
+    const label = createLotLabel(lote, { fontSize: 22, strokeWidth: 0.5 });
+    if (label) lotsLayer.appendChild(label);
   }
 }
 
@@ -326,7 +241,7 @@ function renderSidePanel(): void {
   `;
 }
 
-function renderLotForm(lote: Lote | NewLote, isNew: boolean): void {
+function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
   const modelosOptions = state.modelos
     .filter((m) => m.tipo === "casa")
     .map(
@@ -335,9 +250,9 @@ function renderLotForm(lote: Lote | NewLote, isNew: boolean): void {
     )
     .join("");
 
-  const id = isNew ? null : (lote as Lote).id;
+  const id = isNew ? null : (lote as LoteConModelo).id;
   const title = isNew ? "Nuevo lote" : `Lote #${id}`;
-  const numeroLote = isNew ? "" : (lote as Lote).numeroLote;
+  const numeroLote = isNew ? "" : (lote as LoteConModelo).numeroLote;
   const dimensionesLote =
     lote.dimensionesLote === null || lote.dimensionesLote === undefined
       ? ""
@@ -427,7 +342,7 @@ function renderModeButtons(): void {
 }
 
 function render(): void {
-  applyViewTransform();
+  renderViewTransform();
   updateCursor();
   renderLotsLayer();
   renderOverlayLayer();
@@ -490,39 +405,30 @@ function startPan(clientX: number, clientY: number): void {
 }
 
 function panTo(clientX: number, clientY: number): void {
-  const ctm = svg.getScreenCTM();
-  if (!ctm) return;
-  const scale = ctm.a;
-  state.view.x = state.panStart.vbX - (clientX - state.panStart.clientX) / scale;
-  state.view.y = state.panStart.vbY - (clientY - state.panStart.clientY) / scale;
-  applyViewTransform();
+  state.view = panView(state.view, state.panStart, svg, clientX, clientY);
+  renderViewTransform();
 }
 
 function zoomAtPoint(factor: number, clientX: number, clientY: number): void {
-  const newW = state.view.w * factor;
-  const newH = state.view.h * factor;
-  if (newW > state.initialView.w || newH > state.initialView.h) {
-    state.view = { x: 0, y: 0, ...state.initialView };
-    applyViewTransform();
-    return;
-  }
-  const p0 = clientToSvg(clientX, clientY);
-  state.view = { ...state.view, w: newW, h: newH };
-  applyViewTransform();
-  const p1 = clientToSvg(clientX, clientY);
-  state.view.x += p0.x - p1.x;
-  state.view.y += p0.y - p1.y;
-  applyViewTransform();
+  state.view = zoomViewAt(
+    state.view,
+    factor,
+    clientX,
+    clientY,
+    state.initialView,
+    svg,
+  );
+  renderViewTransform();
 }
 
 function zoomBy(factor: number): void {
-  const rect = svg.getBoundingClientRect();
-  zoomAtPoint(factor, rect.left + rect.width / 2, rect.top + rect.height / 2);
+  state.view = zoomViewBy(state.view, factor, state.initialView, svg);
+  renderViewTransform();
 }
 
 function fitView(): void {
-  state.view = { x: 0, y: 0, ...state.initialView };
-  applyViewTransform();
+  state.view = makeFitView(state.initialView);
+  renderViewTransform();
 }
 
 // ============ Event handlers ============
@@ -544,7 +450,7 @@ function handleSvgMouseDown(e: MouseEvent): void {
     startPan(e.clientX, e.clientY);
   } else if (state.mode === "draw") {
     if (state.pendingNewLote !== null) return;
-    const p = clientToSvg(e.clientX, e.clientY);
+    const p = svgToPoint(svg, e.clientX, e.clientY);
     state.currentPolygon.push(p);
     render();
   } else if (state.mode === "edit") {
@@ -556,7 +462,7 @@ function handleDocumentMouseMove(e: MouseEvent): void {
   if (state.isPanning) {
     panTo(e.clientX, e.clientY);
   } else if (state.draggingVertex) {
-    const p = clientToSvg(e.clientX, e.clientY);
+    const p = svgToPoint(svg, e.clientX, e.clientY);
     const lote = state.lotes.find((l) => l.id === state.draggingVertex!.loteId);
     if (lote) {
       lote.poligono[state.draggingVertex.index] = p;
@@ -692,7 +598,7 @@ async function saveLote(): Promise<void> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    const result = (await response.json()) as { ok: boolean; data?: Lote; error?: string };
+    const result = (await response.json()) as { ok: boolean; data?: LoteConModelo; error?: string };
     if (!result.ok || !result.data) {
       showFormError(result.error ?? "Error desconocido");
       return;

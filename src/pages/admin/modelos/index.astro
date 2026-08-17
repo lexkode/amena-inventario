@@ -1,6 +1,6 @@
 ---
 import AdminLayout from "@shared/layouts/AdminLayout.astro";
-import { getModelos } from "@modules/catalog";
+import { getModelos } from "@features/catalog/modelo.service";
 
 const user = Astro.locals.user;
 if (!user) {

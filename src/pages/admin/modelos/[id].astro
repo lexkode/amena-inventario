@@ -1,7 +1,7 @@
 ---
 import AdminLayout from "@shared/layouts/AdminLayout.astro";
 import ModeloForm from "@shared/components/ModeloForm.astro";
-import { getModeloById } from "@modules/catalog";
+import { getModeloById } from "@features/catalog/modelo.service";
 
 const user = Astro.locals.user;
 if (!user) {

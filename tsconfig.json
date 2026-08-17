@@ -12,7 +12,9 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
+      "@core/*": ["src/core/*"],
       "@db/*": ["src/db/*"],
+      "@features/*": ["src/features/*"],
       "@modules/*": ["src/modules/*"],
       "@shared/*": ["src/shared/*"],
       "@assets/*": ["src/assets/*"],

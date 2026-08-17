@@ -1,8 +1,8 @@
 ---
 import AdminLayout from "@shared/layouts/AdminLayout.astro";
-import { getPlanoActivo } from "@modules/plan";
-import { getLotes } from "@modules/lots";
-import { getModelos } from "@modules/catalog";
+import { getPlanoActivo } from "@features/plan/plano.service";
+import { getLotes } from "@features/lots/lote.service";
+import { getModelos } from "@features/catalog/modelo.service";
 
 const user = Astro.locals.user;
 if (!user) {

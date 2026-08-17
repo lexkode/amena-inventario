@@ -1,6 +1,6 @@
 import { desc, eq } from "drizzle-orm";
-import { db } from "@db/client";
-import { planos, type Plano } from "@db/schema";
+import { db } from "@core/db/client";
+import { planos, type Plano } from "@core/db/schema";
 
 export function getPlanoActivo(): Plano | null {
   return (

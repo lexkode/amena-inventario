@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
-import { SESSION_COOKIE, invalidateSession } from "@modules/auth/session";
+import { SESSION_COOKIE, invalidateSession } from "@features/auth/session.service";
+import { json, redirect } from "@core/http/json";
 
 export const POST: APIRoute = async ({ cookies, request }) => {
   const contentType = request.headers.get("content-type") ?? "";
@@ -12,14 +13,8 @@ export const POST: APIRoute = async ({ cookies, request }) => {
   cookies.delete(SESSION_COOKIE, { path: "/" });
 
   if (isJson) {
-    return new Response(JSON.stringify({ ok: true }), {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    });
+    return json({ ok: true }, 200);
   }
 
-  return new Response(null, {
-    status: 303,
-    headers: { Location: "/admin/login" },
-  });
+  return redirect("/admin/login");
 };

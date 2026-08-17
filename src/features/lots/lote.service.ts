@@ -1,80 +1,30 @@
 import { asc, eq } from "drizzle-orm";
-import { db } from "@db/client";
-import { getModeloById } from "@modules/catalog";
-import { lotes, modelos, type Lote, type LoteEstado, type Modelo } from "@db/schema";
+import { db } from "@core/db/client";
+import { lotes, modelos, type Lote, type Modelo } from "@core/db/schema";
+import { parsePoligonoJson } from "@core/geometry";
+import { parseModelo } from "@features/catalog/modelo.types";
+import type {
+  CreateLoteInput,
+  LoteConModelo,
+  UpdateLoteInput,
+} from "@features/lots/lote.types";
 
-export type Punto = { x: number; y: number };
-export type { LoteEstado };
-
-export const ESTADOS_LOTE: readonly LoteEstado[] = [
-  "disponible",
-  "reservado",
-  "vendido",
-] as const;
-
-type ModeloConCaracteristicas = Omit<Modelo, "caracteristicasJson"> & {
-  caracteristicas: string[];
-};
-
-export type LoteConModelo = Omit<Lote, "poligonoJson"> & {
-  poligono: Punto[];
-  modelo: ModeloConCaracteristicas | null;
-};
-
-export type CreateLoteInput = {
-  numeroLote: string;
-  estado?: LoteEstado;
-  poligono: Punto[];
-  modeloId?: number | null;
-  terrenoM2?: number | null;
-  dimensionesLote?: string | null;
-};
-
-export type UpdateLoteInput = Partial<CreateLoteInput>;
-
-function parsePoligono(json: string): Punto[] {
-  try {
-    const parsed: unknown = JSON.parse(json);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter(
-        (p): p is Punto =>
-          typeof p === "object" &&
-          p !== null &&
-          typeof (p as { x: unknown }).x === "number" &&
-          typeof (p as { y: unknown }).y === "number" &&
-          Number.isFinite((p as Punto).x) &&
-          Number.isFinite((p as Punto).y),
-      )
-      .map((p) => ({ x: p.x, y: p.y }));
-  } catch {
-    return [];
-  }
-}
-
-function parseCaracteristicas(json: string | null): string[] {
-  if (!json) return [];
-  try {
-    const parsed: unknown = JSON.parse(json);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((c): c is string => typeof c === "string");
-  } catch {
-    return [];
-  }
-}
+export type {
+  Punto,
+  LoteEstado,
+  CreateLoteInput,
+  UpdateLoteInput,
+  LoteConModelo,
+} from "@features/lots/lote.types";
+export { ESTADOS_LOTE } from "@features/lots/lote.types";
 
 type JoinRow = { lote: Lote; modelo: Modelo | null };
-
-function parseModelo(row: Modelo): ModeloConCaracteristicas {
-  const { caracteristicasJson, ...rest } = row;
-  return { ...rest, caracteristicas: parseCaracteristicas(caracteristicasJson) };
-}
 
 function toLoteConModelo(row: JoinRow): LoteConModelo {
   const { poligonoJson, ...rest } = row.lote;
   return {
     ...rest,
-    poligono: parsePoligono(poligonoJson),
+    poligono: parsePoligonoJson(poligonoJson),
     modelo: row.modelo ? parseModelo(row.modelo) : null,
   };
 }
@@ -101,8 +51,12 @@ export function getLoteById(id: number): LoteConModelo | null {
 
 function assertModeloExists(modeloId: number | null): string | null {
   if (modeloId === null) return null;
-  const modelo = getModeloById(modeloId);
-  return modelo ? null : `modeloId ${modeloId} no existe`;
+  const exists = db
+    .select({ id: modelos.id })
+    .from(modelos)
+    .where(eq(modelos.id, modeloId))
+    .get();
+  return exists ? null : `modeloId ${modeloId} no existe`;
 }
 
 export function createLote(input: CreateLoteInput): LoteConModelo {
@@ -113,7 +67,7 @@ export function createLote(input: CreateLoteInput): LoteConModelo {
     .insert(lotes)
     .values({
       numeroLote: input.numeroLote,
-      estado: input.estado ?? "disponible",
+      estado: input.estado,
       poligonoJson: JSON.stringify(input.poligono),
       modeloId: input.modeloId ?? null,
       terrenoM2: input.terrenoM2 ?? null,

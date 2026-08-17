@@ -1,54 +1,16 @@
 import type { APIRoute } from "astro";
-import { createWriteStream } from "node:fs";
-import { mkdir } from "node:fs/promises";
-import { pipeline } from "node:stream/promises";
-import { Readable } from "node:stream";
-import { extname, join } from "node:path";
-import { getPlanoActivo, upsertPlano } from "@modules/plan";
+import { getPlanoActivo, upsertPlano } from "@features/plan/plano.service";
+import { planoUpsertSchema, type PlanoUpsertInput } from "@features/plan/plano.types";
+import { formToObject, parse } from "@core/validation/parse";
+import { formApi } from "@core/http/api";
+import { redirect } from "@core/http/json";
+import {
+  ALLOWED_MIME,
+  MAX_FILE_SIZE,
+  saveUpload,
+} from "@core/storage";
 
-const UPLOAD_DIR = join(process.cwd(), "public", "uploads");
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const ALLOWED_MIME = new Set([
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-  "image/gif",
-  "image/svg+xml",
-]);
-
-const redirect = (location: string, status = 303): Response =>
-  new Response(null, { status, headers: { Location: location } });
-
-function sanitizeExtension(rawName: string): string {
-  const ext = extname(rawName).toLowerCase();
-  if (ext && ext.length <= 6 && /^[\.a-z0-9]+$/.test(ext)) return ext;
-  return ".png";
-}
-
-function buildFilename(extension: string): string {
-  const ts = Date.now().toString(36);
-  const rnd = Math.random().toString(36).slice(2, 10);
-  return `${ts}-${rnd}${extension.startsWith(".") ? extension : "." + extension}`;
-}
-
-async function saveUpload(file: File): Promise<string> {
-  await mkdir(UPLOAD_DIR, { recursive: true });
-  const ext = sanitizeExtension(file.name);
-  const filename = buildFilename(ext);
-  const filepath = join(UPLOAD_DIR, filename);
-
-  const nodeStream = Readable.fromWeb(file.stream() as any);
-  const writeStream = createWriteStream(filepath);
-  await pipeline(nodeStream, writeStream);
-
-  return `/uploads/${filename}`;
-}
-
-export const POST: APIRoute = async ({ request, locals }) => {
-  if (!locals.user) {
-    return new Response("Unauthorized", { status: 401 });
-  }
-
+export const POST: APIRoute = formApi(async ({ request }) => {
   let form: FormData;
   try {
     form = await request.formData();
@@ -56,18 +18,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return redirect("/admin/plano?error=Datos de formulario inválidos");
   }
 
-  const nombre = form.get("nombre")?.toString().trim() || undefined;
-
-  const anchoPxRaw = form.get("anchoPx");
-  const altoPxRaw = form.get("altoPx");
-  const anchoPx = anchoPxRaw === null ? NaN : Number(anchoPxRaw.toString());
-  const altoPx = altoPxRaw === null ? NaN : Number(altoPxRaw.toString());
-
-  if (!Number.isFinite(anchoPx) || anchoPx <= 0 || !Number.isInteger(anchoPx)) {
-    return redirect("/admin/plano?error=Ancho inválido (debe ser entero positivo)");
-  }
-  if (!Number.isFinite(altoPx) || altoPx <= 0 || !Number.isInteger(altoPx)) {
-    return redirect("/admin/plano?error=Alto inválido (debe ser entero positivo)");
+  let input: PlanoUpsertInput;
+  try {
+    input = parse(formToObject(form), planoUpsertSchema);
+  } catch (err) {
+    return redirect(
+      `/admin/plano?error=${encodeURIComponent(
+        err instanceof Error ? err.message : String(err),
+      )}`,
+    );
   }
 
   const file = form.get("imagen");
@@ -103,7 +62,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
 
   try {
-    upsertPlano({ nombre, imagenPath, anchoPx, altoPx });
+    upsertPlano({
+      nombre: input.nombre,
+      imagenPath,
+      anchoPx: input.anchoPx,
+      altoPx: input.altoPx,
+    });
   } catch (err) {
     return redirect(
       `/admin/plano?error=${encodeURIComponent(
@@ -113,4 +77,4 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
 
   return redirect("/admin/plano?ok=1");
-};
+});
