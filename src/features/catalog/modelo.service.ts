@@ -26,6 +26,15 @@ export function getModeloById(id: number): ModeloConCaracteristicas | null {
   return row ? parseModelo(row) : null;
 }
 
+/** Lectura angosta para otras features: evita que accedan a la tabla directamente. */
+export function modeloExiste(id: number): boolean {
+  return db
+    .select({ id: modelos.id })
+    .from(modelos)
+    .where(eq(modelos.id, id))
+    .get() !== undefined;
+}
+
 export function createModelo(input: ModeloFormInput): ModeloConCaracteristicas {
   const inserted = db
     .insert(modelos)

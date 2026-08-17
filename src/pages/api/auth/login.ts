@@ -6,6 +6,7 @@ import { verifyPassword } from "@features/auth/password.service";
 import {
   SESSION_COOKIE,
   SESSION_MAX_AGE_SECONDS,
+  cleanupExpiredSessions,
   createSession,
 } from "@features/auth/session.service";
 import { loginSchema } from "@features/auth/auth.types";
@@ -57,6 +58,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     }
     return errorRedirect("invalid");
   }
+
+  await cleanupExpiredSessions();
 
   const token = await createSession(user.id);
 

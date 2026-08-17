@@ -75,13 +75,23 @@ src/
 
 ## Reglas de dependencia (lo que evita romper nada)
 
-1. **`features` importan `core` y `shared`** — nunca importan otras `features`
-   directamente (si necesitan datos de otro dominio, consultan la tabla en `core/db/schema`).
+1. **`features` importan `core` y `shared`.** Si una feature necesita datos de otra,
+   **nunca consulta su tabla directamente**: usa las funciones de solo-lectura que la
+   feature dueña expone (ej. `modeloExiste()` de `catalog`). Así las invariantes de cada
+   dominio (soft-delete, validaciones, transformaciones) nunca se pueden saltar.
 2. **`core` no importa `features`** ni `shared` — es infraestructura reutilizable.
 3. **`shared` no importa `core`** — solo UI y utilidades de cliente.
 4. **`pages` es una capa fina** — no contiene lógica de negocio ni acceso a BD directo.
 5. **`src/db/` es solo compatibilidad** — `client.ts` y `schema.ts` re-exportan desde
    `core/db` para no romper imports históricos (`@db/*`).
+
+## Seguridad
+
+- **Sesión:** cookie `httpOnly` + `SameSite=lax`, caduca a las **24 horas**
+  (`SESSION_DURATION_MS`). En cada login se limpian las sesiones vencidas
+  (`cleanupExpiredSessions`).
+- **CSRF:** Astro 7 verifica la cabecera `Origin` en POST/DELETE (bloquea peticiones
+  cross-site) y la cookie `SameSite=lax` evita que se envíe en peticiones de otros sitios.
 
 ## Ciclo de una petición
 

@@ -2,6 +2,7 @@ import { asc, eq } from "drizzle-orm";
 import { db } from "@core/db/client";
 import { lotes, modelos, type Lote, type Modelo } from "@core/db/schema";
 import { parsePoligonoJson } from "@core/geometry";
+import { modeloExiste } from "@features/catalog/modelo.service";
 import { parseModelo } from "@features/catalog/modelo.types";
 import type {
   CreateLoteInput,
@@ -51,12 +52,7 @@ export function getLoteById(id: number): LoteConModelo | null {
 
 function assertModeloExists(modeloId: number | null): string | null {
   if (modeloId === null) return null;
-  const exists = db
-    .select({ id: modelos.id })
-    .from(modelos)
-    .where(eq(modelos.id, modeloId))
-    .get();
-  return exists ? null : `modeloId ${modeloId} no existe`;
+  return modeloExiste(modeloId) ? null : `modeloId ${modeloId} no existe`;
 }
 
 export function createLote(input: CreateLoteInput): LoteConModelo {
