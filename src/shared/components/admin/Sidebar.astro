@@ -10,6 +10,13 @@ type Props = {
 const { user } = Astro.props;
 const currentPath = Astro.url.pathname;
 
+type NavItem = {
+  href: string;
+  label: string;
+  icon: string;
+  match: (pathname: string) => boolean;
+};
+
 const navItems: NavItem[] = [
   {
     href: "/admin",
