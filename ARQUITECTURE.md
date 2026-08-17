@@ -14,43 +14,63 @@ Stack:
 - **zod** — validación y tipos en runtime, compartidos entre servidor y cliente.
 - **TypeScript strict** — con alias de importación (`@core`, `@features`, `@shared`, ...).
 
-## Esquema visual de la arquitectura
+## Esquema de carpetas
 
 ```
-┌────────────────────────────────────────────────────────────────┐
-│                        src/pages/ (rutas finas)                │
-│   Páginas .astro + endpoints /api  →  solo delegan en features │
-└──────────────┬─────────────────────────────────────────────────┘
-               │
-┌──────────────▼─────────────────────────────────────────────────┐
-│                      src/features/  (negocio)                  │
-│  Cada dominio es una "vertical slice" autocontenida:           │
-│                                                               │
-│   auth/      catalog/   lots/      plan/                      │
-│   ├── *.types.ts      schemas zod + tipos (compartidos)       │
-│   └── *.service.ts    lógica de negocio + consultas a BD      │
-└──────────────┬─────────────────────────────────────────────────┘
-               │
-┌──────────────▼─────────────────────────────────────────────────┐
-│                       src/core/  (infraestructura)            │
-│                                                               │
-│   db/         schema por dominio + client (singleton)         │
-│   http/       json/redirect, ApiError, wrappers jsonApi       │
-│   geometry/   Punto, validación de polígonos (futuro CAD)     │
-│   storage/    uploads de archivos (MIME, límites, nombres)    │
-│   validation/ parse() + formToObject() (zod)                  │
-└──────────────┬─────────────────────────────────────────────────┘
-               │
-┌──────────────▼─────────────────────────────────────────────────┐
-│                       src/shared/  (UI y cliente)             │
-│   layouts/  AdminLayout · PublicLayout                        │
-│   components/  Sidebar · ModeloForm · ...                     │
-│   map/  viewport · svg-utils · lot-renderer · colores         │
-└──────────────┬─────────────────────────────────────────────────┘
-               │
-        src/scripts/  public-map.ts · editor.ts  (bundles cliente)
-        src/middleware.ts  → autenticación de rutas /admin
-        src/styles/global.css  → design tokens
+src/
+├── pages/                         # RUTAS FINAS: páginas .astro + endpoints /api
+│   │                              #   Solo delegan en features; sin lógica de negocio.
+│   ├── index.astro                #   Mapa público
+│   ├── admin/                     #   Dashboard, login, editor, plano, modelos
+│   └── api/                       #   /api/auth/*, /api/admin/*
+│
+├── features/                      # NEGOCIO: una "vertical slice" por dominio.
+│   │                              #   Regla: importan core y shared, nunca otras features.
+│   ├── auth/
+│   │   ├── auth.types.ts          #   Schema zod de login (compartido server/cliente)
+│   │   ├── session.service.ts     #   Crear/validar/invalidar sesiones (cookie 30 días)
+│   │   └── password.service.ts    #   Hash y verificación scrypt
+│   ├── catalog/
+│   │   ├── modelo.types.ts        #   Schema zod del formulario + ModeloConCaracteristicas
+│   │   └── modelo.service.ts      #   CRUD de modelos (casas y apartamentos)
+│   ├── lots/
+│   │   ├── lote.types.ts          #   Schemas zod (create/update) + LoteConModelo
+│   │   └── lote.service.ts        #   CRUD de lotes + polígonos
+│   └── plan/
+│       ├── plano.types.ts         #   Schema zod del plano base
+│       └── plano.service.ts       #   Obtener/actualizar el plano activo
+│
+├── core/                          # INFRAESTRUCTURA PURA: reutilizable, sin negocio.
+│   ├── db/
+│   │   ├── client.ts              #   Singleton de better-sqlite3 + Drizzle
+│   │   └── schema/                #   1 tabla por dominio (auth, planos, modelos, lotes)
+│   ├── http/
+│   │   ├── json.ts                #   Helpers json() y redirect()
+│   │   ├── errors.ts              #   ApiError (status + código) + toErrorMessage
+│   │   └── api.ts                 #   Wrappers jsonApi() y formApi() (auth + errores)
+│   ├── geometry/                  #   Punto, validación de polígonos (futuro CAD)
+│   ├── storage/                   #   Uploads: MIME permitido, límite 10MB, nombres únicos
+│   └── validation/                #   parse() y formToObject() sobre schemas zod
+│
+├── shared/                        # UI REUTILIZABLE y núcleo de cliente.
+│   ├── layouts/                   #   AdminLayout · PublicLayout
+│   ├── components/                #   Sidebar · ModeloForm
+│   └── map/                       #   Núcleo SVG compartido entre mapa público y editor
+│       ├── viewport.ts            #     Zoom/pan sobre el viewBox
+│       ├── svg-utils.ts           #     SVG_NS, escapeHtml
+│       ├── lot-renderer.ts        #     Crear polígono y etiqueta de un lote
+│       └── lot-colors.ts          #     Colores por estado (disponible/reservado/vendido)
+│
+├── scripts/                       # BUNDLES CLIENTE delgados (componen shared/map).
+│   ├── public-map.ts              #   Mapa público (filtros, modales)
+│   └── editor.ts                  #   Editor admin (dibujar/editar lotes)
+│
+├── middleware.ts                  # Autenticación de rutas /admin
+├── styles/global.css              # Design tokens (fuente única de la paleta)
+├── db/                            # COMPATIBILIDAD: client.ts y schema.ts re-exportan
+│   │                              #   desde core/db (no romper imports históricos @db/*)
+│   └── seed.ts                    # Datos iniciales (admin + modelos)
+└── env.d.ts                       # Tipos de Astro.locals (usuario autenticado)
 ```
 
 ## Reglas de dependencia (lo que evita romper nada)
