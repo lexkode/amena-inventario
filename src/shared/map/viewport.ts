@@ -60,10 +60,14 @@ export function zoomAtPoint(
   if (newW > initial.w || newH > initial.h) {
     return { x: 0, y: 0, w: initial.w, h: initial.h };
   }
-  const p0 = clientToSvg(svg, clientX, clientY);
-  const next = { ...view, w: newW, h: newH };
-  const p1 = clientToSvg(svg, clientX, clientY);
-  return { x: next.x + p0.x - p1.x, y: next.y + p0.y - p1.y, w: newW, h: newH };
+  // Mantener fijo el punto bajo el cursor: newX = view.x*factor + p.x*(1-factor)
+  const p = clientToSvg(svg, clientX, clientY);
+  return {
+    x: view.x * factor + p.x * (1 - factor),
+    y: view.y * factor + p.y * (1 - factor),
+    w: newW,
+    h: newH,
+  };
 }
 
 export function zoomBy(
