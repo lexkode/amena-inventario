@@ -19,24 +19,6 @@ if (!user) {
       <span class="role-badge">{user.role}</span>
     </p>
   </section>
-
-  <section class="card">
-    <h2 class="card-title">Módulos</h2>
-    <ul class="module-list">
-      <li>
-        <a href="/admin/modelos">Catálogo de modelos</a>
-        <p class="muted">Gestionar casas y apartamentos.</p>
-      </li>
-      <li>
-        <a href="/admin/plano">Plano base del residencial</a>
-        <p class="muted">Configurar imagen y dimensiones del plano.</p>
-      </li>
-      <li>
-        <a href="/admin/editor">Editor de lotes</a>
-        <p class="muted">Dibujar y editar los polígonos sobre el plano.</p>
-      </li>
-    </ul>
-  </section>
 </AdminLayout>
 
 <style>
@@ -58,16 +40,5 @@ if (!user) {
     margin-left: 0.5rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-  }
-  .module-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: grid;
-    gap: 0.65rem;
-  }
-  .module-list p {
-    margin: 0.15rem 0 0;
-    font-size: 0.9rem;
   }
 </style>

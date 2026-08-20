@@ -25,16 +25,16 @@ const navItems: NavItem[] = [
     match: (p) => p === "/admin",
   },
   {
-    href: "/admin/modelos",
-    label: "Modelos",
-    icon: "modelos",
-    match: (p) => p === "/admin/modelos" || p.startsWith("/admin/modelos/"),
-  },
-  {
     href: "/admin/plano",
     label: "Plano Base",
     icon: "plano",
     match: (p) => p === "/admin/plano" || p.startsWith("/admin/plano/"),
+  },
+  {
+    href: "/admin/modelos",
+    label: "Modelos",
+    icon: "modelos",
+    match: (p) => p === "/admin/modelos" || p.startsWith("/admin/modelos/"),
   },
   {
     href: "/admin/editor",
@@ -90,9 +90,39 @@ const icons: Record<string, string> = {
         <span class="user-email" title={user.email}>{user.email}</span>
         <span class="role-badge">{user.role}</span>
       </div>
-      <form method="POST" action="/api/auth/logout" class="logout-form">
-        <button type="submit" class="logout-btn" aria-label="Cerrar sesión">
+      <div class="user-row">
+        <form method="POST" action="/api/auth/logout" class="logout-form">
+          <button type="submit" class="logout-btn" aria-label="Cerrar sesión">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" x2="9" y1="12" y2="12" />
+            </svg>
+            <span class="logout-label">Salir</span>
+          </button>
+        </form>
+
+        <!-- Toggle (desktop) -->
+        <button
+          class="sidebar-toggle"
+          id="sidebar-toggle"
+          type="button"
+          aria-label="Expandir menú"
+          aria-expanded="false"
+        >
           <svg
+            class="chevron"
             xmlns="http://www.w3.org/2000/svg"
             width="16"
             height="16"
@@ -102,40 +132,12 @@ const icons: Record<string, string> = {
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
-            aria-hidden="true"
           >
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <polyline points="16 17 21 12 16 7" />
-            <line x1="21" x2="9" y1="12" y2="12" />
+            <path d="m15 18-6-6 6-6" />
           </svg>
-          <span class="logout-label">Salir</span>
         </button>
-      </form>
+      </div>
     </div>
-
-    <!-- Toggle (desktop) -->
-    <button
-      class="sidebar-toggle"
-      id="sidebar-toggle"
-      type="button"
-      aria-label="Expandir menú"
-      aria-expanded="false"
-    >
-      <svg
-        class="chevron"
-        xmlns="http://www.w3.org/2000/svg"
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <path d="m15 18-6-6 6-6" />
-      </svg>
-    </button>
   </div>
 </aside>
 
@@ -292,6 +294,11 @@ const icons: Record<string, string> = {
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
+  .user-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
   .logout-form {
     margin: 0;
   }
@@ -406,10 +413,15 @@ const icons: Record<string, string> = {
     }
     .admin-sidebar.collapsed .logout-btn,
     :global([data-amena-sidebar="collapsed"]) .admin-sidebar .logout-btn {
-      width: 36px;
-      height: 36px;
+      width: 32px;
+      height: 32px;
       padding: 0;
       justify-content: center;
+    }
+    .admin-sidebar:not(.collapsed) .logout-btn {
+      width: auto;
+      height: 32px;
+      padding: 0 0.75rem;
     }
     .admin-sidebar.collapsed .logout-label,
     :global([data-amena-sidebar="collapsed"]) .admin-sidebar .logout-label {
@@ -445,6 +457,18 @@ const icons: Record<string, string> = {
     }
     .sidebar-toggle {
       display: inline-flex;
+    }
+    .admin-sidebar:not(.collapsed) .user-row {
+      flex-direction: row;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .admin-sidebar:not(.collapsed) .logout-form {
+      flex: 1;
+    }
+    .admin-sidebar.collapsed .user-row,
+    :global([data-amena-sidebar="collapsed"]) .admin-sidebar .user-row {
+      align-items: center;
     }
     .admin-sidebar.collapsed .sidebar-toggle,
     :global([data-amena-sidebar="collapsed"]) .admin-sidebar .sidebar-toggle {

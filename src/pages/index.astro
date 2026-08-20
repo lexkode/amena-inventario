@@ -378,11 +378,10 @@ const initialData = { plan, lotes, modelos, counts };
       cursor: pointer;
       transition:
         filter 0.15s,
-        stroke-width 0.15s,
         opacity 0.15s;
     }
-    :global(.lote-polygon):hover {
-      stroke-width: 3;
+    :global(.lote-polygon:hover .lote-border) {
+      stroke-width: 8;
     }
     :global(.lote-polygon.lote-disponible):hover {
       filter: drop-shadow(0 0 6px var(--c-disponible-glow));
@@ -397,8 +396,8 @@ const initialData = { plan, lotes, modelos, counts };
       opacity: 0.4;
       pointer-events: none;
     }
-    :global(.lote-polygon.selected) {
-      stroke-width: 4;
+    :global(.lote-polygon.selected .lote-border) {
+      stroke-width: 8;
     }
 
     .zoom-controls {

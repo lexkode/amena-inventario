@@ -17,10 +17,16 @@ import {
   zoomBy as zoomViewBy,
 } from "@shared/map/viewport";
 import { SVG_NS, escapeHtml } from "@shared/map/svg-utils";
-import { createLotLabel, createLotPolygon } from "@shared/map/lot-renderer";
+import { createLotLabel, createLotPolygon, LOT_BORDER_WIDTH } from "@shared/map/lot-renderer";
 import { ESTADO_FILL, ESTADO_STROKE } from "@shared/map/lot-colors";
 
 type Mode = "lotes" | "draw";
+
+type PolygonView = "disponibilidad" | "estandar";
+
+const STANDARD_SELECTED_FILL = "rgba(220, 131, 47, 0.5)";
+const STANDARD_SELECTED_STROKE = "#dc832f";
+const STANDARD_DASH = "6,4";
 
 type NewLote = {
   numeroLote: string;
@@ -41,6 +47,7 @@ type LoteDraft = {
 
 type State = {
   mode: Mode;
+  polygonView: PolygonView;
   view: { x: number; y: number; w: number; h: number };
   initialView: { w: number; h: number };
   isPanning: boolean;
@@ -74,6 +81,7 @@ type InitialData = {
 
 const state: State = {
   mode: "lotes",
+  polygonView: "estandar",
   view: { x: 0, y: 0, w: 1, h: 1 },
   initialView: { w: 1, h: 1 },
   isPanning: false,
@@ -98,6 +106,7 @@ let lotsLayer!: SVGGElement;
 let overlayLayer!: SVGGElement;
 let sidePanel!: HTMLElement;
 let zoomDisplay!: HTMLElement;
+let planImage: SVGGElement | null = null;
 let initialData: InitialData;
 
 // ============ Render ============
@@ -123,24 +132,49 @@ function renderLotsLayer(): void {
 
   for (const lote of state.lotes) {
     const isSelected = lote.id === state.selectedLoteId;
+    const isStandard = state.polygonView === "estandar";
+    const label = createLotLabel(lote, { fontSize: 22, strokeWidth: 0.5 });
+
+    let fill: string;
+    let stroke: string;
+    let strokeOpacity: number | undefined;
+    let fillOpacity: number | undefined;
+    let dash: string | undefined;
+
+    if (isStandard) {
+      if (isSelected) {
+        fill = STANDARD_SELECTED_FILL;
+        stroke = STANDARD_SELECTED_STROKE;
+        dash = STANDARD_DASH;
+      } else {
+        fill = "var(--c-bg-dark)";
+        stroke = "var(--c-bg-dark)";
+        fillOpacity = 0.35;
+        dash = STANDARD_DASH;
+      }
+    } else {
+      fill = ESTADO_FILL[lote.estado];
+      stroke = ESTADO_STROKE[lote.estado];
+      strokeOpacity = isSelected ? 0.5 : 1;
+    }
+
     const polygon = createLotPolygon(lote, {
-      fill: ESTADO_FILL[lote.estado],
-      stroke: ESTADO_STROKE[lote.estado],
+      fill,
+      stroke,
       selected: isSelected,
-      strokeWidth: isSelected ? 3 : 2,
-      strokeOpacity: isSelected ? 0.5 : 1,
+      strokeWidth: LOT_BORDER_WIDTH,
+      strokeOpacity,
+      fillOpacity,
+      strokeDasharray: dash,
     });
     polygon.style.cursor = state.mode === "lotes" ? "pointer" : "default";
     polygon.addEventListener("mousedown", (e) => {
       if (e.button !== 0 || e.shiftKey) return;
       e.stopPropagation();
-      if (state.mode === "lotes") {
-        void selectLote(lote.id);
-      }
+      if (state.mode === "lotes") void selectLote(lote.id);
     });
     lotsLayer.appendChild(polygon);
 
-    const label = createLotLabel(lote, { fontSize: 22, strokeWidth: 0.5 });
     if (label) lotsLayer.appendChild(label);
   }
 }
@@ -612,6 +646,11 @@ function renderModeButtons(): void {
   });
 }
 
+function renderMapOpacity(): void {
+  if (!planImage) return;
+  planImage.setAttribute("opacity", state.polygonView === "estandar" ? "0.5" : "1");
+}
+
 function render(): void {
   renderViewTransform();
   updateCursor();
@@ -619,6 +658,7 @@ function render(): void {
   renderOverlayLayer();
   renderSidePanel();
   renderModeButtons();
+  renderMapOpacity();
 }
 
 // ============ Mode & selection ============
@@ -1120,6 +1160,7 @@ export function initEditor(): void {
   overlayLayer = document.getElementById("overlay-layer") as unknown as SVGGElement;
   sidePanel = document.getElementById("side-panel") as HTMLElement;
   zoomDisplay = document.getElementById("zoom-display") as HTMLElement;
+  planImage = document.getElementById("plan-image") as SVGGElement | null;
 
   state.initialView = { w: initialData.plan.anchoPx, h: initialData.plan.altoPx };
   state.view = { x: 0, y: 0, ...state.initialView };
@@ -1135,6 +1176,15 @@ export function initEditor(): void {
   document.getElementById("zoom-in")?.addEventListener("click", () => zoomBy(0.8));
   document.getElementById("zoom-out")?.addEventListener("click", () => zoomBy(1.25));
   document.getElementById("zoom-fit")?.addEventListener("click", () => fitView());
+
+  const viewSelect = document.getElementById("polygon-view") as HTMLSelectElement | null;
+  if (viewSelect) {
+    viewSelect.value = state.polygonView;
+    viewSelect.addEventListener("change", () => {
+      state.polygonView = viewSelect.value === "estandar" ? "estandar" : "disponibilidad";
+      render();
+    });
+  }
 
   svg.addEventListener("mousedown", handleSvgMouseDown);
   svg.addEventListener("wheel", handleWheel, { passive: false });

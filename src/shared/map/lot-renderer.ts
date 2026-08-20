@@ -1,6 +1,8 @@
 import type { LoteConModelo } from "@features/lots/lote.types";
 import { SVG_NS } from "./svg-utils";
 
+export const LOT_BORDER_WIDTH = 3;
+
 export type LotPolygonOptions = {
   selected?: boolean;
   dimmed?: boolean;
@@ -8,28 +10,60 @@ export type LotPolygonOptions = {
   stroke: string;
   strokeWidth?: number;
   strokeOpacity?: number;
+  fillOpacity?: number;
+  strokeDasharray?: string;
 };
 
 export function createLotPolygon(
   lote: LoteConModelo,
   opts: LotPolygonOptions,
-): SVGPolygonElement {
-  const polygon = document.createElementNS(SVG_NS, "polygon");
-  polygon.setAttribute(
-    "points",
-    lote.poligono.map((p) => `${p.x},${p.y}`).join(" "),
-  );
-  polygon.setAttribute("fill", opts.fill);
-  polygon.setAttribute("stroke", opts.stroke);
-  polygon.setAttribute("stroke-width", String(opts.strokeWidth ?? 2));
-  if (opts.strokeOpacity !== undefined) {
-    polygon.setAttribute("stroke-opacity", String(opts.strokeOpacity));
+): SVGGElement {
+  const points = lote.poligono.map((p) => `${p.x},${p.y}`).join(" ");
+  const borderWidth = opts.strokeWidth ?? LOT_BORDER_WIDTH;
+  const clipId = `clip-lote-${lote.id}`;
+
+  const g = document.createElementNS(SVG_NS, "g");
+  g.setAttribute("data-lote-id", String(lote.id));
+  g.classList.add("lote-polygon");
+  if (opts.selected) g.classList.add("selected");
+  if (opts.dimmed) g.classList.add("dimmed");
+
+  const defs = document.createElementNS(SVG_NS, "defs");
+  const clipPath = document.createElementNS(SVG_NS, "clipPath");
+  clipPath.setAttribute("id", clipId);
+  const clipPoly = document.createElementNS(SVG_NS, "polygon");
+  clipPoly.setAttribute("points", points);
+  clipPath.appendChild(clipPoly);
+  defs.appendChild(clipPath);
+  g.appendChild(defs);
+
+  const fillPoly = document.createElementNS(SVG_NS, "polygon");
+  fillPoly.setAttribute("points", points);
+  fillPoly.style.fill = opts.fill;
+  fillPoly.setAttribute("stroke", "none");
+  if (opts.fillOpacity !== undefined) {
+    fillPoly.setAttribute("fill-opacity", String(opts.fillOpacity));
   }
-  polygon.setAttribute("data-lote-id", String(lote.id));
-  polygon.classList.add("lote-polygon");
-  if (opts.selected) polygon.classList.add("selected");
-  if (opts.dimmed) polygon.classList.add("dimmed");
-  return polygon;
+  g.appendChild(fillPoly);
+
+  const border = document.createElementNS(SVG_NS, "polygon");
+  border.setAttribute("points", points);
+  border.setAttribute("fill", "none");
+  border.setAttribute("stroke", opts.stroke);
+  border.setAttribute("stroke-width", String(borderWidth * 2));
+  border.setAttribute("stroke-linejoin", "round");
+  border.setAttribute("clip-path", `url(#${clipId})`);
+  border.setAttribute("pointer-events", "none");
+  border.classList.add("lote-border");
+  if (opts.strokeOpacity !== undefined) {
+    border.setAttribute("stroke-opacity", String(opts.strokeOpacity));
+  }
+  if (opts.strokeDasharray) {
+    border.setAttribute("stroke-dasharray", opts.strokeDasharray);
+  }
+  g.appendChild(border);
+
+  return g;
 }
 
 export function createLotLabel(

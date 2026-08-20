@@ -20,6 +20,13 @@ const initialData = { plan, lotes, modelos };
   <div class="page-header">
     <h1>Editor de Plano</h1>
     <div class="toolbar">
+      <div class="view-group" role="group" aria-label="Visualización de polígonos">
+        <label class="view-label" for="polygon-view">Vista</label>
+        <select id="polygon-view" class="view-select">
+          <option value="estandar">Edición</option>
+          <option value="disponibilidad">Previsualización</option>
+        </select>
+      </div>
       <div class="mode-group" role="tablist" aria-label="Modo de edición">
         <button data-mode="lotes" class="mode-btn" type="button">Lotes</button>
         <button data-mode="draw" class="mode-btn" type="button">Dibujar</button>
@@ -73,13 +80,36 @@ const initialData = { plan, lotes, modelos };
     flex-wrap: wrap;
   }
   .mode-group,
-  .zoom-group {
+  .zoom-group,
+  .view-group {
     display: inline-flex;
     background: var(--c-surface);
     border-radius: var(--r-md);
     padding: 0.25rem;
     border: 1px solid var(--c-line);
     box-shadow: var(--c-shadow-soft);
+    align-items: center;
+  }
+  .view-group {
+    gap: 0.35rem;
+    padding: 0.35rem 0.5rem;
+  }
+  .view-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--c-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .view-select {
+    border: 0;
+    background: transparent;
+    color: var(--c-text);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 0.1rem 0.25rem;
+    outline: none;
   }
   .mode-btn,
   .zoom-btn {
