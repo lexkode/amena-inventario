@@ -128,7 +128,7 @@ button {
   color: var(--c-white);
   border-radius: var(--r-sm);
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   border: 0;
   cursor: pointer;
   text-decoration: none;
@@ -151,7 +151,7 @@ button {
   color: var(--c-text);
   border: 1px solid var(--c-line);
   border-radius: var(--r-sm);
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   text-decoration: none;
   cursor: pointer;
   transition: border-color 200ms ease, color 200ms ease, background-color 200ms ease;
@@ -170,7 +170,7 @@ button {
   border: 1px solid var(--c-danger);
   border-radius: var(--r-sm);
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 500;
   transition: background-color 200ms ease, color 200ms ease;
 }
@@ -187,7 +187,7 @@ button {
   border: 1px solid var(--c-line);
   border-radius: var(--r-sm);
   text-decoration: none;
-  font-size: 0.95rem;
+  font-size: 0.8rem;
   cursor: pointer;
   transition: border-color 200ms ease, color 200ms ease;
 }
@@ -299,7 +299,7 @@ textarea:focus {
   border: 1px solid var(--c-line);
   border-radius: var(--r-lg);
   padding: 1.25rem 1.5rem;
-  max-width: 380px;
+  max-width: 420px;
   width: 100%;
   box-shadow: var(--c-shadow-strong);
 }
@@ -315,22 +315,16 @@ textarea:focus {
 }
 .confirm-actions {
   display: flex;
-  flex-direction: column;
   gap: 0.5rem;
 }
-.confirm-actions-row {
-  display: flex;
-  gap: 0.5rem;
-}
-.confirm-actions-row .btn-secondary {
+.confirm-actions .btn-primary,
+.confirm-actions .btn-secondary,
+.confirm-actions .btn-danger {
   flex: 1 1 auto;
   min-width: 0;
 }
-.confirm-actions .btn-primary {
-  width: 100%;
-}
 @media (max-width: 480px) {
-  .confirm-actions-row {
+  .confirm-actions {
     flex-direction: column;
   }
 }

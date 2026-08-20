@@ -438,7 +438,7 @@ function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
         <p id="form-success" class="form-success" hidden></p>
         <div class="actions">
           <button type="submit" id="save-lote-btn" class="btn-primary" ${saveDisabled ? "disabled" : ""}>${isNew ? "Crear lote" : "Guardar cambios"}</button>
-          ${!isNew ? '<button type="button" id="delete-lote" class="btn-danger">Eliminar</button>' : ""}
+          ${!isNew ? '<button type="button" id="delete-lote" class="btn-danger">Eliminar lote</button>' : ""}
           ${isNew ? '<button type="button" id="cancel-new" class="btn-secondary">Cancelar</button>' : ""}
         </div>
       </div>
@@ -461,9 +461,9 @@ function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
       void selectLote(null);
     });
     document.getElementById("delete-lote")?.addEventListener("click", () => {
-      if (confirm("¿Eliminar este lote? Esta acción no se puede deshacer.")) {
-        void deleteLote();
-      }
+      void (async () => {
+        if (await confirmDeleteLote()) void deleteLote();
+      })();
     });
     bindImageHandlers();
   }
@@ -631,56 +631,69 @@ function hasUnsavedChanges(): boolean {
   );
 }
 
-type ConfirmAction = "save" | "discard" | "cancel";
+type ModalButton = { label: string; value: string; className: string };
 
-async function confirmDiscard(): Promise<boolean> {
-  if (!hasUnsavedChanges()) return true;
-  const action = await showConfirmModal(
-    "Hay cambios sin guardar. ¿Qué deseas hacer?",
-  );
-  if (action === "cancel") return false;
-  if (action === "save") {
-    const saved = await saveLote();
-    if (!saved) return false;
-  }
-  return true;
-}
-
-function showConfirmModal(message: string): Promise<ConfirmAction> {
+function showModal(opts: {
+  title: string;
+  message: string;
+  buttons: ModalButton[];
+}): Promise<string> {
   return new Promise((resolve) => {
     const overlay = document.createElement("div");
     overlay.className = "confirm-overlay";
     overlay.innerHTML = `
       <div class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
-        <h3 id="confirm-title">Cambios sin guardar</h3>
-        <p class="confirm-text">${message}</p>
+        <h3 id="confirm-title">${opts.title}</h3>
+        <p class="confirm-text">${opts.message}</p>
         <div class="confirm-actions">
-          <div class="confirm-actions-row">
-            <button type="button" class="btn-secondary" data-confirm="discard">Continuar</button>
-            <button type="button" class="btn-secondary" data-confirm="cancel">Cancelar</button>
-          </div>
-          <button type="button" class="btn-primary" data-confirm="save">Guardar y continuar</button>
+          ${opts.buttons
+            .map(
+              (b) =>
+                `<button type="button" class="${b.className}" data-confirm="${b.value}">${b.label}</button>`,
+            )
+            .join("")}
         </div>
       </div>`;
     document.body.appendChild(overlay);
 
-    const cleanup = (result: ConfirmAction): void => {
+    const cleanup = (value: string): void => {
       overlay.remove();
-      resolve(result);
+      resolve(value);
     };
-    overlay
-      .querySelector<HTMLElement>("[data-confirm='save']")
-      ?.addEventListener("click", () => cleanup("save"));
-    overlay
-      .querySelector<HTMLElement>("[data-confirm='discard']")
-      ?.addEventListener("click", () => cleanup("discard"));
-    overlay
-      .querySelector<HTMLElement>("[data-confirm='cancel']")
-      ?.addEventListener("click", () => cleanup("cancel"));
+    opts.buttons.forEach((b) => {
+      overlay
+        .querySelector<HTMLElement>(`[data-confirm='${b.value}']`)
+        ?.addEventListener("click", () => cleanup(b.value));
+    });
     overlay.addEventListener("click", (e) => {
       if (e.target === overlay) cleanup("cancel");
     });
   });
+}
+
+async function confirmDiscard(): Promise<boolean> {
+  if (!hasUnsavedChanges()) return true;
+  const action = await showModal({
+    title: "Cambios sin guardar",
+    message: "Hay cambios sin guardar. ¿Qué deseas hacer?",
+    buttons: [
+      { label: "Continuar editando", value: "cancel", className: "btn-secondary" },
+      { label: "Descartar cambios", value: "discard", className: "btn-danger" },
+    ],
+  });
+  return action === "discard";
+}
+
+async function confirmDeleteLote(): Promise<boolean> {
+  const action = await showModal({
+    title: "Eliminar lote",
+    message: "¿Eliminar este lote? Esta acción no se puede deshacer.",
+    buttons: [
+      { label: "Cancelar", value: "cancel", className: "btn-secondary" },
+      { label: "Eliminar lote", value: "confirm", className: "btn-danger" },
+    ],
+  });
+  return action === "confirm";
 }
 
 async function setMode(mode: Mode): Promise<void> {
@@ -805,6 +818,7 @@ function handleDocumentMouseMove(e: MouseEvent): void {
     const lote = state.lotes.find((l) => l.id === state.draggingVertex!.loteId);
     if (lote) {
       lote.poligono[state.draggingVertex.index] = p;
+      markFormDirty();
       render();
     }
   }
@@ -842,7 +856,9 @@ function handleKeyDown(e: KeyboardEvent): void {
     }
     render();
   } else if ((e.key === "Delete" || e.key === "Backspace") && state.selectedLoteId !== null && state.mode === "lotes") {
-    if (confirm("¿Eliminar este lote?")) void deleteLote();
+    void (async () => {
+      if (await confirmDeleteLote()) void deleteLote();
+    })();
   } else if (state.selectedVertex !== null && state.mode === "lotes") {
     const lote = state.lotes.find((l) => l.id === state.selectedVertex!.loteId);
     if (lote) {
@@ -852,6 +868,7 @@ function handleKeyDown(e: KeyboardEvent): void {
         const idx = state.selectedVertex!.index;
         const p = lote.poligono[idx];
         lote.poligono[idx] = { x: p.x + dx, y: p.y + dy };
+        markFormDirty();
         e.preventDefault();
         render();
       }
