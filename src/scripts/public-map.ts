@@ -180,6 +180,16 @@ function renderPillCounts(): void {
 function renderLotGallery(lote: LoteConModelo, plan: Plano): void {
   while (lotModalGallery.firstChild) lotModalGallery.removeChild(lotModalGallery.firstChild);
 
+  const images = lote.imagenes;
+  if (images.length > 0) {
+    renderImageGallery(lote, images);
+    return;
+  }
+
+  renderLotZoom(lote, plan);
+}
+
+function renderLotZoom(lote: LoteConModelo, plan: Plano): void {
   const bbox = getLoteBBox(lote);
   const padX = Math.max(bbox.w * 0.4, 60);
   const padY = Math.max(bbox.h * 0.4, 60);
@@ -248,6 +258,102 @@ function renderLotGallery(lote: LoteConModelo, plan: Plano): void {
   caption.appendChild(capDivider);
   caption.appendChild(capModelo);
   lotModalGallery.appendChild(caption);
+}
+
+function renderImageGallery(
+  lote: LoteConModelo,
+  images: LoteConModelo["imagenes"],
+): void {
+  let current = 0;
+
+  const gallery = document.createElement("div");
+  gallery.className = "lot-gallery";
+
+  const viewer = document.createElement("div");
+  viewer.className = "lot-gallery-viewer";
+
+  const img = document.createElement("img");
+  img.className = "lot-gallery-img";
+  img.src = images[0].path;
+  img.alt = `Imagen del lote ${lote.numeroLote}`;
+
+  const counter = document.createElement("div");
+  counter.className = "lot-gallery-counter";
+  counter.textContent = `1 / ${images.length}`;
+
+  const prev = document.createElement("button");
+  prev.type = "button";
+  prev.className = "lot-gallery-nav lot-gallery-prev";
+  prev.setAttribute("aria-label", "Imagen anterior");
+  prev.innerHTML =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>';
+
+  const next = document.createElement("button");
+  next.type = "button";
+  next.className = "lot-gallery-nav lot-gallery-next";
+  next.setAttribute("aria-label", "Imagen siguiente");
+  next.innerHTML =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';
+
+  viewer.appendChild(img);
+  viewer.appendChild(counter);
+  viewer.appendChild(prev);
+  viewer.appendChild(next);
+  gallery.appendChild(viewer);
+
+  const caption = document.createElement("div");
+  caption.className = "gallery-caption";
+  const capLote = document.createElement("span");
+  capLote.className = "gallery-caption-lote";
+  capLote.textContent = lote.numeroLote;
+  const capDivider = document.createElement("span");
+  capDivider.className = "gallery-caption-divider";
+  capDivider.textContent = "·";
+  const capModelo = document.createElement("span");
+  capModelo.className = "gallery-caption-modelo";
+  capModelo.textContent = lote.modelo?.nombre ?? "Lote disponible";
+  caption.appendChild(capLote);
+  caption.appendChild(capDivider);
+  caption.appendChild(capModelo);
+  viewer.appendChild(caption);
+
+  const thumbs = document.createElement("div");
+  thumbs.className = "lot-gallery-thumbs";
+  images.forEach((im, i) => {
+    const thumb = document.createElement("button");
+    thumb.type = "button";
+    thumb.className = "lot-gallery-thumb" + (i === 0 ? " active" : "");
+    thumb.setAttribute("aria-label", `Ver imagen ${i + 1}`);
+    const thumbImg = document.createElement("img");
+    thumbImg.src = im.path;
+    thumbImg.alt = "";
+    thumb.appendChild(thumbImg);
+    thumb.addEventListener("click", () => {
+      current = i;
+      update();
+    });
+    thumbs.appendChild(thumb);
+  });
+  gallery.appendChild(thumbs);
+
+  lotModalGallery.appendChild(gallery);
+
+  function update(): void {
+    img.src = images[current].path;
+    counter.textContent = `${current + 1} / ${images.length}`;
+    thumbs.querySelectorAll<HTMLElement>(".lot-gallery-thumb").forEach((t, i) => {
+      t.classList.toggle("active", i === current);
+    });
+  }
+
+  prev.addEventListener("click", () => {
+    current = (current - 1 + images.length) % images.length;
+    update();
+  });
+  next.addEventListener("click", () => {
+    current = (current + 1) % images.length;
+    update();
+  });
 }
 
 function renderLotInfo(lote: LoteConModelo): void {

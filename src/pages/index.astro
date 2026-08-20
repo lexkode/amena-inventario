@@ -513,7 +513,7 @@ const initialData = { plan, lotes, modelos, counts };
     :global(.gallery-caption) {
       position: absolute;
       left: 1rem;
-      bottom: 1rem;
+      top: 1rem;
       display: inline-flex;
       align-items: center;
       gap: 0.5rem;
@@ -534,6 +534,93 @@ const initialData = { plan, lotes, modelos, counts };
     }
     :global(.gallery-caption-modelo) {
       color: var(--c-line);
+    }
+
+    :global(.lot-gallery) {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    :global(.lot-gallery-viewer) {
+      position: relative;
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    :global(.lot-gallery-img) {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+    :global(.lot-gallery-counter) {
+      position: absolute;
+      top: 0.75rem;
+      right: 0.75rem;
+      padding: 0.25rem 0.6rem;
+      background: var(--c-overlay-strong);
+      color: var(--c-white);
+      border-radius: var(--r-pill);
+      font-size: 0.75rem;
+      font-variant-numeric: tabular-nums;
+    }
+    :global(.lot-gallery-nav) {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 2.4rem;
+      height: 2.4rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--c-overlay-strong);
+      color: var(--c-white);
+      border: 0;
+      border-radius: 50%;
+      cursor: pointer;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+    :global(.lot-gallery-nav:hover) {
+      background: var(--c-accent);
+    }
+    :global(.lot-gallery-prev) {
+      left: 0.75rem;
+    }
+    :global(.lot-gallery-next) {
+      right: 0.75rem;
+    }
+    :global(.lot-gallery-thumbs) {
+      display: flex;
+      gap: 0.5rem;
+      padding: 0.75rem;
+      overflow-x: auto;
+      background: rgba(0, 0, 0, 0.3);
+      flex-shrink: 0;
+    }
+    :global(.lot-gallery-thumb) {
+      width: 68px;
+      height: 50px;
+      flex-shrink: 0;
+      padding: 0;
+      border: 2px solid transparent;
+      border-radius: 6px;
+      overflow: hidden;
+      cursor: pointer;
+      background: transparent;
+    }
+    :global(.lot-gallery-thumb img) {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    :global(.lot-gallery-thumb.active) {
+      border-color: var(--c-accent);
     }
 
     .modal-info {
@@ -751,7 +838,7 @@ const initialData = { plan, lotes, modelos, counts };
     }
 
     /* ===== Responsive ===== */
-    @media (max-width: 768px) {
+    @media (max-width: 1024px) {
       .modal-grid {
         grid-template-columns: 1fr;
         grid-template-rows: minmax(220px, 45vh) auto;
