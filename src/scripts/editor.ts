@@ -135,7 +135,7 @@ function renderLotsLayer(): void {
       if (e.button !== 0 || e.shiftKey) return;
       e.stopPropagation();
       if (state.mode === "lotes") {
-        selectLote(lote.id);
+        void selectLote(lote.id);
       }
     });
     lotsLayer.appendChild(polygon);
@@ -301,7 +301,7 @@ function renderLoteList(): void {
   sidePanel.innerHTML = `<div class="lote-scroll">${html}</div>`;
   sidePanel.querySelectorAll<HTMLElement>("[data-lote-id]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      selectLote(Number(btn.dataset.loteId));
+      void selectLote(Number(btn.dataset.loteId));
     });
   });
 }
@@ -458,7 +458,7 @@ function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
     });
   } else {
     document.getElementById("back-to-list")?.addEventListener("click", () => {
-      selectLote(null);
+      void selectLote(null);
     });
     document.getElementById("delete-lote")?.addEventListener("click", () => {
       if (confirm("¿Eliminar este lote? Esta acción no se puede deshacer.")) {
@@ -623,7 +623,69 @@ function render(): void {
 
 // ============ Mode & selection ============
 
-function setMode(mode: Mode): void {
+function hasUnsavedChanges(): boolean {
+  return (
+    state.formDirty ||
+    state.pendingImageAdds.length > 0 ||
+    state.pendingImageRemoves.length > 0
+  );
+}
+
+type ConfirmAction = "save" | "discard" | "cancel";
+
+async function confirmDiscard(): Promise<boolean> {
+  if (!hasUnsavedChanges()) return true;
+  const action = await showConfirmModal(
+    "Hay cambios sin guardar. ¿Qué deseas hacer?",
+  );
+  if (action === "cancel") return false;
+  if (action === "save") {
+    const saved = await saveLote();
+    if (!saved) return false;
+  }
+  return true;
+}
+
+function showConfirmModal(message: string): Promise<ConfirmAction> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "confirm-overlay";
+    overlay.innerHTML = `
+      <div class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+        <h3 id="confirm-title">Cambios sin guardar</h3>
+        <p class="confirm-text">${message}</p>
+        <div class="confirm-actions">
+          <div class="confirm-actions-row">
+            <button type="button" class="btn-secondary" data-confirm="discard">Continuar</button>
+            <button type="button" class="btn-secondary" data-confirm="cancel">Cancelar</button>
+          </div>
+          <button type="button" class="btn-primary" data-confirm="save">Guardar y continuar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    const cleanup = (result: ConfirmAction): void => {
+      overlay.remove();
+      resolve(result);
+    };
+    overlay
+      .querySelector<HTMLElement>("[data-confirm='save']")
+      ?.addEventListener("click", () => cleanup("save"));
+    overlay
+      .querySelector<HTMLElement>("[data-confirm='discard']")
+      ?.addEventListener("click", () => cleanup("discard"));
+    overlay
+      .querySelector<HTMLElement>("[data-confirm='cancel']")
+      ?.addEventListener("click", () => cleanup("cancel"));
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) cleanup("cancel");
+    });
+  });
+}
+
+async function setMode(mode: Mode): Promise<void> {
+  if (mode === state.mode) return;
+  if (!(await confirmDiscard())) return;
   state.mode = mode;
   state.currentPolygon = [];
   state.pendingNewLote = null;
@@ -636,7 +698,9 @@ function setMode(mode: Mode): void {
   render();
 }
 
-function selectLote(id: number | null): void {
+async function selectLote(id: number | null): Promise<void> {
+  if (id === state.selectedLoteId) return;
+  if (!(await confirmDiscard())) return;
   state.selectedLoteId = id;
   state.selectedVertex = null;
   state.pendingNewLote = null;
@@ -874,10 +938,10 @@ function clearFormSuccess(): void {
   }
 }
 
-async function saveLote(): Promise<void> {
+async function saveLote(): Promise<boolean> {
   clearFormError();
   const data = getFormData();
-  if (!data) return;
+  if (!data) return false;
 
   const isNew = state.pendingNewLote !== null;
   const poligono = isNew
@@ -886,7 +950,7 @@ async function saveLote(): Promise<void> {
 
   if (poligono.length < 3) {
     showFormError("El polígono debe tener al menos 3 puntos");
-    return;
+    return false;
   }
 
   const modeloId = data.modeloId ?? null;
@@ -898,7 +962,7 @@ async function saveLote(): Promise<void> {
   );
   if (duplicate) {
     showFormError(`El número de lote ${data.numeroLote} ya existe para este modelo`);
-    return;
+    return false;
   }
 
   const body = { ...data, poligono };
@@ -914,7 +978,7 @@ async function saveLote(): Promise<void> {
     const result = (await response.json()) as { ok: boolean; data?: LoteConModelo; error?: string };
     if (!result.ok || !result.data) {
       showFormError(result.error ?? "Error desconocido");
-      return;
+      return false;
     }
     if (isNew) {
       state.lotes.push(result.data);
@@ -927,15 +991,17 @@ async function saveLote(): Promise<void> {
 
     const loteId = result.data.id;
     const ok = await applyPendingImages(loteId);
-    if (!ok) return;
+    if (!ok) return false;
 
     resetPendingImages();
     clearFormDraft();
     await refreshLotes();
     render();
     showFormSuccess("Cambios guardados con éxito");
+    return true;
   } catch (err) {
     showFormError(err instanceof Error ? err.message : String(err));
+    return false;
   }
 }
 
@@ -1046,7 +1112,7 @@ export function initEditor(): void {
   document.querySelectorAll<HTMLElement>("[data-mode]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const mode = btn.dataset.mode as Mode | undefined;
-      if (mode) setMode(mode);
+      if (mode) void setMode(mode);
     });
   });
   document.getElementById("zoom-in")?.addEventListener("click", () => zoomBy(0.8));
@@ -1059,6 +1125,12 @@ export function initEditor(): void {
   document.addEventListener("mousemove", handleDocumentMouseMove);
   document.addEventListener("mouseup", handleDocumentMouseUp);
   document.addEventListener("keydown", handleKeyDown);
+  window.addEventListener("beforeunload", (e) => {
+    if (hasUnsavedChanges()) {
+      e.preventDefault();
+      e.returnValue = "";
+    }
+  });
 
   render();
 }

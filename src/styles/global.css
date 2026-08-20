@@ -282,3 +282,55 @@ textarea:focus {
 .muted {
   color: var(--c-text-muted);
 }
+
+/* Confirm modal (over admin window) */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: var(--c-overlay-mid);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.confirm-modal {
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-lg);
+  padding: 1.25rem 1.5rem;
+  max-width: 380px;
+  width: 100%;
+  box-shadow: var(--c-shadow-strong);
+}
+.confirm-modal h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+.confirm-text {
+  margin: 0 0 1.25rem;
+  color: var(--c-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.confirm-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.confirm-actions-row {
+  display: flex;
+  gap: 0.5rem;
+}
+.confirm-actions-row .btn-secondary {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.confirm-actions .btn-primary {
+  width: 100%;
+}
+@media (max-width: 480px) {
+  .confirm-actions-row {
+    flex-direction: column;
+  }
+}
