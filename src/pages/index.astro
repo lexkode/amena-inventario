@@ -631,27 +631,45 @@ const initialData = { plan, lotes, modelos, counts };
       min-height: 0;
     }
     :global(.modal-info .info-header) {
-      padding: 1.5rem 1.5rem 0;
+      padding: 1.4rem 1.5rem 1.25rem;
+      border-bottom: 1px solid var(--c-line);
     }
-    :global(.modal-info .info-eyebrow) {
-      margin: 0 0 0.15rem;
-      font-size: 0.7rem;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--c-text);
-      font-weight: 600;
+    :global(.modal-info .info-title-row) {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.4rem;
     }
     :global(.modal-info .info-title) {
-      margin: 0 0 0.5rem;
-      font-size: 1.75rem;
+      margin: 0;
+      font-size: 1.4rem;
       font-weight: 800;
       letter-spacing: -0.01em;
+      line-height: 1.15;
+    }
+    :global(.modal-info .info-model-name) {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--c-text);
+    }
+    :global(.modal-info .info-model-name.muted) {
+      color: var(--c-text-muted);
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+    :global(.modal-info .info-model-price) {
+      margin: 0.15rem 0 0;
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: var(--c-accent);
     }
     :global(.modal-info .status-badge) {
       display: inline-block;
-      padding: 0.2rem 0.7rem;
+      padding: 0.25rem 0.75rem;
       border-radius: 999px;
-      font-size: 0.78rem;
+      font-size: 0.75rem;
       font-weight: 700;
       text-transform: capitalize;
     }
@@ -670,7 +688,7 @@ const initialData = { plan, lotes, modelos, counts };
 
     :global(.modal-info .info-body) {
       flex: 1;
-      padding: 1.5rem;
+      padding: 1.25rem 1.5rem;
       display: flex;
       flex-direction: column;
       gap: 1.25rem;
@@ -678,70 +696,61 @@ const initialData = { plan, lotes, modelos, counts };
     }
     :global(.modal-info .lot-specs),
     :global(.modal-info .modelo-specs) {
+      margin: 0;
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 0.5rem 1rem;
-      margin: 0;
-      background: var(--c-white);
+      gap: 1rem 1.25rem;
+      padding: 1rem 1.1rem;
+      background: var(--c-surface-muted);
       border: 1px solid var(--c-line);
-      border-radius: 10px;
-      padding: 0.85rem 1rem;
+      border-radius: 12px;
     }
-    :global(.modal-info .lot-specs div),
-    :global(.modal-info .modelo-specs div) {
+    :global(.modal-info .spec) {
       display: flex;
       flex-direction: column;
-      gap: 0.1rem;
+      gap: 0.15rem;
+      min-width: 0;
     }
     :global(.modal-info .lot-specs dt),
     :global(.modal-info .modelo-specs dt) {
-      font-size: 0.7rem;
+      font-size: 0.68rem;
       text-transform: uppercase;
       letter-spacing: 0.06em;
-      color: var(--c-text);
-      font-weight: 600;
+      color: var(--c-text-muted);
+      font-weight: 700;
     }
     :global(.modal-info .lot-specs dd),
     :global(.modal-info .modelo-specs dd) {
       margin: 0;
-      font-size: 0.95rem;
-      font-weight: 600;
+      font-size: 1rem;
+      font-weight: 800;
       color: var(--c-text);
+      overflow-wrap: anywhere;
     }
-    :global(.modal-info .modelo-block) {
+    :global(.modal-info .features-block) {
+      padding: 1rem 1.1rem;
+      background: var(--c-surface-muted);
+      border: 1px solid var(--c-line);
+      border-radius: 12px;
     }
-    :global(.modal-info .modelo-block.muted) {
-      color: var(--c-text);
-    }
-    :global(.modal-info .modelo-eyebrow) {
-      margin: 0 0 0.25rem;
+    :global(.modal-info .features-eyebrow) {
+      margin: 0;
       font-size: 0.7rem;
       text-transform: uppercase;
       letter-spacing: 0.08em;
-      color: var(--c-text);
-      font-weight: 600;
-    }
-    :global(.modal-info .modelo-block h3) {
-      margin: 0 0 0.5rem;
-      font-size: 1.25rem;
+      color: var(--c-text-muted);
       font-weight: 700;
-    }
-    :global(.modal-info .modelo-price) {
-      margin: 0 0 0.85rem;
-      font-size: 1.5rem;
-      font-weight: 800;
-      color: var(--c-text);
     }
     :global(.modal-info .features) {
       list-style: none;
       padding: 0;
-      margin: 0.5rem 0 0;
-      display: flex;
-      flex-direction: column;
-      gap: 0.35rem;
+      margin: 0.6rem 0 0;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.4rem;
     }
     :global(.modal-info .features li) {
-      padding-left: 1.2rem;
+      padding-left: 1.3rem;
       position: relative;
       font-size: 0.9rem;
       color: var(--c-text);
@@ -760,9 +769,9 @@ const initialData = { plan, lotes, modelos, counts };
     }
     :global(.modal-info .info-cta) {
       color: var(--c-white);
-      border-width: 0px;
-      border-radius: 6px;
-      font-size: 18px;
+      border: 0;
+      border-radius: 8px;
+      font-size: 0.95rem;
       font-weight: 600;
       background-color: var(--c-bg-dark);
       display: block;
@@ -779,7 +788,7 @@ const initialData = { plan, lotes, modelos, counts };
       margin: 0.5rem 0 0;
       text-align: center;
       font-size: 0.75rem;
-      color: var(--c-text);
+      color: var(--c-text-muted);
     }
 
     /* ===== Contact Modal (sub-modal) ===== */

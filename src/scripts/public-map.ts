@@ -362,48 +362,40 @@ function renderLotInfo(lote: LoteConModelo): void {
 
   lotModalInfo.innerHTML = `
     <div class="info-header">
-      <p class="info-eyebrow">Lote</p>
-      <h2 class="info-title" id="lot-modal-title">${escapeHtml(lote.numeroLote)}</h2>
-      <span class="status-badge status-${lote.estado}">${ESTADO_LABEL[lote.estado]}</span>
+      <div class="info-title-row">
+        <h2 class="info-title" id="lot-modal-title">Lote ${escapeHtml(lote.numeroLote)}</h2>
+        <span class="status-badge status-${lote.estado}">${ESTADO_LABEL[lote.estado]}</span>
+      </div>
+      ${modelo
+        ? `
+        <p class="info-model-name">${escapeHtml(modelo.nombre)}</p>
+        <p class="info-model-price">${formatUSD(modelo.precioBase)}</p>`
+        : `<p class="info-model-name muted">Sin modelo de casa asignado</p>`}
     </div>
     <div class="info-body">
       <dl class="lot-specs">
-        ${lote.terrenoM2 !== null
-          ? `<div><dt>Terreno</dt><dd>${lote.terrenoM2} m²</dd></div>`
-          : ""}
-        ${lote.dimensionesLote
-          ? `<div><dt>Dimensiones</dt><dd>${escapeHtml(lote.dimensionesLote)}</dd></div>`
-          : ""}
-        <div><dt>Estado</dt><dd>${ESTADO_LABEL[lote.estado]}</dd></div>
+        <div class="spec"><dt>Terreno</dt><dd>${lote.terrenoM2 !== null ? `${lote.terrenoM2} m²` : "—"}</dd></div>
+        <div class="spec"><dt>Dimensiones</dt><dd>${lote.dimensionesLote ? escapeHtml(lote.dimensionesLote) : "—"}</dd></div>
       </dl>
 
       ${modelo
         ? `
-        <div class="modelo-block">
-          <p class="modelo-eyebrow">Modelo de casa</p>
-          <h3>${escapeHtml(modelo.nombre)}</h3>
-          <p class="modelo-price">${formatUSD(modelo.precioBase)}</p>
-          <dl class="modelo-specs">
-            <div><dt>Construcción</dt><dd>${modelo.construccionM2} m²</dd></div>
-            <div><dt>Habitaciones</dt><dd>${modelo.habitaciones}</dd></div>
-            <div><dt>Baños</dt><dd>${modelo.banos}</dd></div>
-            <div><dt>Parqueos</dt><dd>${modelo.parqueos}</dd></div>
-          </dl>
-          ${topFeatures.length > 0
-            ? `
-            <p class="modelo-eyebrow">Características destacadas</p>
+        <dl class="modelo-specs">
+          <div class="spec"><dt>Construcción</dt><dd>${modelo.construccionM2} m²</dd></div>
+          <div class="spec"><dt>Habitaciones</dt><dd>${modelo.habitaciones}</dd></div>
+          <div class="spec"><dt>Baños</dt><dd>${modelo.banos}</dd></div>
+          <div class="spec"><dt>Parqueos</dt><dd>${modelo.parqueos}</dd></div>
+        </dl>
+        ${topFeatures.length > 0
+          ? `
+          <div class="features-block">
+            <p class="features-eyebrow">Características</p>
             <ul class="features">
               ${topFeatures.map((f) => `<li>${escapeHtml(f)}</li>`).join("")}
             </ul>
-          `
-            : ""}
-        </div>
-        `
-        : `
-        <div class="modelo-block muted">
-          <p>Este lote aún no tiene un modelo de casa asignado.</p>
-        </div>
-        `}
+          </div>`
+          : ""}`
+        : ""}
     </div>
     <div class="info-footer">
       <button type="button" class="info-cta" id="lot-cta-consultar">Consultar por este Lote</button>
