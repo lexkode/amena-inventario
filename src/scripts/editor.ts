@@ -57,6 +57,7 @@ type State = {
   selectedLoteId: number | null;
   selectedVertex: { loteId: number; index: number } | null;
   draggingVertex: { loteId: number; index: number } | null;
+  draggingPolygon: { loteId: number; start: Punto; original: Punto[] } | null;
   lotes: LoteConModelo[];
   modelos: ModeloConCaracteristicas[];
   pendingImageAdds: { file: File; url: string }[];
@@ -91,6 +92,7 @@ const state: State = {
   selectedLoteId: null,
   selectedVertex: null,
   draggingVertex: null,
+  draggingPolygon: null,
   lotes: [],
   modelos: [],
   pendingImageAdds: [],
@@ -171,7 +173,14 @@ function renderLotsLayer(): void {
     polygon.addEventListener("mousedown", (e) => {
       if (e.button !== 0 || e.shiftKey) return;
       e.stopPropagation();
-      if (state.mode === "lotes") void selectLote(lote.id);
+      if (state.mode !== "lotes") return;
+      void selectLote(lote.id);
+      state.draggingPolygon = {
+        loteId: lote.id,
+        start: svgToPoint(svg, e.clientX, e.clientY),
+        original: lote.poligono.map((p) => ({ ...p })),
+      };
+      svg.style.cursor = "move";
     });
     lotsLayer.appendChild(polygon);
 
@@ -743,6 +752,7 @@ async function setMode(mode: Mode): Promise<void> {
   state.currentPolygon = [];
   state.pendingNewLote = null;
   state.selectedVertex = null;
+  state.draggingPolygon = null;
   resetPendingImages();
   clearFormDraft();
   if (mode !== "lotes") {
@@ -756,6 +766,7 @@ async function selectLote(id: number | null): Promise<void> {
   if (!(await confirmDiscard())) return;
   state.selectedLoteId = id;
   state.selectedVertex = null;
+  state.draggingPolygon = null;
   state.pendingNewLote = null;
   state.currentPolygon = [];
   resetPendingImages();
@@ -861,6 +872,17 @@ function handleDocumentMouseMove(e: MouseEvent): void {
       markFormDirty();
       render();
     }
+  } else if (state.draggingPolygon) {
+    const drag = state.draggingPolygon;
+    const p = svgToPoint(svg, e.clientX, e.clientY);
+    const dx = p.x - drag.start.x;
+    const dy = p.y - drag.start.y;
+    const lote = state.lotes.find((l) => l.id === drag.loteId);
+    if (lote) {
+      lote.poligono = drag.original.map((pt) => ({ x: pt.x + dx, y: pt.y + dy }));
+      markFormDirty();
+      render();
+    }
   }
 }
 
@@ -871,6 +893,10 @@ function handleDocumentMouseUp(): void {
   }
   if (state.draggingVertex) {
     state.draggingVertex = null;
+  }
+  if (state.draggingPolygon) {
+    state.draggingPolygon = null;
+    updateCursor();
   }
 }
 
@@ -899,6 +925,22 @@ function handleKeyDown(e: KeyboardEvent): void {
     void (async () => {
       if (await confirmDeleteLote()) void deleteLote();
     })();
+  } else if (
+    state.mode === "lotes" &&
+    state.selectedLoteId !== null &&
+    state.selectedVertex === null
+  ) {
+    const lote = state.lotes.find((l) => l.id === state.selectedLoteId);
+    if (lote) {
+      const dx = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
+      const dy = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
+      if (dx !== 0 || dy !== 0) {
+        lote.poligono = lote.poligono.map((p) => ({ x: p.x + dx, y: p.y + dy }));
+        markFormDirty();
+        e.preventDefault();
+        render();
+      }
+    }
   } else if (state.selectedVertex !== null && state.mode === "lotes") {
     const lote = state.lotes.find((l) => l.id === state.selectedVertex!.loteId);
     if (lote) {
