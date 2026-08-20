@@ -1,0 +1,88 @@
+---
+import AdminLayout from "@shared/layouts/AdminLayout.astro";
+import { listDocs } from "@features/docs/docs.service";
+
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect("/admin/login");
+}
+
+const docs = await listDocs();
+---
+
+<AdminLayout title="Documentación" user={user}>
+  <div class="page-header">
+    <h1>Documentación del proyecto</h1>
+    <p class="subtitle">Documentos que describen el producto, la arquitectura y el despliegue de Residencial Amena.</p>
+  </div>
+
+  <div class="docs-list">
+    {
+      docs.map((doc) => (
+        <a href={`/admin/documentacion/${doc.slug}`} class="doc-card">
+          <span class="doc-index">{String(doc.index).padStart(2, "0")}</span>
+          <div class="doc-body">
+            <h2>{doc.title}</h2>
+            {doc.description && <p>{doc.description}</p>}
+          </div>
+          <span class="doc-arrow" aria-hidden="true">→</span>
+        </a>
+      ))
+    }
+  </div>
+</AdminLayout>
+
+<style>
+  .subtitle {
+    margin: 0.25rem 0 0;
+    color: var(--c-text-muted);
+    font-size: 0.95rem;
+  }
+  .docs-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1rem;
+  }
+  .doc-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.1rem 1.2rem;
+    background: var(--c-surface);
+    border: 1px solid var(--c-line);
+    border-radius: var(--r-lg);
+    text-decoration: none;
+    color: var(--c-text);
+    box-shadow: var(--c-shadow-soft);
+    transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+  }
+  .doc-card:hover {
+    border-color: var(--c-accent);
+    box-shadow: var(--c-shadow-medium);
+    transform: translateY(-2px);
+  }
+  .doc-index {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--c-accent);
+    line-height: 1.2;
+  }
+  .doc-body {
+    flex: 1;
+    min-width: 0;
+  }
+  .doc-body h2 {
+    margin: 0 0 0.25rem;
+    font-size: 1.05rem;
+  }
+  .doc-body p {
+    margin: 0;
+    color: var(--c-text-muted);
+    font-size: 0.85rem;
+  }
+  .doc-arrow {
+    align-self: center;
+    color: var(--c-text-muted);
+    font-size: 1.2rem;
+  }
+</style>
