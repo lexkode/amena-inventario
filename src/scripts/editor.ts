@@ -45,6 +45,15 @@ type LoteDraft = {
   dimensionesLote: string;
 };
 
+type LoteSnapshot = {
+  polygon: Punto[];
+  numeroLote: string;
+  estado: LoteEstado;
+  modeloId: number | null;
+  terrenoM2: number | null;
+  dimensionesLote: string | null;
+};
+
 type State = {
   mode: Mode;
   polygonView: PolygonView;
@@ -64,6 +73,7 @@ type State = {
   pendingImageRemoves: number[];
   formDirty: boolean;
   draft: LoteDraft | null;
+  editSnapshot: LoteSnapshot | null;
 };
 
 type InitialData = {
@@ -99,6 +109,7 @@ const state: State = {
   pendingImageRemoves: [],
   formDirty: false,
   draft: null,
+  editSnapshot: null,
 };
 
 const VERTEX_RADIUS = 6; // radio unificado (mitad del original más grande)
@@ -720,6 +731,23 @@ function showModal(opts: {
   });
 }
 
+function discardChanges(): void {
+  if (state.selectedLoteId !== null && state.editSnapshot) {
+    const lote = state.lotes.find((l) => l.id === state.selectedLoteId);
+    if (lote) {
+      lote.poligono = state.editSnapshot.polygon.map((p) => ({ ...p }));
+      lote.numeroLote = state.editSnapshot.numeroLote;
+      lote.estado = state.editSnapshot.estado;
+      lote.modeloId = state.editSnapshot.modeloId;
+      lote.terrenoM2 = state.editSnapshot.terrenoM2;
+      lote.dimensionesLote = state.editSnapshot.dimensionesLote;
+    }
+  }
+  resetPendingImages();
+  clearFormDraft();
+  state.editSnapshot = null;
+}
+
 async function confirmDiscard(): Promise<boolean> {
   if (!hasUnsavedChanges()) return true;
   const action = await showModal({
@@ -730,6 +758,7 @@ async function confirmDiscard(): Promise<boolean> {
       { label: "Descartar cambios", value: "discard", className: "btn-danger" },
     ],
   });
+  if (action === "discard") discardChanges();
   return action === "discard";
 }
 
@@ -771,6 +800,17 @@ async function selectLote(id: number | null): Promise<void> {
   state.currentPolygon = [];
   resetPendingImages();
   clearFormDraft();
+  const lote = id !== null ? state.lotes.find((l) => l.id === id) : undefined;
+  state.editSnapshot = lote
+    ? {
+        polygon: lote.poligono.map((p) => ({ ...p })),
+        numeroLote: lote.numeroLote,
+        estado: lote.estado,
+        modeloId: lote.modeloId ?? null,
+        terrenoM2: lote.terrenoM2,
+        dimensionesLote: lote.dimensionesLote,
+      }
+    : null;
   render();
 }
 
@@ -914,13 +954,22 @@ function handleKeyDown(e: KeyboardEvent): void {
     if (state.pendingNewLote !== null) {
       state.pendingNewLote = null;
       state.currentPolygon = [];
+      render();
     } else if (state.currentPolygon.length > 0) {
       state.currentPolygon = [];
+      render();
     } else if (state.selectedLoteId !== null) {
-      state.selectedLoteId = null;
-      state.selectedVertex = null;
+      void (async () => {
+        if (await confirmDiscard()) {
+          state.selectedLoteId = null;
+          state.selectedVertex = null;
+          state.draggingPolygon = null;
+          render();
+        }
+      })();
+    } else {
+      render();
     }
-    render();
   } else if ((e.key === "Delete" || e.key === "Backspace") && state.selectedLoteId !== null && state.mode === "lotes") {
     void (async () => {
       if (await confirmDeleteLote()) void deleteLote();
@@ -1095,6 +1144,15 @@ async function saveLote(): Promise<boolean> {
     resetPendingImages();
     clearFormDraft();
     await refreshLotes();
+    const saved = state.lotes.find((l) => l.id === result.data!.id) ?? result.data;
+    state.editSnapshot = {
+      polygon: saved.poligono.map((p) => ({ ...p })),
+      numeroLote: saved.numeroLote,
+      estado: saved.estado,
+      modeloId: saved.modeloId ?? null,
+      terrenoM2: saved.terrenoM2,
+      dimensionesLote: saved.dimensionesLote,
+    };
     render();
     showFormSuccess("Cambios guardados con éxito");
     return true;
