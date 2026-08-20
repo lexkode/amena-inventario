@@ -14,7 +14,7 @@ import { SVG_NS, escapeHtml } from "@shared/map/svg-utils";
 import { createLotLabel, createLotPolygon } from "@shared/map/lot-renderer";
 import { ESTADO_FILL, ESTADO_STROKE } from "@shared/map/lot-colors";
 
-type Mode = "view" | "draw" | "edit";
+type Mode = "lotes" | "draw";
 
 type NewLote = {
   numeroLote: string;
@@ -55,7 +55,7 @@ type InitialData = {
 // ============ State ============
 
 const state: State = {
-  mode: "view",
+  mode: "lotes",
   view: { x: 0, y: 0, w: 1, h: 1 },
   initialView: { w: 1, h: 1 },
   isPanning: false,
@@ -87,7 +87,7 @@ function renderViewTransform(): void {
 function updateCursor(): void {
   if (state.isPanning) {
     svg.style.cursor = "grabbing";
-  } else if (state.mode === "view") {
+  } else if (state.mode === "lotes") {
     svg.style.cursor = "grab";
   } else if (state.mode === "draw") {
     svg.style.cursor = state.pendingNewLote ? "not-allowed" : "crosshair";
@@ -108,11 +108,11 @@ function renderLotsLayer(): void {
       strokeWidth: isSelected ? 3 : 2,
       strokeOpacity: isSelected ? 0.5 : 1,
     });
-    polygon.style.cursor = state.mode === "edit" ? "pointer" : "default";
+    polygon.style.cursor = state.mode === "lotes" ? "pointer" : "default";
     polygon.addEventListener("mousedown", (e) => {
       if (e.button !== 0 || e.shiftKey) return;
       e.stopPropagation();
-      if (state.mode === "edit") {
+      if (state.mode === "lotes") {
         selectLote(lote.id);
       }
     });
@@ -150,7 +150,7 @@ function renderOverlayLayer(): void {
     }
   }
 
-  if (state.mode === "edit" && state.selectedLoteId !== null) {
+  if (state.mode === "lotes" && state.selectedLoteId !== null) {
     const lote = state.lotes.find((l) => l.id === state.selectedLoteId);
     if (lote) {
       for (let i = 0; i < lote.poligono.length; i++) {
@@ -229,16 +229,59 @@ function renderSidePanel(): void {
     }
   }
 
-  sidePanel.innerHTML = `
-    <h2 style="margin-top:0">Editor de Plano</h2>
-    <p style="color:#5a7682;font-size:.9rem">Selecciona un modo para comenzar:</p>
-    <ul style="color:#5a7682;font-size:.85rem;line-height:1.7;padding-left:1.2rem;margin-top:.75rem">
-      <li><strong>Ver</strong>: pan y zoom del plano</li>
-      <li><strong>Dibujar</strong>: clic para crear un nuevo lote</li>
-      <li><strong>Editar</strong>: clic en un lote existente para modificarlo</li>
-    </ul>
-    <p style="color:#5a7682;font-size:.8rem;margin-top:1rem">Tip: <kbd>Shift</kbd>+arrastrar = panear en cualquier modo. Rueda = zoom. <kbd>Esc</kbd> = cancelar.</p>
-  `;
+  renderLoteList();
+}
+
+function renderLoteList(): void {
+  const grupos = new Map<string, LoteConModelo[]>();
+  const sinModelo: LoteConModelo[] = [];
+  for (const lote of state.lotes) {
+    if (lote.modeloId === null || !lote.modelo) {
+      sinModelo.push(lote);
+    } else {
+      const nombre = lote.modelo.nombre;
+      const arr = grupos.get(nombre) ?? [];
+      arr.push(lote);
+      grupos.set(nombre, arr);
+    }
+  }
+
+  let html = `<h2 style="margin-top:0">Lotes</h2>`;
+  const seen = new Set<string>();
+
+  const renderGrupo = (nombre: string, arr: LoteConModelo[]): void => {
+    seen.add(nombre);
+    html += `<details class="lote-acc">`;
+    html += `<summary class="lote-grupo">${escapeHtml(nombre)}<svg class="lote-chev" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></summary>`;
+    html += `<ul class="lote-list">`;
+    for (const lote of arr) {
+      html += `<li><button type="button" class="lote-row" data-lote-id="${lote.id}">${escapeHtml(lote.numeroLote)}</button></li>`;
+    }
+    html += `</ul>`;
+    html += `</details>`;
+  };
+
+  for (const modelo of state.modelos) {
+    const arr = grupos.get(modelo.nombre);
+    if (arr) renderGrupo(modelo.nombre, arr);
+  }
+  for (const [nombre, arr] of grupos) {
+    if (!seen.has(nombre)) renderGrupo(nombre, arr);
+  }
+  if (sinModelo.length > 0) {
+    renderGrupo("Sin modelo", sinModelo);
+  }
+
+  if (state.lotes.length === 0) {
+    html += `<p class="lote-vacio">No hay lotes todavía. Usa el modo Dibujar para crear uno.</p>`;
+  }
+
+  sidePanel.innerHTML = html;
+  sidePanel.querySelectorAll<HTMLElement>("[data-lote-id]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      selectLote(Number(btn.dataset.loteId));
+    });
+  });
 }
 
 function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
@@ -258,8 +301,12 @@ function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
       ? ""
       : lote.dimensionesLote;
 
+  const backButton = isNew
+    ? ""
+    : '<button type="button" id="back-to-list" class="back-btn" aria-label="Volver a la lista de lotes"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg></button>';
+
   sidePanel.innerHTML = `
-    <h2 style="margin-top:0">${title}</h2>
+    <div class="panel-head">${backButton}<h2 style="margin-top:0">${title}</h2><span class="panel-spacer" aria-hidden="true"></span></div>
     <form id="lot-form" autocomplete="off">
       <div class="field">
         <label for="numeroLote">Número de lote</label>
@@ -309,6 +356,9 @@ function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
       render();
     });
   } else {
+    document.getElementById("back-to-list")?.addEventListener("click", () => {
+      selectLote(null);
+    });
     document.getElementById("delete-lote")?.addEventListener("click", () => {
       if (confirm("¿Eliminar este lote? Esta acción no se puede deshacer.")) {
         void deleteLote();
@@ -357,7 +407,7 @@ function setMode(mode: Mode): void {
   state.currentPolygon = [];
   state.pendingNewLote = null;
   state.selectedVertex = null;
-  if (mode !== "edit") {
+  if (mode !== "lotes") {
     state.selectedLoteId = null;
   }
   render();
@@ -446,15 +496,13 @@ function handleSvgMouseDown(e: MouseEvent): void {
   }
   if (e.button !== 0) return;
 
-  if (state.mode === "view") {
+  if (state.mode === "lotes") {
     startPan(e.clientX, e.clientY);
   } else if (state.mode === "draw") {
     if (state.pendingNewLote !== null) return;
     const p = svgToPoint(svg, e.clientX, e.clientY);
     state.currentPolygon.push(p);
     render();
-  } else if (state.mode === "edit") {
-    selectLote(null);
   }
 }
 
@@ -502,9 +550,9 @@ function handleKeyDown(e: KeyboardEvent): void {
       state.selectedVertex = null;
     }
     render();
-  } else if ((e.key === "Delete" || e.key === "Backspace") && state.selectedLoteId !== null && state.mode === "edit") {
+  } else if ((e.key === "Delete" || e.key === "Backspace") && state.selectedLoteId !== null && state.mode === "lotes") {
     if (confirm("¿Eliminar este lote?")) void deleteLote();
-  } else if (state.selectedVertex !== null && state.mode === "edit") {
+  } else if (state.selectedVertex !== null && state.mode === "lotes") {
     const lote = state.lotes.find((l) => l.id === state.selectedVertex!.loteId);
     if (lote) {
       const dx = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
