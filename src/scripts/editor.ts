@@ -1,6 +1,12 @@
 // ============ Types ============
 
-import type { Punto, LoteEstado, LoteConModelo } from "@features/lots/lote.types";
+import {
+  MAX_IMAGENES_POR_LOTE,
+  type Punto,
+  type LoteEstado,
+  type LoteConModelo,
+  type LoteImagenItem,
+} from "@features/lots/lote.types";
 import type { ModeloConCaracteristicas } from "@features/catalog/modelo.types";
 import {
   applyViewTransform as applySvgView,
@@ -25,6 +31,14 @@ type NewLote = {
   dimensionesLote: string | null;
 };
 
+type LoteDraft = {
+  numeroLote: string;
+  estado: LoteEstado;
+  modeloId: string;
+  terrenoM2: string;
+  dimensionesLote: string;
+};
+
 type State = {
   mode: Mode;
   view: { x: number; y: number; w: number; h: number };
@@ -38,6 +52,10 @@ type State = {
   draggingVertex: { loteId: number; index: number } | null;
   lotes: LoteConModelo[];
   modelos: ModeloConCaracteristicas[];
+  pendingImageAdds: { file: File; url: string }[];
+  pendingImageRemoves: number[];
+  formDirty: boolean;
+  draft: LoteDraft | null;
 };
 
 type InitialData = {
@@ -67,6 +85,10 @@ const state: State = {
   draggingVertex: null,
   lotes: [],
   modelos: [],
+  pendingImageAdds: [],
+  pendingImageRemoves: [],
+  formDirty: false,
+  draft: null,
 };
 
 const VERTEX_RADIUS = 6; // radio unificado (mitad del original más grande)
@@ -276,7 +298,7 @@ function renderLoteList(): void {
     html += `<p class="lote-vacio">No hay lotes todavía. Usa el modo Dibujar para crear uno.</p>`;
   }
 
-  sidePanel.innerHTML = html;
+  sidePanel.innerHTML = `<div class="lote-scroll">${html}</div>`;
   sidePanel.querySelectorAll<HTMLElement>("[data-lote-id]").forEach((btn) => {
     btn.addEventListener("click", () => {
       selectLote(Number(btn.dataset.loteId));
@@ -285,62 +307,141 @@ function renderLoteList(): void {
 }
 
 function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
+  const id = isNew ? null : (lote as LoteConModelo).id;
+
+  const draft = state.draft;
+  const numeroLote = draft ? draft.numeroLote : isNew ? "" : (lote as LoteConModelo).numeroLote;
+  const estado = draft ? draft.estado : lote.estado;
+  const modeloId = draft
+    ? draft.modeloId
+    : lote.modeloId === null || lote.modeloId === undefined
+      ? ""
+      : String(lote.modeloId);
+  const terrenoM2 = draft
+    ? draft.terrenoM2
+    : lote.terrenoM2 === null || lote.terrenoM2 === undefined
+      ? ""
+      : String(lote.terrenoM2);
+  const dimensionesLote = draft
+    ? draft.dimensionesLote
+    : lote.dimensionesLote === null || lote.dimensionesLote === undefined
+      ? ""
+      : lote.dimensionesLote;
+
+  const titleModel =
+    !isNew && modeloId
+      ? (state.modelos.find((m) => String(m.id) === modeloId)?.nombre ?? null)
+      : null;
+  const title = isNew
+    ? "Nuevo lote"
+    : titleModel
+      ? `${titleModel} ${numeroLote}`
+      : `Lote ${numeroLote}`;
+
   const modelosOptions = state.modelos
     .filter((m) => m.tipo === "casa")
     .map(
       (m) =>
-        `<option value="${m.id}" ${m.id === lote.modeloId ? "selected" : ""}>${escapeHtml(m.nombre)}</option>`,
+        `<option value="${m.id}" ${String(m.id) === modeloId ? "selected" : ""}>${escapeHtml(m.nombre)}</option>`,
     )
     .join("");
-
-  const id = isNew ? null : (lote as LoteConModelo).id;
-  const title = isNew ? "Nuevo lote" : `Lote #${id}`;
-  const numeroLote = isNew ? "" : (lote as LoteConModelo).numeroLote;
-  const dimensionesLote =
-    lote.dimensionesLote === null || lote.dimensionesLote === undefined
-      ? ""
-      : lote.dimensionesLote;
 
   const backButton = isNew
     ? ""
     : '<button type="button" id="back-to-list" class="back-btn" aria-label="Volver a la lista de lotes"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg></button>';
 
+  const baseImagenes = isNew ? [] : (lote as LoteConModelo).imagenes;
+  const keptImagenes = baseImagenes.filter(
+    (img) => !state.pendingImageRemoves.includes(img.id),
+  );
+  const pendingAdds = state.pendingImageAdds;
+  const effectiveCount = keptImagenes.length + pendingAdds.length;
+  const imagenesAtLimit = effectiveCount >= MAX_IMAGENES_POR_LOTE;
+
+  const keptHtml = keptImagenes
+    .map(
+      (img) => `
+    <div class="lote-img">
+      <img src="${escapeHtml(img.path)}" alt="Imagen del lote" />
+      <button type="button" class="img-remove" data-img-id="${img.id}" aria-label="Quitar imagen">&times;</button>
+    </div>`,
+    )
+    .join("");
+
+  const pendingHtml = pendingAdds
+    .map(
+      (p, i) => `
+    <div class="lote-img">
+      <img src="${p.url}" alt="Imagen nueva" />
+      <button type="button" class="img-remove" data-pending-index="${i}" aria-label="Quitar imagen">&times;</button>
+    </div>`,
+    )
+    .join("");
+
+  const imagenesHtml = isNew
+    ? ""
+    : `
+      <div class="field">
+        <label>Imágenes del lote</label>
+        <div class="lote-imgs" id="lote-imgs">
+          ${keptHtml}${pendingHtml}
+          ${imagenesAtLimit ? "" : `
+          <label class="img-add" title="Subir imagen">
+            <input type="file" id="lote-img-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+            <span>+</span>
+          </label>`}
+        </div>
+        ${imagenesAtLimit ? `<small class="hint">Máximo ${MAX_IMAGENES_POR_LOTE} imágenes por lote</small>` : ""}
+      </div>`;
+
+  const saveDisabled = !isNew && !state.formDirty;
+
   sidePanel.innerHTML = `
-    <div class="panel-head">${backButton}<h2 style="margin-top:0">${title}</h2><span class="panel-spacer" aria-hidden="true"></span></div>
-    <form id="lot-form" autocomplete="off">
-      <div class="field">
-        <label for="numeroLote">Número de lote</label>
-        <input id="numeroLote" type="text" required maxlength="64" value="${escapeHtml(numeroLote)}" />
+    <form id="lot-form" class="form-col" autocomplete="off">
+      <div class="form-head">
+        ${backButton}
+        <h2>${escapeHtml(title)}</h2>
+        <span class="panel-spacer" aria-hidden="true"></span>
       </div>
-      <div class="field">
-        <label for="estado">Estado</label>
-        <select id="estado">
-          <option value="disponible" ${lote.estado === "disponible" ? "selected" : ""}>Disponible</option>
-          <option value="reservado" ${lote.estado === "reservado" ? "selected" : ""}>Reservado</option>
-          <option value="vendido" ${lote.estado === "vendido" ? "selected" : ""}>Vendido</option>
-        </select>
+      <div class="form-fields">
+        <div class="field">
+          <label for="numeroLote">Número de lote</label>
+          <input id="numeroLote" type="number" min="0" step="1" required value="${escapeHtml(numeroLote)}" />
+        </div>
+        <div class="field">
+          <label for="estado">Estado</label>
+          <select id="estado">
+            <option value="disponible" ${estado === "disponible" ? "selected" : ""}>Disponible</option>
+            <option value="reservado" ${estado === "reservado" ? "selected" : ""}>Reservado</option>
+            <option value="vendido" ${estado === "vendido" ? "selected" : ""}>Vendido</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="modeloId">Modelo de casa</label>
+          <select id="modeloId">
+            <option value="" ${modeloId === "" ? "selected" : ""}>— Sin modelo —</option>
+            ${modelosOptions}
+          </select>
+        </div>
+        <div class="field">
+          <label for="terrenoM2">Terreno (m²)</label>
+          <input id="terrenoM2" type="number" step="0.01" min="0" value="${escapeHtml(terrenoM2)}" />
+        </div>
+        <div class="field">
+          <label for="dimensionesLote">Dimensiones del lote</label>
+          <input id="dimensionesLote" type="text" maxlength="64" value="${escapeHtml(dimensionesLote)}" placeholder="ej. 15m x 7m" />
+        </div>
+        ${imagenesHtml}
       </div>
-      <div class="field">
-        <label for="modeloId">Modelo de casa</label>
-        <select id="modeloId">
-          <option value="" ${lote.modeloId === null ? "selected" : ""}>— Sin modelo —</option>
-          ${modelosOptions}
-        </select>
+      <div class="form-actions">
+        <p id="form-error" class="form-error" hidden></p>
+        <p id="form-success" class="form-success" hidden></p>
+        <div class="actions">
+          <button type="submit" id="save-lote-btn" class="btn-primary" ${saveDisabled ? "disabled" : ""}>${isNew ? "Crear lote" : "Guardar cambios"}</button>
+          ${!isNew ? '<button type="button" id="delete-lote" class="btn-danger">Eliminar</button>' : ""}
+          ${isNew ? '<button type="button" id="cancel-new" class="btn-secondary">Cancelar</button>' : ""}
+        </div>
       </div>
-      <div class="field">
-        <label for="terrenoM2">Terreno (m²)</label>
-        <input id="terrenoM2" type="number" step="0.01" min="0" value="${lote.terrenoM2 ?? ""}" />
-      </div>
-      <div class="field">
-        <label for="dimensionesLote">Dimensiones del lote</label>
-        <input id="dimensionesLote" type="text" maxlength="64" value="${escapeHtml(dimensionesLote)}" placeholder="ej. 15m x 7m" />
-      </div>
-      <div class="actions">
-        <button type="submit" class="btn-primary">${isNew ? "Crear lote" : "Guardar cambios"}</button>
-        ${!isNew ? '<button type="button" id="delete-lote" class="btn-danger">Eliminar</button>' : ""}
-        ${isNew ? '<button type="button" id="cancel-new" class="btn-secondary">Cancelar</button>' : ""}
-      </div>
-      <p id="form-error" class="form-error" hidden></p>
     </form>
   `;
 
@@ -364,11 +465,20 @@ function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
         void deleteLote();
       }
     });
+    bindImageHandlers();
   }
 
+  const numeroLoteEl = document.getElementById("numeroLote") as HTMLInputElement | null;
+  const estadoEl = document.getElementById("estado") as HTMLSelectElement | null;
   const modeloSelect = document.getElementById("modeloId") as HTMLSelectElement | null;
   const terrenoInput = document.getElementById("terrenoM2") as HTMLInputElement | null;
   const dimensionesInput = document.getElementById("dimensionesLote") as HTMLInputElement | null;
+
+  [numeroLoteEl, estadoEl, modeloSelect, terrenoInput, dimensionesInput].forEach((el) => {
+    el?.addEventListener("input", markFormDirty);
+    el?.addEventListener("change", markFormDirty);
+  });
+
   modeloSelect?.addEventListener("change", () => {
     const id = Number(modeloSelect.value);
     if (!id) return;
@@ -382,6 +492,117 @@ function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
         dimensionesInput.value = modelo.dimensionesLote;
       }
     }
+  });
+}
+
+function markFormDirty(): void {
+  state.formDirty = true;
+  const btn = document.getElementById("save-lote-btn") as HTMLButtonElement | null;
+  if (btn) btn.disabled = false;
+  state.draft = {
+    numeroLote:
+      (document.getElementById("numeroLote") as HTMLInputElement | null)?.value ?? "",
+    estado:
+      ((document.getElementById("estado") as HTMLSelectElement | null)?.value as LoteEstado) ??
+      "disponible",
+    modeloId:
+      (document.getElementById("modeloId") as HTMLSelectElement | null)?.value ?? "",
+    terrenoM2:
+      (document.getElementById("terrenoM2") as HTMLInputElement | null)?.value ?? "",
+    dimensionesLote:
+      (document.getElementById("dimensionesLote") as HTMLInputElement | null)?.value ?? "",
+  };
+}
+
+function clearFormDraft(): void {
+  state.draft = null;
+  state.formDirty = false;
+}
+
+function renderLoteImages(): void {
+  const container = document.getElementById("lote-imgs");
+  if (!container) return;
+
+  const lote = state.lotes.find((l) => l.id === state.selectedLoteId);
+  const base = lote ? lote.imagenes : [];
+  const kept = base.filter((img) => !state.pendingImageRemoves.includes(img.id));
+  const effective = kept.length + state.pendingImageAdds.length;
+  const atLimit = effective >= MAX_IMAGENES_POR_LOTE;
+
+  container.innerHTML =
+    kept
+      .map(
+        (img) => `
+    <div class="lote-img">
+      <img src="${escapeHtml(img.path)}" alt="Imagen del lote" />
+      <button type="button" class="img-remove" data-img-id="${img.id}" aria-label="Quitar imagen">&times;</button>
+    </div>`,
+      )
+      .join("") +
+    state.pendingImageAdds
+      .map(
+        (p, i) => `
+    <div class="lote-img">
+      <img src="${p.url}" alt="Imagen nueva" />
+      <button type="button" class="img-remove" data-pending-index="${i}" aria-label="Quitar imagen">&times;</button>
+    </div>`,
+      )
+      .join("") +
+    (atLimit
+      ? ""
+      : `
+    <label class="img-add" title="Subir imagen">
+      <input type="file" id="lote-img-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+      <span>+</span>
+    </label>`);
+
+  const field = container.closest(".field");
+  field?.querySelector(".hint")?.remove();
+  if (atLimit && field) {
+    field.insertAdjacentHTML(
+      "beforeend",
+      `<small class="hint">Máximo ${MAX_IMAGENES_POR_LOTE} imágenes por lote</small>`,
+    );
+  }
+
+  bindImageHandlers();
+}
+
+function bindImageHandlers(): void {
+  document.getElementById("lote-img-input")?.addEventListener("change", (e) => {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = "";
+    if (file) {
+      state.pendingImageAdds.push({ file, url: URL.createObjectURL(file) });
+      markFormDirty();
+      renderLoteImages();
+    }
+  });
+  sidePanel.querySelectorAll<HTMLElement>("[data-img-id]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const imgId = Number(btn.dataset.imgId);
+      if (
+        Number.isInteger(imgId) &&
+        imgId > 0 &&
+        !state.pendingImageRemoves.includes(imgId)
+      ) {
+        state.pendingImageRemoves.push(imgId);
+        markFormDirty();
+        renderLoteImages();
+      }
+    });
+  });
+  sidePanel.querySelectorAll<HTMLElement>("[data-pending-index]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.pendingIndex);
+      if (Number.isInteger(idx) && idx >= 0 && idx < state.pendingImageAdds.length) {
+        const [removed] = state.pendingImageAdds.splice(idx, 1);
+        if (removed) URL.revokeObjectURL(removed.url);
+        markFormDirty();
+        renderLoteImages();
+      }
+    });
   });
 }
 
@@ -407,6 +628,8 @@ function setMode(mode: Mode): void {
   state.currentPolygon = [];
   state.pendingNewLote = null;
   state.selectedVertex = null;
+  resetPendingImages();
+  clearFormDraft();
   if (mode !== "lotes") {
     state.selectedLoteId = null;
   }
@@ -418,6 +641,8 @@ function selectLote(id: number | null): void {
   state.selectedVertex = null;
   state.pendingNewLote = null;
   state.currentPolygon = [];
+  resetPendingImages();
+  clearFormDraft();
   render();
 }
 
@@ -432,6 +657,8 @@ function closePolygon(): void {
     dimensionesLote: null,
   };
   state.currentPolygon = [];
+  resetPendingImages();
+  clearFormDraft();
   render();
 }
 
@@ -621,6 +848,32 @@ function clearFormError(): void {
   }
 }
 
+let successTimer: number | undefined;
+
+function showFormSuccess(msg: string): void {
+  clearFormSuccess();
+  const el = document.getElementById("form-success");
+  if (el) {
+    el.textContent = msg;
+    el.hidden = false;
+    successTimer = window.setTimeout(() => {
+      el.hidden = true;
+    }, 2500);
+  }
+}
+
+function clearFormSuccess(): void {
+  if (successTimer !== undefined) {
+    window.clearTimeout(successTimer);
+    successTimer = undefined;
+  }
+  const el = document.getElementById("form-success");
+  if (el) {
+    el.textContent = "";
+    el.hidden = true;
+  }
+}
+
 async function saveLote(): Promise<void> {
   clearFormError();
   const data = getFormData();
@@ -633,6 +886,18 @@ async function saveLote(): Promise<void> {
 
   if (poligono.length < 3) {
     showFormError("El polígono debe tener al menos 3 puntos");
+    return;
+  }
+
+  const modeloId = data.modeloId ?? null;
+  const duplicate = state.lotes.find(
+    (l) =>
+      l.id !== state.selectedLoteId &&
+      (l.modeloId ?? null) === modeloId &&
+      l.numeroLote === data.numeroLote,
+  );
+  if (duplicate) {
+    showFormError(`El número de lote ${data.numeroLote} ya existe para este modelo`);
     return;
   }
 
@@ -659,7 +924,16 @@ async function saveLote(): Promise<void> {
       if (idx >= 0) state.lotes[idx] = result.data;
     }
     state.pendingNewLote = null;
+
+    const loteId = result.data.id;
+    const ok = await applyPendingImages(loteId);
+    if (!ok) return;
+
+    resetPendingImages();
+    clearFormDraft();
+    await refreshLotes();
     render();
+    showFormSuccess("Cambios guardados con éxito");
   } catch (err) {
     showFormError(err instanceof Error ? err.message : String(err));
   }
@@ -680,6 +954,68 @@ async function deleteLote(): Promise<void> {
     render();
   } catch (err) {
     showFormError(err instanceof Error ? err.message : String(err));
+  }
+}
+
+function resetPendingImages(): void {
+  for (const p of state.pendingImageAdds) {
+    URL.revokeObjectURL(p.url);
+  }
+  state.pendingImageAdds = [];
+  state.pendingImageRemoves = [];
+}
+
+async function applyPendingImages(loteId: number): Promise<boolean> {
+  try {
+    for (const p of state.pendingImageAdds) {
+      const fd = new FormData();
+      fd.append("imagen", p.file);
+      const response = await fetch(`/api/admin/lotes/${loteId}/imagenes`, {
+        method: "POST",
+        body: fd,
+      });
+      const result = (await response.json()) as {
+        ok: boolean;
+        error?: string;
+      };
+      if (!result.ok) {
+        showFormError(result.error ?? "Error al subir la imagen");
+        return false;
+      }
+    }
+    for (const imagenId of state.pendingImageRemoves) {
+      const response = await fetch(
+        `/api/admin/lotes/${loteId}/imagenes/${imagenId}`,
+        { method: "DELETE" },
+      );
+      const result = (await response.json()) as {
+        ok: boolean;
+        error?: string;
+      };
+      if (!result.ok) {
+        showFormError(result.error ?? "Error al quitar la imagen");
+        return false;
+      }
+    }
+    return true;
+  } catch (err) {
+    showFormError(err instanceof Error ? err.message : String(err));
+    return false;
+  }
+}
+
+async function refreshLotes(): Promise<void> {
+  try {
+    const response = await fetch("/api/admin/lotes");
+    const result = (await response.json()) as {
+      ok: boolean;
+      data?: LoteConModelo[];
+    };
+    if (result.ok && result.data) {
+      state.lotes = result.data;
+    }
+  } catch {
+    /* no bloquear el guardado */
   }
 }
 

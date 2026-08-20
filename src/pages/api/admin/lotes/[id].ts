@@ -28,11 +28,18 @@ async function handleUpdate(
   }
 
   const input = parse(body, loteUpdateSchema);
-  const data = updateLote(id, input);
-  if (!data) {
-    return json({ ok: false, error: "Lote no encontrado" }, 404);
+  try {
+    const data = updateLote(id, input);
+    if (!data) {
+      return json({ ok: false, error: "Lote no encontrado" }, 404);
+    }
+    return json({ ok: true, data }, 200);
+  } catch (err) {
+    return json(
+      { ok: false, error: err instanceof Error ? err.message : "Error al actualizar el lote" },
+      400,
+    );
   }
-  return json({ ok: true, data }, 200);
 }
 
 export const PATCH: APIRoute = jsonApi(async ({ request, params }) => {

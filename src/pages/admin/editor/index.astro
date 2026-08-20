@@ -144,7 +144,9 @@ const initialData = { plan, lotes, modelos };
     background: var(--c-surface);
     border-radius: var(--r-lg);
     padding: 1.25rem;
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     border: 1px solid var(--c-line);
     box-shadow: var(--c-shadow-medium);
   }
@@ -175,16 +177,43 @@ const initialData = { plan, lotes, modelos };
     margin-top: 1.25rem;
     flex-wrap: wrap;
   }
-  .side-panel :global(.panel-head) {
+  .side-panel :global(button[disabled]) {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .side-panel :global(form.form-col) {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .side-panel :global(.form-head) {
     display: grid;
     grid-template-columns: 2.2rem 1fr 2.2rem;
     align-items: center;
     margin-bottom: 0.75rem;
+    flex-shrink: 0;
   }
-  .side-panel :global(.panel-head h2) {
+  .side-panel :global(.form-head h2) {
     margin: 0;
     text-align: center;
+    font-size: 0.95rem;
+    font-weight: 600;
     line-height: 1.2;
+  }
+  .side-panel :global(.form-fields) {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    min-height: 0;
+  }
+  .side-panel :global(.form-actions) {
+    flex-shrink: 0;
+    margin-top: 0.75rem;
+  }
+  .side-panel :global(.lote-scroll) {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    min-height: 0;
   }
   .side-panel :global(.back-btn) {
     display: inline-flex;
@@ -264,14 +293,83 @@ const initialData = { plan, lotes, modelos };
     font-size: 0.85rem;
     margin-top: 0.5rem;
   }
-  .form-error {
-    margin-top: 0.85rem;
-    padding: 0.5rem 0.75rem;
+  .side-panel :global(.lote-imgs) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .side-panel :global(.lote-img) {
+    position: relative;
+    width: 76px;
+    height: 76px;
+    border-radius: var(--r-sm);
+    overflow: hidden;
+    border: 1px solid var(--c-line);
+    background: var(--c-bg-light);
+  }
+  .side-panel :global(.lote-img img) {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .side-panel :global(.img-remove) {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    border: 0;
+    border-radius: 50%;
+    font-size: 0.9rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .side-panel :global(.img-remove:hover) {
+    background: var(--c-danger);
+  }
+  .side-panel :global(.img-add) {
+    width: 76px;
+    height: 76px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px dashed var(--c-line);
+    border-radius: var(--r-sm);
+    color: var(--c-text-muted);
+    font-size: 1.6rem;
+    cursor: pointer;
+    transition: color 150ms ease, border-color 150ms ease, background-color 150ms ease;
+  }
+  .side-panel :global(.img-add:hover) {
+    color: var(--c-text);
+    border-color: var(--c-accent);
+    background: var(--c-surface-muted);
+  }
+  .side-panel :global(.form-error) {
+    margin-top: 0.75rem;
+    padding: 0.35rem 0.6rem;
     background: var(--c-danger-soft);
     color: var(--c-danger-fg);
     border: 1px solid var(--c-danger);
     border-radius: var(--r-sm);
-    font-size: 0.85rem;
+    font-size: 0.68rem;
+    font-weight: 400;
+  }
+  .side-panel :global(.form-success) {
+    margin-top: 0.75rem;
+    padding: 0.35rem 0.6rem;
+    background: var(--c-success-soft);
+    color: var(--c-success);
+    border: 1px solid var(--c-success);
+    border-radius: var(--r-sm);
+    font-size: 0.68rem;
+    font-weight: 400;
   }
   kbd {
     display: inline-block;

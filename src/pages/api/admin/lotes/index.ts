@@ -19,6 +19,13 @@ export const POST: APIRoute = jsonApi(async ({ request }) => {
   }
 
   const input = parse(body, loteCreateSchema);
-  const data = createLote(input);
-  return json({ ok: true, data }, 201);
+  try {
+    const data = createLote(input);
+    return json({ ok: true, data }, 201);
+  } catch (err) {
+    return json(
+      { ok: false, error: err instanceof Error ? err.message : "Error al crear el lote" },
+      400,
+    );
+  }
 });

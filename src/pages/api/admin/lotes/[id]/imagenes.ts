@@ -1,0 +1,67 @@
+import type { APIRoute } from "astro";
+import {
+  addLoteImagen,
+  getImagenesByLote,
+  getLoteById,
+  MAX_IMAGENES_POR_LOTE,
+} from "@features/lots/lote.service";
+import { jsonApi } from "@core/http/api";
+import { json } from "@core/http/json";
+import { ALLOWED_MIME, MAX_FILE_SIZE, saveUpload } from "@core/storage";
+
+function parseId(raw: string | undefined): number | null {
+  if (raw === undefined) return null;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+export const POST: APIRoute = jsonApi(async ({ request, params }) => {
+  const loteId = parseId(params.id);
+  if (loteId === null) return json({ ok: false, error: "id inválido" }, 400);
+
+  const lote = getLoteById(loteId);
+  if (!lote) {
+    return json({ ok: false, error: "Lote no encontrado" }, 404);
+  }
+
+  let form: FormData;
+  try {
+    form = await request.formData();
+  } catch {
+    return json({ ok: false, error: "Formato de formulario inválido" }, 400);
+  }
+
+  if (getImagenesByLote(loteId).length >= MAX_IMAGENES_POR_LOTE) {
+    return json(
+      { ok: false, error: `Máximo ${MAX_IMAGENES_POR_LOTE} imágenes por lote` },
+      400,
+    );
+  }
+
+  const file = form.get("imagen");
+  if (!(file instanceof File) || file.size === 0) {
+    return json({ ok: false, error: "Debes adjuntar una imagen" }, 400);
+  }
+  if (!ALLOWED_MIME.has(file.type)) {
+    return json(
+      { ok: false, error: "Tipo de archivo no soportado (solo PNG, JPG, WEBP, GIF o SVG)" },
+      400,
+    );
+  }
+  if (file.size > MAX_FILE_SIZE) {
+    return json({ ok: false, error: "Imagen muy grande (máximo 10MB)" }, 400);
+  }
+
+  let path: string;
+  try {
+    path = await saveUpload(file);
+  } catch {
+    return json({ ok: false, error: "No se pudo guardar la imagen" }, 500);
+  }
+
+  const added = addLoteImagen(loteId, path);
+  return json(
+    { ok: true, data: { added, imagenes: getImagenesByLote(loteId) } },
+    200,
+  );
+});

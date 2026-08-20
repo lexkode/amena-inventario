@@ -1,5 +1,5 @@
 import { createWriteStream } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, unlink } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
 import { extname, join } from "node:path";
@@ -39,4 +39,13 @@ export async function saveUpload(file: File): Promise<string> {
   await pipeline(nodeStream, writeStream);
 
   return `/uploads/${filename}`;
+}
+
+/** Elimina el archivo del directorio public/uploads usando su URL pública. */
+export async function deleteUpload(publicPath: string): Promise<void> {
+  try {
+    await unlink(join(process.cwd(), "public", publicPath.replace(/^\/+/, "")));
+  } catch {
+    /* el archivo puede no existir; no bloquear */
+  }
 }

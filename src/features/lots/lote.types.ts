@@ -69,7 +69,12 @@ export type ModeloConCaracteristicas = Omit<Modelo, "caracteristicasJson"> & {
   caracteristicas: string[];
 };
 
+export const MAX_IMAGENES_POR_LOTE = 10;
+
+export type LoteImagenItem = { id: number; path: string };
+
 export type LoteConModelo = Omit<Lote, "poligonoJson"> & {
   poligono: Punto[];
   modelo: ModeloConCaracteristicas | null;
+  imagenes: LoteImagenItem[];
 };
