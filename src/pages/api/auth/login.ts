@@ -44,11 +44,13 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return errorRedirect("missing");
   }
 
-  const user = db
-    .select()
-    .from(users)
-    .where(eq(users.email, email))
-    .get();
+  const user = (
+    await db
+      .select()
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1)
+  )[0];
 
   const valid = user ? verifyPassword(password, user.passwordHash) : false;
 

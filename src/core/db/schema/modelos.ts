@@ -1,19 +1,19 @@
-import { sqliteTable, integer, real, text } from "drizzle-orm/sqlite-core";
+import { pgTable, bigserial, integer, bigint, doublePrecision, text } from "drizzle-orm/pg-core";
 
-export const modelos = sqliteTable("modelos", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const modelos = pgTable("modelos", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
   nombre: text("nombre").notNull(),
   tipo: text("tipo", { enum: ["casa", "apartamento"] }).notNull(),
-  precioBase: real("precio_base").notNull(),
-  terrenoM2: real("terreno_m2").notNull(),
-  construccionM2: real("construccion_m2").notNull(),
+  precioBase: doublePrecision("precio_base").notNull(),
+  terrenoM2: doublePrecision("terreno_m2").notNull(),
+  construccionM2: doublePrecision("construccion_m2").notNull(),
   habitaciones: integer("habitaciones").notNull(),
-  banos: real("banos").notNull(),
+  banos: doublePrecision("banos").notNull(),
   parqueos: integer("parqueos").notNull().default(1),
   dimensionesLote: text("dimensiones_lote"),
   caracteristicasJson: text("caracteristicas_json"),
   orden: integer("orden").notNull().default(0),
-  createdAt: integer("created_at")
+  createdAt: bigint("created_at", { mode: "number" })
     .notNull()
     .$defaultFn(() => Date.now()),
 });

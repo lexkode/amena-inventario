@@ -1,10 +1,17 @@
 # Despliegue
 
+## Stack
+
+- **Astro SSR en Vercel** (`@astrojs/vercel`, `output: "server"`).
+- **PostgreSQL en Supabase** con el pooler (Supavisor, modo Transaction).
+- **Cloudflare R2** para la imagen del plano y las fotos de los lotes (egress $0).
+- **Drizzle ORM** con dialecto `postgresql`.
+
 ## Entornos
 
 ### Desarrollo
 
-Astro carga automáticamente las variables del `.env` local.
+Astro carga `.env` automáticamente.
 
 ```bash
 pnpm dev
@@ -12,48 +19,33 @@ pnpm dev
 
 ### Preview local
 
-La preview requiere que `SESSION_SECRET` esté disponible en el entorno del proceso.
-
 ```bash
 pnpm build
-SESSION_SECRET=<secret-de-prueba> pnpm preview
+pnpm preview
 ```
+
+Requiere `DATABASE_URL` y, si se suben imágenes, las variables `R2_*`.
 
 ### Producción
 
-El despliegue previsto utiliza Hostinger hPanel con soporte para Node.js y el adapter de Astro en modo standalone.
-
-## Requisitos
-
-- Node.js 20 o superior.
-- pnpm.
-- Soporte para compilar `better-sqlite3`.
-- Directorio persistente para SQLite.
-- Directorio persistente para `public/uploads`.
-
-## Instalación
-
-```bash
-pnpm install
-```
+Vercel (build y runtime). No hay servidor propio ni filesystem persistente.
 
 ## Variables de entorno
 
-### `DATABASE_URL`
+| Variable | Uso |
+|---|---|
+| `DATABASE_URL` | Connection string de Supabase. Usa el **pooler** (puerto `6543`), no la conexión directa. |
+| `SESSION_SECRET` | Secreto de sesión. |
+| `R2_ACCOUNT_ID` | ID de cuenta de Cloudflare. |
+| `R2_ACCESS_KEY_ID` | Access key del token de R2. |
+| `R2_SECRET_ACCESS_KEY` | Secret del token de R2. |
+| `R2_BUCKET` | Nombre del bucket. |
+| `R2_PUBLIC_BASE_URL` | Dominio público del bucket (custom domain). |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Solo para ejecutar el seed. |
 
-Ruta de la base de datos SQLite. Por defecto es `sqlite.db`, pero en producción conviene usar una ruta persistente y conocida.
+Cópialas desde `.env.template`. En Vercel se configuran en **Project → Settings → Environment Variables**.
 
-### `SESSION_SECRET`
-
-Secreto de sesión requerido en preview y producción. Debe ser largo, aleatorio y diferente del utilizado en desarrollo.
-
-### Variables futuras
-
-- Credenciales iniciales del seed.
-- Configuración del canal de contacto.
-- Parámetros de rate limiting.
-
-## Base de datos
+## Base de datos (Supabase)
 
 Generar migraciones durante el desarrollo:
 
@@ -67,69 +59,55 @@ Aplicar migraciones:
 pnpm db:migrate
 ```
 
-El seed inicial se ejecuta explícitamente y no debe ejecutarse automáticamente en cada arranque de producción:
+Seed inicial (una sola vez):
 
 ```bash
 pnpm db:seed
 ```
 
-## Build
+- No usar `db:push` como procedimiento normal de producción.
+- El **build de Vercel no aplica migraciones ni seed**: `pnpm build` es solo `astro build`.
+
+## Almacenamiento (Cloudflare R2)
+
+1. Crea un bucket y un **token de API** con permiso de lectura/escritura.
+2. Conecta un **custom domain** al bucket (no uses `r2.dev`, que es solo para pruebas).
+3. Usa ese dominio en `R2_PUBLIC_BASE_URL`.
+4. Los archivos se sirven directo desde R2; solo se guarda la URL en Postgres.
+
+## Despliegue en Vercel
+
+1. Importa el repositorio en Vercel.
+2. Framework: **Astro** (autodetectado).
+3. Install command: `pnpm install`. Build command: `pnpm build`.
+4. Configura las variables de entorno (producción y preview).
+5. Deploy.
+6. Aplica migraciones y seed **manualmente** (por SSH local con el `DATABASE_URL` de producción, o desde tu máquina):
 
 ```bash
-pnpm build
+DATABASE_URL="<url-de-produccion>" pnpm db:migrate
+DATABASE_URL="<url-de-produccion>" ADMIN_EMAIL=... ADMIN_PASSWORD=... pnpm db:seed
 ```
-
-El archivo generado para iniciar la aplicación es:
-
-```text
-dist/server/entry.mjs
-```
-
-## Configuración en Hostinger
-
-- Startup file: `dist/server/entry.mjs`.
-- Node.js: versión 20 o superior.
-- `SESSION_SECRET`: secreto nuevo de producción.
-- `DATABASE_URL`: ruta persistente de producción.
-- `sqlite.db` y `public/uploads` deben quedar fuera del ciclo normal de reemplazo del código.
 
 ## Datos persistentes
 
-- Base de datos SQLite.
-- Archivos de `public/uploads`.
-- Archivos WAL de SQLite mientras la aplicación esté funcionando.
+- Base de datos PostgreSQL (gestionada por Supabase).
+- Objetos en Cloudflare R2.
 
-Estos datos necesitan backup independiente del código fuente.
-
-## Proceso recomendado de despliegue
-
-1. Hacer backup de la base de datos y uploads.
-2. Subir el código.
-3. Ejecutar `pnpm install`.
-4. Ejecutar `pnpm db:migrate`.
-5. Ejecutar `pnpm build`.
-6. Configurar las variables de entorno.
-7. Configurar `dist/server/entry.mjs` como startup file.
-8. Iniciar o reiniciar la aplicación.
-9. Revisar logs.
-10. Probar login, mapa público y actualización de un lote.
+Ambos necesitan backup independiente del código.
 
 ## Backup y restauración
 
-El backup debe incluir:
-
-- SQLite de forma consistente.
-- `public/uploads`.
-- Lista de variables de entorno, sin publicar sus valores.
-
-La restauración debe probarse periódicamente en una copia separada antes de necesitarla en producción.
+- **Supabase**: backups automáticos del plan; exporta con `pg_dump` para copia puntual.
+- **R2**: sincroniza el bucket con `rclone` u otra herramienta S3-compatible.
+- Prueba la restauración en un proyecto/DB separado antes de necesitarla.
 
 ## Comprobaciones posteriores al despliegue
 
 - La web pública responde.
-- El mapa carga su imagen.
+- El mapa carga su imagen desde R2.
 - Los lotes aparecen correctamente.
 - El login administrativo funciona.
-- Las rutas administrativas están protegidas.
+- Las rutas `/admin` están protegidas.
 - Se puede crear o actualizar un lote.
-- Los datos permanecen tras reiniciar la aplicación.
+- La documentación de `/admin/documentacion` abre (los `.md` van empaquetados en la función).

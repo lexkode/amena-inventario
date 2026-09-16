@@ -1,10 +1,16 @@
-import { createWriteStream } from "node:fs";
-import { mkdir, unlink } from "node:fs/promises";
-import { pipeline } from "node:stream/promises";
-import { Readable } from "node:stream";
-import { extname, join } from "node:path";
-
-const UPLOAD_DIR = join(process.cwd(), "public", "uploads");
+import { extname } from "node:path";
+import {
+  DeleteObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
+import {
+  R2_ACCOUNT_ID,
+  R2_ACCESS_KEY_ID,
+  R2_BUCKET,
+  R2_PUBLIC_BASE_URL,
+  R2_SECRET_ACCESS_KEY,
+} from "astro:env/server";
 
 export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 export const ALLOWED_MIME = new Set([
@@ -14,6 +20,44 @@ export const ALLOWED_MIME = new Set([
   "image/gif",
   "image/svg+xml",
 ]);
+
+type StorageConfig = {
+  client: S3Client;
+  bucket: string;
+  publicBaseUrl: string;
+};
+
+let cached: StorageConfig | null = null;
+
+function getStorage(): StorageConfig {
+  if (cached) return cached;
+
+  if (
+    !R2_ACCOUNT_ID ||
+    !R2_ACCESS_KEY_ID ||
+    !R2_SECRET_ACCESS_KEY ||
+    !R2_BUCKET ||
+    !R2_PUBLIC_BASE_URL
+  ) {
+    throw new Error(
+      "R2 no está configurado: define R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET y R2_PUBLIC_BASE_URL",
+    );
+  }
+
+  cached = {
+    client: new S3Client({
+      region: "auto",
+      endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: R2_ACCESS_KEY_ID,
+        secretAccessKey: R2_SECRET_ACCESS_KEY,
+      },
+    }),
+    bucket: R2_BUCKET,
+    publicBaseUrl: R2_PUBLIC_BASE_URL.replace(/\/+$/, ""),
+  };
+  return cached;
+}
 
 function sanitizeExtension(rawName: string): string {
   const ext = extname(rawName).toLowerCase();
@@ -27,24 +71,42 @@ function buildFilename(extension: string): string {
   return `${ts}-${rnd}${extension.startsWith(".") ? extension : "." + extension}`;
 }
 
-/** Guarda el archivo en public/uploads y devuelve la URL pública. */
+/** Sube el archivo a R2 y devuelve su URL pública. */
 export async function saveUpload(file: File): Promise<string> {
-  await mkdir(UPLOAD_DIR, { recursive: true });
-  const ext = sanitizeExtension(file.name);
-  const filename = buildFilename(ext);
-  const filepath = join(UPLOAD_DIR, filename);
+  const { client, bucket, publicBaseUrl } = getStorage();
+  const key = buildFilename(sanitizeExtension(file.name));
+  const body = new Uint8Array(await file.arrayBuffer());
 
-  const nodeStream = Readable.fromWeb(file.stream() as any);
-  const writeStream = createWriteStream(filepath);
-  await pipeline(nodeStream, writeStream);
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: body,
+      ContentType: file.type || "application/octet-stream",
+    }),
+  );
 
-  return `/uploads/${filename}`;
+  return `${publicBaseUrl}/${key}`;
 }
 
-/** Elimina el archivo del directorio public/uploads usando su URL pública. */
-export async function deleteUpload(publicPath: string): Promise<void> {
+/** Elimina el objeto de R2 a partir de su URL pública. */
+export async function deleteUpload(publicUrl: string): Promise<void> {
+  let storage: StorageConfig;
   try {
-    await unlink(join(process.cwd(), "public", publicPath.replace(/^\/+/, "")));
+    storage = getStorage();
+  } catch {
+    return;
+  }
+
+  const prefix = `${storage.publicBaseUrl}/`;
+  if (!publicUrl.startsWith(prefix)) return;
+  const key = publicUrl.slice(prefix.length);
+  if (!key) return;
+
+  try {
+    await storage.client.send(
+      new DeleteObjectCommand({ Bucket: storage.bucket, Key: key }),
+    );
   } catch {
     /* el archivo puede no existir; no bloquear */
   }

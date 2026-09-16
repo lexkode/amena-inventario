@@ -1,13 +1,10 @@
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import Database from "better-sqlite3";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import { DATABASE_URL } from "astro:env/server";
 import * as schema from "./schema";
 
-const url = DATABASE_URL ?? "sqlite.db";
-const sqlite = new Database(url);
-sqlite.pragma("journal_mode = WAL");
-sqlite.pragma("foreign_keys = ON");
+const url = DATABASE_URL ?? "postgres://postgres:postgres@localhost:5432/amena_dev";
 
-export const db = drizzle(sqlite, { schema });
-export { sqlite };
+export const sql = postgres(url, { prepare: false });
+export const db = drizzle(sql, { schema });
 export type DB = typeof db;

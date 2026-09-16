@@ -1,7 +1,11 @@
-import { readdir, readFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename } from "node:path";
 
-const DOCS_DIR = join(process.cwd(), "docs");
+const docModules = import.meta.glob("/docs/*.md", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+}) as Record<string, string>;
+
 const MD_EXT = ".md";
 
 export type DocMeta = {
@@ -43,18 +47,16 @@ function indexFromFilename(filename: string): number {
 }
 
 export async function listDocs(): Promise<DocMeta[]> {
-  const files = await readdir(DOCS_DIR, { withFileTypes: true });
   const metas: DocMeta[] = [];
 
-  for (const entry of files) {
-    if (!entry.isFile() || !entry.name.endsWith(MD_EXT)) continue;
-    const filePath = join(DOCS_DIR, entry.name);
-    const content = await readFile(filePath, "utf8");
+  for (const [filePath, content] of Object.entries(docModules)) {
+    const filename = basename(filePath);
+    if (!filename.endsWith(MD_EXT)) continue;
     metas.push({
-      slug: slugFromFile(entry.name),
+      slug: slugFromFile(filename),
       title: titleFromContent(content),
       description: descriptionFromContent(content),
-      index: indexFromFilename(entry.name),
+      index: indexFromFilename(filename),
     });
   }
 
@@ -62,18 +64,15 @@ export async function listDocs(): Promise<DocMeta[]> {
 }
 
 export async function getDoc(slug: string): Promise<DocFile | null> {
-  const files = await readdir(DOCS_DIR, { withFileTypes: true });
-
-  for (const entry of files) {
-    if (!entry.isFile() || !entry.name.endsWith(MD_EXT)) continue;
-    if (slugFromFile(entry.name) !== slug) continue;
-    const filePath = join(DOCS_DIR, entry.name);
-    const content = await readFile(filePath, "utf8");
+  for (const [filePath, content] of Object.entries(docModules)) {
+    const filename = basename(filePath);
+    if (!filename.endsWith(MD_EXT)) continue;
+    if (slugFromFile(filename) !== slug) continue;
     return {
       slug,
       title: titleFromContent(content),
       description: descriptionFromContent(content),
-      index: indexFromFilename(entry.name),
+      index: indexFromFilename(filename),
       content,
       html: renderMarkdown(content),
     };

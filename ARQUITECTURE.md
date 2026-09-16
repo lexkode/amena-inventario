@@ -3,14 +3,14 @@
 ## Resumen
 
 Aplicación **monolito modular** (vertical slices) sobre Astro 7 (SSR) + Drizzle ORM +
-better-sqlite3. El código se organiza por **dominio de negocio** (features) sobre una
+PostgreSQL (Supabase) + Cloudflare R2. El código se organiza por **dominio de negocio** (features) sobre una
 **infraestructura pura** (core), de modo que agregar una funcionalidad nueva equivale a
 crear una carpeta, sin tocar el resto del sistema.
 
 Stack:
 
-- **Astro 7** — renderizado SSR con adapter `@astrojs/node` (modo standalone).
-- **Drizzle ORM** + **better-sqlite3** — base de datos SQLite con migraciones.
+- **Astro 7** — renderizado SSR con adapter `@astrojs/vercel`.
+- **Drizzle ORM** + **PostgreSQL (Supabase)** — base de datos con migraciones.
 - **zod** — validación y tipos en runtime, compartidos entre servidor y cliente.
 - **TypeScript strict** — con alias de importación (`@core`, `@features`, `@shared`, ...).
 
@@ -42,14 +42,14 @@ src/
 │
 ├── core/                          # INFRAESTRUCTURA PURA: reutilizable, sin negocio.
 │   ├── db/
-│   │   ├── client.ts              #   Singleton de better-sqlite3 + Drizzle
+│   │   ├── client.ts              #   Pool PostgreSQL + Drizzle
 │   │   └── schema/                #   1 tabla por dominio (auth, planos, modelos, lotes)
 │   ├── http/
 │   │   ├── json.ts                #   Helpers json() y redirect()
 │   │   ├── errors.ts              #   ApiError (status + código) + toErrorMessage
 │   │   └── api.ts                 #   Wrappers jsonApi() y formApi() (auth + errores)
 │   ├── geometry/                  #   Punto, validación de polígonos (futuro CAD)
-│   ├── storage/                   #   Uploads: MIME permitido, límite 10MB, nombres únicos
+│   ├── storage/                   #   Uploads a Cloudflare R2: MIME permitido, límite 10MB, nombres únicos
 │   └── validation/                #   parse() y formToObject() sobre schemas zod
 │
 ├── shared/                        # UI REUTILIZABLE y núcleo de cliente.
@@ -108,7 +108,7 @@ handler → parse(body, loteCreateSchema)   ← validación zod (core/validation
         ▼
 features/lots/lote.service.ts        ← lógica de negocio + queries
         ▼
-core/db/client.ts + core/db/schema   ← acceso a SQLite (Drizzle)
+core/db/client.ts + core/db/schema   ← acceso a PostgreSQL (Drizzle)
 ```
 
 ## Anatomía de una feature

@@ -19,7 +19,7 @@ export const POST: APIRoute = jsonApi(async ({ request, params }) => {
   const loteId = parseId(params.id);
   if (loteId === null) return json({ ok: false, error: "id inválido" }, 400);
 
-  const lote = getLoteById(loteId);
+  const lote = await getLoteById(loteId);
   if (!lote) {
     return json({ ok: false, error: "Lote no encontrado" }, 404);
   }
@@ -31,7 +31,8 @@ export const POST: APIRoute = jsonApi(async ({ request, params }) => {
     return json({ ok: false, error: "Formato de formulario inválido" }, 400);
   }
 
-  if (getImagenesByLote(loteId).length >= MAX_IMAGENES_POR_LOTE) {
+  const imagenesActuales = await getImagenesByLote(loteId);
+  if (imagenesActuales.length >= MAX_IMAGENES_POR_LOTE) {
     return json(
       { ok: false, error: `Máximo ${MAX_IMAGENES_POR_LOTE} imágenes por lote` },
       400,
@@ -59,9 +60,9 @@ export const POST: APIRoute = jsonApi(async ({ request, params }) => {
     return json({ ok: false, error: "No se pudo guardar la imagen" }, 500);
   }
 
-  const added = addLoteImagen(loteId, path);
+  const added = await addLoteImagen(loteId, path);
   return json(
-    { ok: true, data: { added, imagenes: getImagenesByLote(loteId) } },
+    { ok: true, data: { added, imagenes: await getImagenesByLote(loteId) } },
     200,
   );
 });

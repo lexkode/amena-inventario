@@ -5,8 +5,8 @@ import { parse } from "@core/validation/parse";
 import { jsonApi } from "@core/http/api";
 import { json } from "@core/http/json";
 
-export const GET: APIRoute = jsonApi(() => {
-  const data = getLotes();
+export const GET: APIRoute = jsonApi(async () => {
+  const data = await getLotes();
   return json({ ok: true, data }, 200);
 });
 
@@ -20,7 +20,7 @@ export const POST: APIRoute = jsonApi(async ({ request }) => {
 
   const input = parse(body, loteCreateSchema);
   try {
-    const data = createLote(input);
+    const data = await createLote(input);
     return json({ ok: true, data }, 201);
   } catch (err) {
     return json(

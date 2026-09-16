@@ -12,31 +12,34 @@ export type {
   ModeloFormInput as CreateModeloInput,
 } from "@features/catalog/modelo.types";
 
-export function getModelos(): ModeloConCaracteristicas[] {
-  const rows = db
+export async function getModelos(): Promise<ModeloConCaracteristicas[]> {
+  const rows = await db
     .select()
     .from(modelos)
-    .orderBy(asc(modelos.orden), asc(modelos.id))
-    .all();
+    .orderBy(asc(modelos.orden), asc(modelos.id));
   return rows.map(parseModelo);
 }
 
-export function getModeloById(id: number): ModeloConCaracteristicas | null {
-  const row = db.select().from(modelos).where(eq(modelos.id, id)).get();
+export async function getModeloById(id: number): Promise<ModeloConCaracteristicas | null> {
+  const row = (
+    await db.select().from(modelos).where(eq(modelos.id, id)).limit(1)
+  )[0];
   return row ? parseModelo(row) : null;
 }
 
 /** Lectura angosta para otras features: evita que accedan a la tabla directamente. */
-export function modeloExiste(id: number): boolean {
-  return db
-    .select({ id: modelos.id })
-    .from(modelos)
-    .where(eq(modelos.id, id))
-    .get() !== undefined;
+export async function modeloExiste(id: number): Promise<boolean> {
+  return (
+    (await db
+      .select({ id: modelos.id })
+      .from(modelos)
+      .where(eq(modelos.id, id))
+      .limit(1))[0] !== undefined
+  );
 }
 
-export function createModelo(input: ModeloFormInput): ModeloConCaracteristicas {
-  const inserted = db
+export async function createModelo(input: ModeloFormInput): Promise<ModeloConCaracteristicas> {
+  const [row] = await db
     .insert(modelos)
     .values({
       nombre: input.nombre,
@@ -54,15 +57,16 @@ export function createModelo(input: ModeloFormInput): ModeloConCaracteristicas {
           : null,
       orden: input.orden,
     })
-    .returning()
-    .get();
-  return parseModelo(inserted);
+    .returning();
+
+  if (!row) throw new Error("No se pudo recuperar el modelo recién creado");
+  return parseModelo(row);
 }
 
-export function updateModelo(
+export async function updateModelo(
   id: number,
   input: ModeloFormInput,
-): ModeloConCaracteristicas | null {
+): Promise<ModeloConCaracteristicas | null> {
   const updates: Partial<Modelo> = {
     nombre: input.nombre,
     tipo: input.tipo,
@@ -80,16 +84,18 @@ export function updateModelo(
     orden: input.orden,
   };
 
-  const updated = db
+  const [row] = await db
     .update(modelos)
     .set(updates)
     .where(eq(modelos.id, id))
-    .returning()
-    .get();
-  return updated ? parseModelo(updated) : null;
+    .returning();
+  return row ? parseModelo(row) : null;
 }
 
-export function deleteModelo(id: number): boolean {
-  const result = db.delete(modelos).where(eq(modelos.id, id)).run();
-  return result.changes > 0;
+export async function deleteModelo(id: number): Promise<boolean> {
+  const deleted = await db
+    .delete(modelos)
+    .where(eq(modelos.id, id))
+    .returning({ id: modelos.id });
+  return deleted.length > 0;
 }

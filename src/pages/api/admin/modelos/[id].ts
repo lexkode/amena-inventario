@@ -21,7 +21,7 @@ export const POST: APIRoute = formApi(async ({ request, params }) => {
   const method = (form.get("_method") ?? "PATCH").toString().toUpperCase();
 
   if (method === "DELETE") {
-    const ok = deleteModelo(id);
+    const ok = await deleteModelo(id);
     if (!ok) {
       return redirect("/admin/modelos?error=Modelo no encontrado");
     }
@@ -34,7 +34,7 @@ export const POST: APIRoute = formApi(async ({ request, params }) => {
 
   try {
     const input = parse(formToObject(form), modeloFormSchema);
-    const updated = updateModelo(id, input);
+    const updated = await updateModelo(id, input);
     if (!updated) {
       return redirect("/admin/modelos?error=Modelo no encontrado");
     }

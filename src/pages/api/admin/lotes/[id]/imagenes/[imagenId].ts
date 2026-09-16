@@ -20,14 +20,14 @@ export const DELETE: APIRoute = jsonApi(async ({ params }) => {
     return json({ ok: false, error: "id inválido" }, 400);
   }
 
-  const path = deleteLoteImagen(loteId, imagenId);
+  const path = await deleteLoteImagen(loteId, imagenId);
   if (path === null) {
     return json({ ok: false, error: "Imagen no encontrada" }, 404);
   }
 
   await deleteUpload(path);
   return json(
-    { ok: true, data: { id: imagenId, deleted: true, imagenes: getImagenesByLote(loteId) } },
+    { ok: true, data: { id: imagenId, deleted: true, imagenes: await getImagenesByLote(loteId) } },
     200,
   );
 });

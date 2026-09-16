@@ -52,7 +52,7 @@ Administrador.
 2. Envía email y contraseña a `POST /api/auth/login`.
 3. El servidor valida los datos.
 4. Se verifica la contraseña almacenada con scrypt.
-5. Se crea una sesión en SQLite.
+5. Se crea una sesión en PostgreSQL.
 6. Se establece la cookie `app_session_id`.
 7. El usuario es redirigido a `/admin`.
 
@@ -92,7 +92,7 @@ Administrador autenticado.
 3. Selecciona una imagen.
 4. El servidor valida el formulario y el archivo.
 5. La imagen se guarda en `public/uploads`.
-6. El registro del plano activo se actualiza en SQLite.
+6. El registro del plano activo se actualiza en PostgreSQL (la imagen se sube a R2).
 
 ## Crear un lote
 
@@ -149,6 +149,6 @@ Administrador autenticado.
 ### Pasos
 
 1. El administrador ejecuta logout.
-2. Se invalida la sesión en SQLite.
+2. Se invalida la sesión en PostgreSQL.
 3. Se elimina la cookie.
 4. El usuario vuelve a `/admin/login`.

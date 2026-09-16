@@ -10,7 +10,7 @@ La aplicación es un monolito modular con renderizado SSR. Una única aplicació
 - Adapter `@astrojs/node` en modo standalone.
 - TypeScript estricto.
 - Drizzle ORM.
-- SQLite con `better-sqlite3`.
+- PostgreSQL (Supabase) con `postgres` (postgres.js).
 - Zod para validación en tiempo de ejecución.
 - TypeScript vanilla para el mapa y el editor.
 
@@ -59,7 +59,7 @@ Petición HTTP
   -> schema Zod
   -> servicio de una feature
   -> Drizzle ORM
-  -> SQLite
+  -> PostgreSQL
   -> respuesta o redirección
 ```
 
@@ -73,8 +73,8 @@ Petición HTTP
 
 ## Persistencia
 
-- SQLite se guarda en la ruta configurada por `DATABASE_URL`.
-- SQLite utiliza WAL y foreign keys.
+- PostgreSQL se accede mediante `DATABASE_URL` (pooler de Supabase en serverless).
+- PostgreSQL aplica foreign keys y constraints; el almacenamiento es gestionado.
 - Las imágenes se guardan en `public/uploads`.
 - Las migraciones se guardan en `drizzle/`.
 
@@ -96,7 +96,7 @@ Petición HTTP
 
 ## Límites de la arquitectura
 
-- Las consultas SQLite son síncronas.
+- Las consultas son asíncronas (postgres.js).
 - La aplicación depende del filesystem local para uploads.
 - La página pública carga todos los lotes y modelos iniciales.
 - La arquitectura está pensada para una instancia y un volumen pequeño o moderado.

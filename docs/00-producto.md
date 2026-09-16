@@ -43,8 +43,8 @@ Permitir que un visitante encuentre un lote disponible y conozca sus caracterís
 - Login y logout administrativo.
 - Editor visual de lotes mediante polígonos SVG.
 - Gestión del plano base.
-- Persistencia en SQLite.
-- Subida local de imágenes del plano.
+- Persistencia en PostgreSQL (Supabase).
+- Subida de imágenes del plano a Cloudflare R2.
 
 ## Funcionalidades previstas o incompletas
 

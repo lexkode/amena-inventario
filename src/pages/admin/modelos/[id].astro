@@ -9,7 +9,7 @@ if (!user) {
 }
 
 const id = Number(Astro.params.id);
-const modelo = Number.isInteger(id) && id > 0 ? getModeloById(id) : null;
+const modelo = Number.isInteger(id) && id > 0 ? await getModeloById(id) : null;
 
 if (!modelo) {
   return Astro.redirect("/admin/modelos?error=Modelo no encontrado");

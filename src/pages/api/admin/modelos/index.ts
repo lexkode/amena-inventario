@@ -15,7 +15,7 @@ export const POST: APIRoute = formApi(async ({ request }) => {
 
   try {
     const input = parse(formToObject(form), modeloFormSchema);
-    createModelo(input);
+    await createModelo(input);
   } catch (err) {
     return redirect(
       `/admin/modelos/nuevo?error=${encodeURIComponent(

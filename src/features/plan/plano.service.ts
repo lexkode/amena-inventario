@@ -2,14 +2,13 @@ import { desc, eq } from "drizzle-orm";
 import { db } from "@core/db/client";
 import { planos, type Plano } from "@core/db/schema";
 
-export function getPlanoActivo(): Plano | null {
+export async function getPlanoActivo(): Promise<Plano | null> {
   return (
-    db
+    (await db
       .select()
       .from(planos)
       .orderBy(desc(planos.createdAt))
-      .limit(1)
-      .get() ?? null
+      .limit(1))[0] ?? null
   );
 }
 
@@ -20,10 +19,10 @@ export type UpsertPlanoInput = {
   altoPx: number;
 };
 
-export function upsertPlano(input: UpsertPlanoInput): Plano {
-  const current = getPlanoActivo();
+export async function upsertPlano(input: UpsertPlanoInput): Promise<Plano> {
+  const current = await getPlanoActivo();
   if (current) {
-    const updated = db
+    const [updated] = await db
       .update(planos)
       .set({
         nombre: input.nombre ?? current.nombre,
@@ -32,11 +31,10 @@ export function upsertPlano(input: UpsertPlanoInput): Plano {
         altoPx: input.altoPx,
       })
       .where(eq(planos.id, current.id))
-      .returning()
-      .get();
+      .returning();
     if (updated) return updated;
   }
-  return db
+  const [created] = await db
     .insert(planos)
     .values({
       nombre: input.nombre,
@@ -44,6 +42,7 @@ export function upsertPlano(input: UpsertPlanoInput): Plano {
       anchoPx: input.anchoPx,
       altoPx: input.altoPx,
     })
-    .returning()
-    .get();
+    .returning();
+  if (!created) throw new Error("No se pudo recuperar el plano recién creado");
+  return created;
 }

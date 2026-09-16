@@ -9,9 +9,9 @@ if (!user) {
   return Astro.redirect("/admin/login");
 }
 
-const plan = getPlanoActivo();
-const lotes = plan ? getLotes() : [];
-const modelos = getModelos();
+const plan = await getPlanoActivo();
+const lotes = plan ? await getLotes() : [];
+const modelos = await getModelos();
 
 const initialData = { plan, lotes, modelos };
 ---

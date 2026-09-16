@@ -1,22 +1,22 @@
-import { sqliteTable, integer, text } from "drizzle-orm/sqlite-core";
+import { pgTable, bigserial, bigint, varchar, text } from "drizzle-orm/pg-core";
 
-export const users = sqliteTable("users", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  email: text("email").notNull().unique(),
+export const users = pgTable("users", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  email: varchar("email", { length: 255 }).notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   role: text("role").notNull().default("admin"),
-  createdAt: integer("created_at")
+  createdAt: bigint("created_at", { mode: "number" })
     .notNull()
     .$defaultFn(() => Date.now()),
 });
 
-export const sessions = sqliteTable("sessions", {
-  id: text("id").primaryKey(),
-  userId: integer("user_id")
+export const sessions = pgTable("sessions", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  userId: bigint("user_id", { mode: "number" })
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  expiresAt: integer("expires_at").notNull(),
-  createdAt: integer("created_at")
+  expiresAt: bigint("expires_at", { mode: "number" }).notNull(),
+  createdAt: bigint("created_at", { mode: "number" })
     .notNull()
     .$defaultFn(() => Date.now()),
 });

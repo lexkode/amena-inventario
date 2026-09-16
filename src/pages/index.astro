@@ -6,9 +6,9 @@ import { getModelos } from "@features/catalog/modelo.service";
 import mapBg from "@assets/logo-bg-transparency.webp";
 import logo from "@assets/logo-AMENA.webp";
 
-const plan = getPlanoActivo();
-const lotes = plan ? getLotes() : [];
-const modelos = getModelos();
+const plan = await getPlanoActivo();
+const lotes = plan ? await getLotes() : [];
+const modelos = await getModelos();
 
 const counts = {
   all: lotes.length,

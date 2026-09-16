@@ -1,11 +1,11 @@
 import { eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import Database from "better-sqlite3";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import { hashPassword } from "../features/auth/password.service";
 import { modelos, users, type NewModelo } from "./schema";
 
-const ADMIN_EMAIL = "lexkode@gmail.com";
-const ADMIN_PASSWORD = "Negrito414";
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const ADMIN_ROLE = "admin";
 
 const AMENA_MODELOS: NewModelo[] = [
@@ -238,19 +238,32 @@ const AMENA_MODELOS: NewModelo[] = [
   },
 ];
 
-const databaseUrl = process.env.DATABASE_URL ?? "sqlite.db";
+const databaseUrl = process.env.DATABASE_URL;
 
-const sqlite = new Database(databaseUrl);
-sqlite.pragma("journal_mode = WAL");
-sqlite.pragma("foreign_keys = ON");
-const db = drizzle(sqlite, { schema: { users, modelos } });
+if (!databaseUrl) {
+  console.error("[seed] falta DATABASE_URL");
+  process.exit(1);
+}
+if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
+  console.error("[seed] faltan ADMIN_EMAIL y ADMIN_PASSWORD en el entorno");
+  process.exit(1);
+}
 
-function seedAdmin(): void {
-  const existing = db
-    .select({ id: users.id, email: users.email })
-    .from(users)
-    .where(eq(users.email, ADMIN_EMAIL))
-    .get();
+const client = postgres(databaseUrl, { prepare: false });
+const db = drizzle(client, { schema: { users, modelos } });
+
+async function seedAdmin(): Promise<void> {
+  if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
+    throw new Error("Faltan ADMIN_EMAIL y ADMIN_PASSWORD");
+  }
+
+  const existing = (
+    await db
+      .select({ id: users.id, email: users.email })
+      .from(users)
+      .where(eq(users.email, ADMIN_EMAIL))
+      .limit(1)
+  )[0];
 
   if (existing) {
     console.log(
@@ -260,27 +273,27 @@ function seedAdmin(): void {
   }
 
   const passwordHash = hashPassword(ADMIN_PASSWORD);
-  const inserted = db
+  const [inserted] = await db
     .insert(users)
     .values({
       email: ADMIN_EMAIL,
       passwordHash,
       role: ADMIN_ROLE,
     })
-    .returning()
-    .get();
+    .returning({ id: users.id });
 
   console.log(
-    `[seed] created admin user "${inserted.email}" (id=${inserted.id}, role=${inserted.role})`,
+    `[seed] created admin user "${ADMIN_EMAIL}" (id=${inserted?.id}, role=${ADMIN_ROLE})`,
   );
 }
 
-function seedModelos(): void {
-  const existing = db
-    .select({ id: modelos.id })
-    .from(modelos)
-    .limit(1)
-    .get();
+async function seedModelos(): Promise<void> {
+  const existing = (
+    await db
+      .select({ id: modelos.id })
+      .from(modelos)
+      .limit(1)
+  )[0];
 
   if (existing) {
     console.log(`[seed] modelos table not empty, skipping seed.`);
@@ -288,21 +301,21 @@ function seedModelos(): void {
   }
 
   for (const m of AMENA_MODELOS) {
-    db.insert(modelos).values(m).run();
+    await db.insert(modelos).values(m);
   }
   console.log(`[seed] inserted ${AMENA_MODELOS.length} modelos.`);
 }
 
-function main(): void {
-  seedAdmin();
-  seedModelos();
+async function main(): Promise<void> {
+  await seedAdmin();
+  await seedModelos();
 }
 
 try {
-  main();
+  await main();
 } catch (err) {
   console.error("[seed] failed:", err);
   process.exit(1);
 } finally {
-  sqlite.close();
+  await client.end();
 }

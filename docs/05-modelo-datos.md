@@ -2,7 +2,7 @@
 
 ## Base de datos
 
-La aplicación utiliza SQLite con Drizzle ORM. El esquema fuente se encuentra en `src/core/db/schema` y las migraciones en `drizzle/`.
+La aplicación utiliza PostgreSQL (Supabase) con Drizzle ORM. El esquema fuente se encuentra en `src/core/db/schema` y las migraciones en `drizzle/`.
 
 ## Usuario (`users`)
 
@@ -90,7 +90,7 @@ Representa una parcela dibujada en el plano.
 
 ## Datos serializados
 
-`caracteristicasJson` y `poligonoJson` permiten guardar listas dentro de SQLite. Son adecuados para el alcance actual, pero dificultan consultas SQL sobre elementos individuales.
+`caracteristicasJson` y `poligonoJson` permiten guardar listas dentro de PostgreSQL (columnas `TEXT` con JSON serializado). Son adecuados para el alcance actual, pero dificultan consultas SQL sobre elementos individuales.
 
 ## Restricciones pendientes
 

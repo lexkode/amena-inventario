@@ -9,7 +9,7 @@ Proteger el panel administrativo, los datos del inventario y los archivos subido
 - El login se realiza mediante `POST /api/auth/login`.
 - Las contraseñas se almacenan usando scrypt con salt aleatorio.
 - El login devuelve un error genérico cuando las credenciales no son válidas.
-- La sesión se guarda en SQLite.
+- La sesión se guarda en PostgreSQL (Supabase).
 
 ## Sesiones
 

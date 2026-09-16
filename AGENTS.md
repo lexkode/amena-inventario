@@ -13,7 +13,7 @@ explícita**.
 
 ## Notas adicionales
 
-- Repositorio: Residencial Amena (Astro 7 + Drizzle + better-sqlite3)
+- Repositorio: Residencial Amena (Astro 7 + Drizzle + PostgreSQL/Supabase + Cloudflare R2)
 - Package manager: **pnpm** (nunca `npm`)
 - Idioma de respuesta al usuario: **español**
 - Idioma de las instrucciones que recibe el agente: inglés (es la norma del
@@ -21,8 +21,8 @@ explícita**.
 
 ## Entornos: dev, preview y producción
 
-El proyecto corre en 3 entornos. `SESSION_SECRET` (firma de cookies de sesión
-del admin) es obligatorio en preview y producción; en dev el `.env` ya lo trae.
+El proyecto corre en 3 entornos sobre **Vercel + Supabase (PostgreSQL) +
+Cloudflare R2**. Guía completa en `docs/07-despliegue.md`.
 
 ### Dev
 
@@ -30,49 +30,37 @@ del admin) es obligatorio en preview y producción; en dev el `.env` ya lo trae.
 pnpm dev
 ```
 
-- Astro lee `.env` automáticamente (`DATABASE_URL`, `SESSION_SECRET`).
+- Astro lee `.env` automáticamente (`DATABASE_URL`, `SESSION_SECRET`, `R2_*`).
 - No requiere nada más.
 
 ### Preview (build local)
 
 ```bash
 pnpm build
-SESSION_SECRET=<secret> pnpm preview
+pnpm preview
 ```
 
-- `pnpm preview` NO lee el `.env`: la variable hay que exportarla en la
-  terminal (o anteponerla al comando como arriba).
-- Si falta, cada request falla con `EnvInvalidVariables: SESSION_SECRET is
-  missing`.
+- Requiere `DATABASE_URL` y `R2_*` en el entorno.
+- `pnpm build` es **solo `astro build`**: no aplica migraciones ni seed.
 
-### Producción: Hostinger hPanel (Administrador de Node.js)
+### Producción: Vercel
 
-Deploy en hosting compartido con soporte Node.js (hPanel), NO VPS. No hay
-systemd ni Nginx que configurar: hPanel proxea el dominio a la app y asigna
-el puerto vía `PORT` (el adapter `@astrojs/node` lo respeta solo).
+- Repositorio conectado a Vercel; framework Astro autodetectado.
+- Install: `pnpm install`. Build: `pnpm build`.
+- Variables de entorno en Vercel → Project → Settings → Environment Variables.
+- Migraciones y seed se ejecutan **manualmente**, nunca dentro del build:
 
-Pasos:
-
-1. Subir el código (Git desde hPanel o SSH/FTP).
-2. Por SSH, en el directorio del proyecto:
-   ```bash
-   pnpm install
-   pnpm build
-   ```
-   Si `pnpm` no está disponible: `corepack enable && corepack prepare
-   pnpm@latest --activate`.
-3. En hPanel → Node.js, configurar la app:
-   - **Startup file:** `dist/server/entry.mjs`
-   - **Versión de Node:** 20 o superior
-   - **Variables de entorno:** `SESSION_SECRET` con un secret NUEVO de prod
-     (generar con `openssl rand -base64 32`). Distinto al de dev. NO subir el
-     `.env` de desarrollo.
-4. Arrancar la app desde el panel. Los logs se ven en el mismo panel.
+```bash
+DATABASE_URL="<url-produccion>" pnpm db:migrate
+DATABASE_URL="<url-produccion>" ADMIN_EMAIL=... ADMIN_PASSWORD=... pnpm db:seed
+```
 
 Puntos de atención:
 
-- `better-sqlite3` es código nativo: se compila en `pnpm install`. Normalmente
-  trae prebuilds para Linux x64 y funciona; si el install falla, ese es el
-  primer lugar a mirar.
-- Datos persistentes fuera de git (backup aparte): `sqlite.db` y
-  `public/uploads/`.
+- `DATABASE_URL` debe usar el **pooler** de Supabase (puerto `6543`).
+- Los archivos del plano y de los lotes van a **Cloudflare R2**; Vercel no tiene
+  filesystem persistente.
+- Datos persistentes fuera de git (backup aparte): la base PostgreSQL de
+  Supabase y el bucket de R2.
+- El visor `/admin/documentacion` empaqueta los `.md` de `docs/` en la función
+  (no los lee del disco en runtime).

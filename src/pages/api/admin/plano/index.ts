@@ -52,7 +52,7 @@ export const POST: APIRoute = formApi(async ({ request }) => {
       );
     }
   } else {
-    const current = getPlanoActivo();
+    const current = await getPlanoActivo();
     if (!current) {
       return redirect(
         "/admin/plano?error=Debes subir una imagen para crear el primer plano",
@@ -62,7 +62,7 @@ export const POST: APIRoute = formApi(async ({ request }) => {
   }
 
   try {
-    upsertPlano({
+    await upsertPlano({
       nombre: input.nombre,
       imagenPath,
       anchoPx: input.anchoPx,

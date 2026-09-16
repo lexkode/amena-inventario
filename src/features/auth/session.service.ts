@@ -9,33 +9,35 @@ export const SESSION_MAX_AGE_SECONDS = SESSION_DURATION_MS / 1000;
 export async function createSession(userId: number): Promise<string> {
   const id = crypto.randomUUID();
   const expiresAt = Date.now() + SESSION_DURATION_MS;
-  db.insert(sessions).values({ id, userId, expiresAt }).run();
+  await db.insert(sessions).values({ id, userId, expiresAt });
   return id;
 }
 
 export async function validateSession(token: string): Promise<User | null> {
   const now = Date.now();
-  const row = db
-    .select({ user: users })
-    .from(sessions)
-    .innerJoin(users, eq(sessions.userId, users.id))
-    .where(and(eq(sessions.id, token), gt(sessions.expiresAt, now)))
-    .get();
+  const row = (
+    await db
+      .select({ user: users })
+      .from(sessions)
+      .innerJoin(users, eq(sessions.userId, users.id))
+      .where(and(eq(sessions.id, token), gt(sessions.expiresAt, now)))
+      .limit(1)
+  )[0];
 
   if (row) return row.user;
 
-  db.delete(sessions).where(eq(sessions.id, token)).run();
+  await db.delete(sessions).where(eq(sessions.id, token));
   return null;
 }
 
 export async function invalidateSession(token: string): Promise<void> {
-  db.delete(sessions).where(eq(sessions.id, token)).run();
+  await db.delete(sessions).where(eq(sessions.id, token));
 }
 
 export async function cleanupExpiredSessions(): Promise<number> {
-  const result = db
+  const deleted = await db
     .delete(sessions)
     .where(lt(sessions.expiresAt, Date.now()))
-    .run();
-  return result.changes;
+    .returning({ id: sessions.id });
+  return deleted.length;
 }

@@ -29,7 +29,7 @@ async function handleUpdate(
 
   const input = parse(body, loteUpdateSchema);
   try {
-    const data = updateLote(id, input);
+    const data = await updateLote(id, input);
     if (!data) {
       return json({ ok: false, error: "Lote no encontrado" }, 404);
     }
@@ -58,12 +58,12 @@ export const DELETE: APIRoute = jsonApi(async ({ params }) => {
   const id = parseId(params);
   if (id === null) return json({ ok: false, error: "id inválido" }, 400);
 
-  const current = getLoteById(id);
+  const current = await getLoteById(id);
   if (!current) {
     return json({ ok: false, error: "Lote no encontrado" }, 404);
   }
 
-  const ok = deleteLote(id);
+  const ok = await deleteLote(id);
   if (!ok) {
     return json({ ok: false, error: "No se pudo eliminar" }, 500);
   }

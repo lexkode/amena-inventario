@@ -7,7 +7,7 @@ if (!user) {
   return Astro.redirect("/admin/login");
 }
 
-const modelos = getModelos();
+const modelos = await getModelos();
 const error = Astro.url.searchParams.get("error");
 
 const usd = new Intl.NumberFormat("en-US", {
