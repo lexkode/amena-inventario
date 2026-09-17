@@ -56,6 +56,14 @@ type LoteSnapshot = {
 
 type LoteClipboard = LoteSnapshot;
 
+type HistoryEntry = {
+  label: string;
+  key?: string;
+  at: number;
+  lotes: LoteConModelo[];
+  selectedLoteId: number | null;
+};
+
 type State = {
   mode: Mode;
   polygonView: PolygonView;
@@ -70,6 +78,7 @@ type State = {
   selectedVertex: { loteId: number; index: number } | null;
   draggingVertex: { loteId: number; index: number } | null;
   draggingPolygon: { loteId: number; start: Punto; original: Punto[] } | null;
+  dragMoved: boolean;
   lotes: LoteConModelo[];
   modelos: ModeloConCaracteristicas[];
   pendingImageAdds: { file: File; url: string }[];
@@ -78,6 +87,14 @@ type State = {
   draft: LoteDraft | null;
   editSnapshot: LoteSnapshot | null;
   clipboard: LoteClipboard | null;
+  history: HistoryEntry[];
+  historyIndex: number;
+  synced: LoteConModelo[];
+  nextTempId: number;
+  pendingImageFiles: Map<number, File>;
+  syncing: boolean;
+  hasPublication: boolean;
+  hasUnpublished: boolean;
 };
 
 type InitialData = {
@@ -90,6 +107,7 @@ type InitialData = {
   } | null;
   lotes: LoteConModelo[];
   modelos: ModeloConCaracteristicas[];
+  estadoPublicacion: { tienePublicacion: boolean; pendiente: boolean };
 };
 
 // ============ State ============
@@ -108,6 +126,7 @@ const state: State = {
   selectedVertex: null,
   draggingVertex: null,
   draggingPolygon: null,
+  dragMoved: false,
   lotes: [],
   modelos: [],
   pendingImageAdds: [],
@@ -116,6 +135,14 @@ const state: State = {
   draft: null,
   editSnapshot: null,
   clipboard: null,
+  history: [],
+  historyIndex: -1,
+  synced: [],
+  nextTempId: -1,
+  pendingImageFiles: new Map(),
+  syncing: false,
+  hasPublication: false,
+  hasUnpublished: false,
 };
 
 const VERTEX_RADIUS = 6; // radio unificado (mitad del original más grande)
@@ -135,6 +162,141 @@ let zoomDisplay!: HTMLElement;
 let selectionToolbar: HTMLDivElement | null = null;
 let planImage: SVGGElement | null = null;
 let initialData: InitialData;
+
+// ============ Working copy & history ============
+
+const MAX_HISTORY = 100;
+
+function cloneLotes(lotes: LoteConModelo[]): LoteConModelo[] {
+  return structuredClone(lotes);
+}
+
+function genTempId(): number {
+  const id = state.nextTempId;
+  state.nextTempId -= 1;
+  return id;
+}
+
+function documentDirty(): boolean {
+  return JSON.stringify(state.lotes) !== JSON.stringify(state.synced);
+}
+
+function loteFieldsChanged(a: LoteConModelo, b: LoteConModelo): boolean {
+  return (
+    JSON.stringify([a.numeroLote, a.estado, a.poligono, a.modeloId, a.terrenoM2, a.dimensionesLote]) !==
+    JSON.stringify([b.numeroLote, b.estado, b.poligono, b.modeloId, b.terrenoM2, b.dimensionesLote])
+  );
+}
+
+function loteBody(lote: LoteConModelo): {
+  numeroLote: string;
+  estado: LoteEstado;
+  poligono: Punto[];
+  modeloId: number | null;
+  terrenoM2: number | null;
+  dimensionesLote: string | null;
+} {
+  return {
+    numeroLote: lote.numeroLote,
+    estado: lote.estado,
+    poligono: lote.poligono,
+    modeloId: lote.modeloId,
+    terrenoM2: lote.terrenoM2,
+    dimensionesLote: lote.dimensionesLote,
+  };
+}
+
+function updateDirtyIndicator(): void {
+  const localDirty = documentDirty() || hasUnsavedChanges();
+  const publishBtn = document.getElementById("save-all") as HTMLButtonElement | null;
+  if (publishBtn) {
+    const pending = localDirty || state.hasUnpublished || !state.hasPublication;
+    publishBtn.disabled = !pending || state.syncing;
+    publishBtn.textContent = state.syncing ? "Publicando…" : pending ? "Publicar *" : "Publicar";
+  }
+  const draftBtn = document.getElementById("save-draft") as HTMLButtonElement | null;
+  if (draftBtn) {
+    draftBtn.disabled = !localDirty || state.syncing;
+    draftBtn.textContent = localDirty ? "Guardar borrador *" : "Guardar borrador";
+  }
+}
+
+function renderHistoryControls(): void {
+  const select = document.getElementById("history-select") as HTMLSelectElement | null;
+  if (select) {
+    select.innerHTML = state.history
+      .map((h, i) => `<option value="${i}">${escapeHtml(h.label)}</option>`)
+      .join("");
+    select.disabled = state.history.length === 0;
+    if (state.historyIndex >= 0) select.value = String(state.historyIndex);
+  }
+  const undoBtn = document.getElementById("undo") as HTMLButtonElement | null;
+  const redoBtn = document.getElementById("redo") as HTMLButtonElement | null;
+  if (undoBtn) undoBtn.disabled = state.historyIndex <= 0;
+  if (redoBtn) redoBtn.disabled = state.historyIndex >= state.history.length - 1;
+}
+
+function commitHistory(label: string, coalesceKey?: string): void {
+  const now = Date.now();
+  const last = state.historyIndex >= 0 ? state.history[state.historyIndex] : undefined;
+  const atTip = state.historyIndex === state.history.length - 1;
+  if (coalesceKey && atTip && last && last.key === coalesceKey && now - last.at < 800) {
+    last.at = now;
+    last.lotes = cloneLotes(state.lotes);
+    last.selectedLoteId = state.selectedLoteId;
+    renderHistoryControls();
+    updateDirtyIndicator();
+    return;
+  }
+
+  state.history.splice(state.historyIndex + 1);
+  state.history.push({
+    label,
+    key: coalesceKey,
+    at: now,
+    lotes: cloneLotes(state.lotes),
+    selectedLoteId: state.selectedLoteId,
+  });
+  state.historyIndex = state.history.length - 1;
+
+  if (state.history.length > MAX_HISTORY) {
+    state.history.splice(0, state.history.length - MAX_HISTORY);
+    state.historyIndex = state.history.length - 1;
+  }
+
+  renderHistoryControls();
+  updateDirtyIndicator();
+}
+
+function goToHistory(index: number): void {
+  if (index < 0 || index >= state.history.length || index === state.historyIndex) return;
+  state.historyIndex = index;
+  const entry = state.history[index];
+  state.lotes = cloneLotes(entry.lotes);
+  state.pendingNewLote = null;
+  state.currentPolygon = [];
+  state.selectedVertex = null;
+  state.draggingPolygon = null;
+  resetPendingImages();
+  clearFormDraft();
+  state.selectedLoteId =
+    entry.selectedLoteId !== null && state.lotes.some((l) => l.id === entry.selectedLoteId)
+      ? entry.selectedLoteId
+      : null;
+  const lote = state.lotes.find((l) => l.id === state.selectedLoteId);
+  state.editSnapshot = lote ? captureSnapshot(lote) : null;
+  render();
+  renderHistoryControls();
+  updateDirtyIndicator();
+}
+
+function undo(): void {
+  if (state.historyIndex > 0) goToHistory(state.historyIndex - 1);
+}
+
+function redo(): void {
+  if (state.historyIndex < state.history.length - 1) goToHistory(state.historyIndex + 1);
+}
 
 // ============ Render ============
 
@@ -206,6 +368,7 @@ function renderLotsLayer(): void {
         start: svgToPoint(svg, e.clientX, e.clientY),
         original: lote.poligono.map((p) => ({ ...p })),
       };
+      state.dragMoved = false;
       svg.style.cursor = "move";
     });
     lotsLayer.appendChild(polygon);
@@ -267,6 +430,7 @@ function renderOverlayLayer(): void {
           if (e.button !== 0) return;
           e.stopPropagation();
           state.draggingVertex = { loteId: lote.id, index: i };
+          state.dragMoved = false;
         });
         handle.addEventListener("click", () => {
           state.selectedVertex = { loteId: lote.id, index: i };
@@ -505,7 +669,7 @@ function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
         <p id="form-error" class="form-error" hidden></p>
         <p id="form-success" class="form-success" hidden></p>
         <div class="actions">
-          <button type="submit" id="save-lote-btn" class="btn-primary" ${saveDisabled ? "disabled" : ""}>${isNew ? "Crear lote" : "Guardar cambios"}</button>
+          <button type="submit" id="save-lote-btn" class="btn-primary" ${saveDisabled ? "disabled" : ""}>${isNew ? "Crear lote" : "Aplicar cambios"}</button>
           ${!isNew ? '<button type="button" id="delete-lote" class="btn-danger">Eliminar lote</button>' : ""}
           ${isNew ? '<button type="button" id="cancel-new" class="btn-secondary">Cancelar</button>' : ""}
         </div>
@@ -652,7 +816,7 @@ function bindImageHandlers(): void {
       const imgId = Number(btn.dataset.imgId);
       if (
         Number.isInteger(imgId) &&
-        imgId > 0 &&
+        imgId !== 0 &&
         !state.pendingImageRemoves.includes(imgId)
       ) {
         state.pendingImageRemoves.push(imgId);
@@ -701,7 +865,7 @@ function createSelectionToolbar(): void {
   el.querySelector<HTMLElement>('[data-action="copy"]')?.addEventListener("click", copyLote);
   el.querySelector<HTMLElement>('[data-action="delete"]')?.addEventListener("click", () => {
     void (async () => {
-      if (await confirmDeleteLote()) await deleteLote();
+      if (await confirmDeleteLote()) deleteLote();
     })();
   });
 
@@ -796,45 +960,33 @@ async function pasteLote(): Promise<void> {
   if (!clip) return;
   if (!(await confirmDiscard())) return;
 
-  const body = {
-    numeroLote: nextNumeroLote(clip.numeroLote, clip.modeloId),
+  const numero = nextNumeroLote(clip.numeroLote, clip.modeloId);
+  const lote: LoteConModelo = {
+    id: genTempId(),
+    numeroLote: numero,
     estado: clip.estado,
     poligono: clip.polygon.map((p) => ({ x: p.x + PASTE_OFFSET, y: p.y + PASTE_OFFSET })),
     modeloId: clip.modeloId,
     terrenoM2: clip.terrenoM2,
     dimensionesLote: clip.dimensionesLote,
+    modelo: modeloById(clip.modeloId),
+    imagenes: [],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
   };
 
-  try {
-    const response = await fetch("/api/admin/lotes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const result = (await response.json()) as {
-      ok: boolean;
-      data?: LoteConModelo;
-      error?: string;
-    };
-    if (!result.ok || !result.data) {
-      showFormError(result.error ?? "Error al pegar el lote");
-      return;
-    }
-
-    state.lotes.push(result.data);
-    state.selectedLoteId = result.data.id;
-    state.selectedVertex = null;
-    state.draggingPolygon = null;
-    state.pendingNewLote = null;
-    state.currentPolygon = [];
-    resetPendingImages();
-    clearFormDraft();
-    state.editSnapshot = captureSnapshot(result.data);
-    render();
-    showFormSuccess("Lote pegado");
-  } catch (err) {
-    showFormError(err instanceof Error ? err.message : String(err));
-  }
+  state.lotes.push(lote);
+  state.selectedLoteId = lote.id;
+  state.selectedVertex = null;
+  state.draggingPolygon = null;
+  state.pendingNewLote = null;
+  state.currentPolygon = [];
+  resetPendingImages();
+  clearFormDraft();
+  state.editSnapshot = captureSnapshot(lote);
+  commitHistory(`Pegar lote ${numero}`);
+  render();
+  showFormSuccess("Lote pegado. No olvides publicar.");
 }
 
 function renderPasteButton(): void {
@@ -938,10 +1090,13 @@ function discardChanges(): void {
   if (state.selectedLoteId !== null && state.editSnapshot) {
     const lote = state.lotes.find((l) => l.id === state.selectedLoteId);
     if (lote) {
-      lote.poligono = state.editSnapshot.polygon.map((p) => ({ ...p }));
       lote.numeroLote = state.editSnapshot.numeroLote;
       lote.estado = state.editSnapshot.estado;
       lote.modeloId = state.editSnapshot.modeloId;
+      lote.modelo =
+        state.editSnapshot.modeloId !== null
+          ? (state.modelos.find((m) => m.id === state.editSnapshot!.modeloId) ?? null)
+          : null;
       lote.terrenoM2 = state.editSnapshot.terrenoM2;
       lote.dimensionesLote = state.editSnapshot.dimensionesLote;
     }
@@ -1131,7 +1286,7 @@ function handleDocumentMouseMove(e: MouseEvent): void {
     const lote = state.lotes.find((l) => l.id === state.draggingVertex!.loteId);
     if (lote) {
       lote.poligono[state.draggingVertex.index] = p;
-      markFormDirty();
+      state.dragMoved = true;
       render();
     }
   } else if (state.draggingPolygon) {
@@ -1142,7 +1297,7 @@ function handleDocumentMouseMove(e: MouseEvent): void {
     const lote = state.lotes.find((l) => l.id === drag.loteId);
     if (lote) {
       lote.poligono = drag.original.map((pt) => ({ x: pt.x + dx, y: pt.y + dy }));
-      markFormDirty();
+      state.dragMoved = true;
       render();
     }
   }
@@ -1172,11 +1327,25 @@ function handleDocumentMouseUp(e: MouseEvent): void {
     }
   }
   if (state.draggingVertex) {
+    const drag = state.draggingVertex;
+    const moved = state.dragMoved;
     state.draggingVertex = null;
+    state.dragMoved = false;
+    if (moved) {
+      const lote = state.lotes.find((l) => l.id === drag.loteId);
+      if (lote) commitHistory(`Mover vértice lote ${lote.numeroLote}`, `vertex:${lote.id}`);
+    }
   }
   if (state.draggingPolygon) {
+    const drag = state.draggingPolygon;
+    const moved = state.dragMoved;
     state.draggingPolygon = null;
+    state.dragMoved = false;
     updateCursor();
+    if (moved) {
+      const lote = state.lotes.find((l) => l.id === drag.loteId);
+      if (lote) commitHistory(`Mover lote ${lote.numeroLote}`, `polygon:${lote.id}`);
+    }
   }
 }
 
@@ -1194,6 +1363,17 @@ function handleKeyDown(e: KeyboardEvent): void {
 
   if ((e.ctrlKey || e.metaKey) && !e.altKey) {
     const key = e.key.toLowerCase();
+    if (key === "z") {
+      e.preventDefault();
+      if (e.shiftKey) redo();
+      else undo();
+      return;
+    }
+    if (key === "y") {
+      e.preventDefault();
+      redo();
+      return;
+    }
     if (key === "c" && state.mode === "lotes" && state.selectedLoteId !== null) {
       e.preventDefault();
       copyLote();
@@ -1244,7 +1424,7 @@ function handleKeyDown(e: KeyboardEvent): void {
       const dy = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
       if (dx !== 0 || dy !== 0) {
         lote.poligono = lote.poligono.map((p) => ({ x: p.x + dx, y: p.y + dy }));
-        markFormDirty();
+        commitHistory(`Mover lote ${lote.numeroLote}`, `nudge:${lote.id}`);
         e.preventDefault();
         render();
       }
@@ -1258,7 +1438,7 @@ function handleKeyDown(e: KeyboardEvent): void {
         const idx = state.selectedVertex!.index;
         const p = lote.poligono[idx];
         lote.poligono[idx] = { x: p.x + dx, y: p.y + dy };
-        markFormDirty();
+        commitHistory(`Mover vértice lote ${lote.numeroLote}`, `nudge-vertex:${lote.id}`);
         e.preventDefault();
         render();
       }
@@ -1345,15 +1525,40 @@ function clearFormSuccess(): void {
   }
 }
 
-async function saveLote(): Promise<boolean> {
+function consumePendingImages(lote: LoteConModelo): void {
+  if (state.pendingImageRemoves.length > 0) {
+    const removes = new Set(state.pendingImageRemoves);
+    for (const id of removes) {
+      if (id < 0) {
+        const img = lote.imagenes.find((i) => i.id === id);
+        state.pendingImageFiles.delete(id);
+        if (img?.path.startsWith("blob:")) URL.revokeObjectURL(img.path);
+      }
+    }
+    lote.imagenes = lote.imagenes.filter((img) => !removes.has(img.id));
+  }
+  for (const p of state.pendingImageAdds) {
+    const id = genTempId();
+    lote.imagenes.push({ id, path: p.url });
+    state.pendingImageFiles.set(id, p.file);
+  }
+  state.pendingImageAdds = [];
+  state.pendingImageRemoves = [];
+}
+
+function modeloById(id: number | null): LoteConModelo["modelo"] {
+  if (id === null) return null;
+  return state.modelos.find((m) => m.id === id) ?? null;
+}
+
+function saveLote(): boolean {
   clearFormError();
   const data = getFormData();
   if (!data) return false;
 
   const isNew = state.pendingNewLote !== null;
-  const poligono = isNew
-    ? state.pendingNewLote!.poligono
-    : (state.lotes.find((l) => l.id === state.selectedLoteId)?.poligono ?? []);
+  const current = isNew ? null : state.lotes.find((l) => l.id === state.selectedLoteId);
+  const poligono = isNew ? state.pendingNewLote!.poligono : (current?.poligono ?? []);
 
   if (poligono.length < 3) {
     showFormError("El polígono debe tener al menos 3 puntos");
@@ -1372,69 +1577,71 @@ async function saveLote(): Promise<boolean> {
     return false;
   }
 
-  const body = { ...data, poligono };
-  const url = isNew ? "/api/admin/lotes" : `/api/admin/lotes/${state.selectedLoteId}`;
-  const method = isNew ? "POST" : "PATCH";
-
-  try {
-    const response = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const result = (await response.json()) as { ok: boolean; data?: LoteConModelo; error?: string };
-    if (!result.ok || !result.data) {
-      showFormError(result.error ?? "Error desconocido");
-      return false;
-    }
-    if (isNew) {
-      state.lotes.push(result.data);
-      state.selectedLoteId = result.data.id;
-    } else {
-      const idx = state.lotes.findIndex((l) => l.id === result.data!.id);
-      if (idx >= 0) state.lotes[idx] = result.data;
-    }
+  if (isNew) {
+    const lote: LoteConModelo = {
+      id: genTempId(),
+      numeroLote: data.numeroLote,
+      estado: data.estado,
+      poligono: poligono.map((p) => ({ ...p })),
+      modeloId,
+      terrenoM2: data.terrenoM2,
+      dimensionesLote: data.dimensionesLote,
+      modelo: modeloById(modeloId),
+      imagenes: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    consumePendingImages(lote);
+    state.lotes.push(lote);
+    state.selectedLoteId = lote.id;
     state.pendingNewLote = null;
-
-    const loteId = result.data.id;
-    const ok = await applyPendingImages(loteId);
-    if (!ok) return false;
-
-    resetPendingImages();
     clearFormDraft();
-    await refreshLotes();
-    const saved = state.lotes.find((l) => l.id === result.data!.id) ?? result.data;
-    state.editSnapshot = captureSnapshot(saved);
+    state.editSnapshot = captureSnapshot(lote);
+    commitHistory(`Crear lote ${lote.numeroLote}`);
     render();
-    showFormSuccess("Cambios guardados con éxito");
+    showFormSuccess("Lote creado. No olvides publicar.");
     return true;
-  } catch (err) {
-    showFormError(err instanceof Error ? err.message : String(err));
-    return false;
   }
+
+  if (!current) return false;
+
+  current.numeroLote = data.numeroLote;
+  current.estado = data.estado;
+  current.modeloId = modeloId;
+  current.modelo = modeloById(modeloId);
+  current.terrenoM2 = data.terrenoM2;
+  current.dimensionesLote = data.dimensionesLote;
+  current.poligono = poligono.map((p) => ({ ...p }));
+  consumePendingImages(current);
+  clearFormDraft();
+  state.editSnapshot = captureSnapshot(current);
+  commitHistory(`Editar lote ${current.numeroLote}`);
+  render();
+  showFormSuccess("Cambios aplicados. No olvides publicar.");
+  return true;
 }
 
-async function deleteLote(): Promise<void> {
+function deleteLote(): void {
   if (state.selectedLoteId === null) return;
   const id = state.selectedLoteId;
-  try {
-    const response = await fetch(`/api/admin/lotes/${id}`, { method: "DELETE" });
-    const result = (await response.json()) as { ok: boolean; error?: string };
-    if (!result.ok) {
-      showFormError(result.error ?? "Error al eliminar");
-      return;
+  const lote = state.lotes.find((l) => l.id === id);
+  if (lote) {
+    for (const img of lote.imagenes) {
+      if (img.id < 0) {
+        state.pendingImageFiles.delete(img.id);
+        if (img.path.startsWith("blob:")) URL.revokeObjectURL(img.path);
+      }
     }
-    state.lotes = state.lotes.filter((l) => l.id !== id);
-    state.selectedLoteId = null;
-    state.selectedVertex = null;
-    state.draggingPolygon = null;
-    state.editSnapshot = null;
-    resetPendingImages();
-    clearFormDraft();
-    render();
-  } catch (err) {
-    showFormError(err instanceof Error ? err.message : String(err));
   }
+  state.lotes = state.lotes.filter((l) => l.id !== id);
+  state.selectedLoteId = null;
+  state.selectedVertex = null;
+  state.draggingPolygon = null;
+  state.editSnapshot = null;
+  resetPendingImages();
+  clearFormDraft();
+  commitHistory(`Eliminar lote ${lote?.numeroLote ?? ""}`.trim());
+  render();
 }
 
 function resetPendingImages(): void {
@@ -1445,57 +1652,310 @@ function resetPendingImages(): void {
   state.pendingImageRemoves = [];
 }
 
-async function applyPendingImages(loteId: number): Promise<boolean> {
+async function uploadImage(loteId: number, file: File): Promise<LoteImagenItem> {
+  const fd = new FormData();
+  fd.append("imagen", file);
+  const response = await fetch(`/api/admin/lotes/${loteId}/imagenes`, {
+    method: "POST",
+    body: fd,
+  });
+  const result = (await response.json()) as {
+    ok: boolean;
+    data?: { added: LoteImagenItem };
+    error?: string;
+  };
+  if (!result.ok || !result.data) {
+    throw new Error(result.error ?? "Error al subir la imagen");
+  }
+  return result.data.added;
+}
+
+async function guardarBorrador(): Promise<boolean> {
+  if (state.syncing) return false;
+  if (hasUnsavedChanges() && !saveLote()) return false;
+  if (!documentDirty()) return true;
+  state.syncing = true;
+  clearFormError();
+  updateDirtyIndicator();
+
+  const loteIdMap = new Map<number, number>();
+  const imgIdMap = new Map<number, LoteImagenItem>();
+
   try {
-    for (const p of state.pendingImageAdds) {
-      const fd = new FormData();
-      fd.append("imagen", p.file);
-      const response = await fetch(`/api/admin/lotes/${loteId}/imagenes`, {
-        method: "POST",
-        body: fd,
-      });
-      const result = (await response.json()) as {
-        ok: boolean;
-        error?: string;
-      };
-      if (!result.ok) {
-        showFormError(result.error ?? "Error al subir la imagen");
-        return false;
+    const syncedById = new Map(state.synced.map((l) => [l.id, l]));
+    const currentById = new Map(state.lotes.map((l) => [l.id, l]));
+
+    for (const l of state.synced) {
+      if (!currentById.has(l.id)) {
+        const res = await fetch(`/api/admin/lotes/${l.id}`, { method: "DELETE" });
+        const r = (await res.json()) as { ok: boolean; error?: string };
+        if (!r.ok) throw new Error(r.error ?? "Error al eliminar el lote");
       }
     }
-    for (const imagenId of state.pendingImageRemoves) {
-      const response = await fetch(
-        `/api/admin/lotes/${loteId}/imagenes/${imagenId}`,
-        { method: "DELETE" },
+
+    for (const lote of state.lotes) {
+      if (!syncedById.has(lote.id)) {
+        const res = await fetch("/api/admin/lotes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(loteBody(lote)),
+        });
+        const r = (await res.json()) as { ok: boolean; data?: LoteConModelo; error?: string };
+        if (!r.ok || !r.data) throw new Error(r.error ?? "Error al crear el lote");
+        loteIdMap.set(lote.id, r.data.id);
+        const realId = r.data.id;
+        if (lote.id > 0) {
+          lote.imagenes = lote.imagenes.filter((img) => img.id < 0);
+        }
+        for (const img of lote.imagenes) {
+          if (img.id < 0) {
+            const file = state.pendingImageFiles.get(img.id);
+            if (file) {
+              const added = await uploadImage(realId, file);
+              imgIdMap.set(img.id, added);
+            }
+          }
+        }
+      }
+    }
+
+    for (const lote of state.lotes) {
+      if (lote.id > 0 && syncedById.has(lote.id)) {
+        const base = syncedById.get(lote.id)!;
+        if (loteFieldsChanged(base, lote)) {
+          const res = await fetch(`/api/admin/lotes/${lote.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(loteBody(lote)),
+          });
+          const r = (await res.json()) as { ok: boolean; error?: string };
+          if (!r.ok) throw new Error(r.error ?? "Error al guardar el lote");
+        }
+      }
+    }
+
+    for (const lote of state.lotes) {
+      if (lote.id <= 0 || !syncedById.has(lote.id)) continue;
+      const base = syncedById.get(lote.id)!;
+      const keptServerIds = new Set(
+        lote.imagenes.filter((i) => i.id > 0).map((i) => i.id),
       );
-      const result = (await response.json()) as {
-        ok: boolean;
-        error?: string;
-      };
-      if (!result.ok) {
-        showFormError(result.error ?? "Error al quitar la imagen");
-        return false;
+      for (const img of base.imagenes) {
+        if (img.id > 0 && !keptServerIds.has(img.id)) {
+          const res = await fetch(
+            `/api/admin/lotes/${lote.id}/imagenes/${img.id}`,
+            { method: "DELETE" },
+          );
+          const r = (await res.json()) as { ok: boolean; error?: string };
+          if (!r.ok) throw new Error(r.error ?? "Error al quitar la imagen");
+        }
+      }
+      for (const img of lote.imagenes) {
+        if (img.id < 0) {
+          const file = state.pendingImageFiles.get(img.id);
+          if (file) {
+            const added = await uploadImage(lote.id, file);
+            imgIdMap.set(img.id, added);
+          }
+        }
       }
     }
+
+    remapDocumentIds(loteIdMap, imgIdMap);
+    state.synced = cloneLotes(state.lotes);
+    state.pendingImageFiles.clear();
+    state.clipboard = null;
+    state.hasUnpublished = true;
+    render();
+    renderHistoryControls();
+    showFormSuccess("Borrador guardado");
     return true;
   } catch (err) {
     showFormError(err instanceof Error ? err.message : String(err));
     return false;
+  } finally {
+    state.syncing = false;
+    updateDirtyIndicator();
   }
 }
 
-async function refreshLotes(): Promise<void> {
+async function publicar(): Promise<void> {
+  if (state.syncing) return;
+  if (!(await guardarBorrador())) return;
+  state.syncing = true;
+  clearFormError();
+  updateDirtyIndicator();
   try {
-    const response = await fetch("/api/admin/lotes");
-    const result = (await response.json()) as {
-      ok: boolean;
-      data?: LoteConModelo[];
+    const res = await fetch("/api/admin/lotes/publicar", { method: "POST" });
+    const r = (await res.json()) as { ok: boolean; error?: string };
+    if (!r.ok) throw new Error(r.error ?? "Error al publicar");
+    state.hasPublication = true;
+    state.hasUnpublished = false;
+    render();
+    showFormSuccess("Cambios publicados");
+  } catch (err) {
+    showFormError(err instanceof Error ? err.message : String(err));
+  } finally {
+    state.syncing = false;
+    updateDirtyIndicator();
+  }
+}
+
+type PublicacionItem = { id: number; totalLotes: number; createdAt: number };
+
+function showPublicacionesModal(): Promise<number | null> {
+  if (activeModal !== null) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "confirm-overlay";
+    overlay.innerHTML = `
+      <div class="confirm-modal publicaciones-modal" role="dialog" aria-modal="true">
+        <h3>Publicaciones</h3>
+        <p class="confirm-text">Historial de versiones publicadas. Restaurar reemplaza el borrador actual.</p>
+        <div class="publicaciones-list" id="publicaciones-list">Cargando…</div>
+        <div class="confirm-actions">
+          <button type="button" class="btn-secondary" data-close="1">Cerrar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    activeModal = overlay;
+    (document.activeElement as HTMLElement | null)?.blur();
+
+    const cleanup = (value: number | null): void => {
+      overlay.remove();
+      activeModal = null;
+      resolve(value);
     };
-    if (result.ok && result.data) {
-      state.lotes = result.data;
+    overlay.querySelector("[data-close]")?.addEventListener("click", () => cleanup(null));
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) cleanup(null);
+    });
+
+    void (async () => {
+      const listEl = overlay.querySelector<HTMLElement>("#publicaciones-list");
+      if (!listEl) return;
+      try {
+        const res = await fetch("/api/admin/lotes/publicaciones");
+        const r = (await res.json()) as {
+          ok: boolean;
+          data?: PublicacionItem[];
+          error?: string;
+        };
+        if (!r.ok || !r.data) throw new Error(r.error ?? "Error al cargar");
+        if (r.data.length === 0) {
+          listEl.innerHTML = `<p class="lote-vacio">Todavía no se ha publicado ninguna versión.</p>`;
+          return;
+        }
+        listEl.innerHTML = r.data
+          .map(
+            (p, i) => `
+          <div class="publicacion-row">
+            <div class="publicacion-info">
+              <span class="publicacion-fecha">${new Date(p.createdAt).toLocaleString("es-SV")}</span>
+              <span class="publicacion-meta">${p.totalLotes} lote(s)${i === 0 ? " · actual" : ""}</span>
+            </div>
+            <button type="button" class="btn-secondary" data-restore="${p.id}">Restaurar</button>
+          </div>`,
+          )
+          .join("");
+        listEl.querySelectorAll<HTMLElement>("[data-restore]").forEach((btn) => {
+          btn.addEventListener("click", () => cleanup(Number(btn.dataset.restore)));
+        });
+      } catch (err) {
+        listEl.innerHTML = `<p class="form-error">${escapeHtml(err instanceof Error ? err.message : String(err))}</p>`;
+      }
+    })();
+  });
+}
+
+async function openPublicaciones(): Promise<void> {
+  const id = await showPublicacionesModal();
+  if (id === null) return;
+  const confirmed = await showModal({
+    title: "Restaurar versión",
+    message: "Se reemplazará el borrador actual por esta versión publicada. ¿Continuar?",
+    defaultAction: "cancel",
+    buttons: [
+      { label: "Cancelar", value: "cancel", className: "btn-secondary" },
+      { label: "Restaurar", value: "confirm", className: "btn-danger" },
+    ],
+  });
+  if (confirmed === "confirm") await restaurarPublicacion(id);
+}
+
+async function restaurarPublicacion(id: number): Promise<void> {
+  if (state.syncing) return;
+  state.syncing = true;
+  updateDirtyIndicator();
+  try {
+    const res = await fetch(`/api/admin/lotes/publicaciones/${id}/restaurar`, {
+      method: "POST",
+    });
+    const r = (await res.json()) as {
+      ok: boolean;
+      data?: { lotes: LoteConModelo[]; pendiente: boolean };
+      error?: string;
+    };
+    if (!r.ok || !r.data) throw new Error(r.error ?? "Error al restaurar");
+    loadDocument(r.data.lotes, { tienePublicacion: true, pendiente: r.data.pendiente });
+    showFormSuccess("Versión restaurada en el borrador");
+  } catch (err) {
+    showFormError(err instanceof Error ? err.message : String(err));
+  } finally {
+    state.syncing = false;
+    updateDirtyIndicator();
+  }
+}
+
+function loadDocument(
+  lotes: LoteConModelo[],
+  estado: { tienePublicacion: boolean; pendiente: boolean },
+): void {
+  state.lotes = lotes;
+  state.synced = cloneLotes(lotes);
+  state.hasPublication = estado.tienePublicacion;
+  state.hasUnpublished = estado.pendiente;
+  state.history = [];
+  state.historyIndex = -1;
+  state.selectedLoteId = null;
+  state.selectedVertex = null;
+  state.draggingPolygon = null;
+  state.pendingNewLote = null;
+  state.currentPolygon = [];
+  state.pendingImageFiles.clear();
+  resetPendingImages();
+  clearFormDraft();
+  state.clipboard = null;
+  commitHistory("Estado inicial");
+  render();
+}
+
+function remapImage(img: LoteImagenItem, imgIdMap: Map<number, LoteImagenItem>): LoteImagenItem {
+  const mapped = imgIdMap.get(img.id);
+  if (!mapped) return img;
+  if (img.path.startsWith("blob:")) URL.revokeObjectURL(img.path);
+  return { id: mapped.id, path: mapped.path };
+}
+
+function remapLote(lote: LoteConModelo, loteIdMap: Map<number, number>, imgIdMap: Map<number, LoteImagenItem>): void {
+  const mappedLoteId = loteIdMap.get(lote.id);
+  if (mappedLoteId !== undefined) lote.id = mappedLoteId;
+  lote.imagenes = lote.imagenes.map((img) => remapImage(img, imgIdMap));
+}
+
+function remapDocumentIds(
+  loteIdMap: Map<number, number>,
+  imgIdMap: Map<number, LoteImagenItem>,
+): void {
+  for (const lote of state.lotes) remapLote(lote, loteIdMap, imgIdMap);
+  for (const entry of state.history) {
+    for (const lote of entry.lotes) remapLote(lote, loteIdMap, imgIdMap);
+    if (entry.selectedLoteId !== null && loteIdMap.has(entry.selectedLoteId)) {
+      entry.selectedLoteId = loteIdMap.get(entry.selectedLoteId)!;
     }
-  } catch {
-    /* no bloquear el guardado */
+  }
+  if (state.selectedLoteId !== null && loteIdMap.has(state.selectedLoteId)) {
+    state.selectedLoteId = loteIdMap.get(state.selectedLoteId)!;
   }
 }
 
@@ -1524,6 +1984,10 @@ export function initEditor(): void {
   state.view = { x: 0, y: 0, ...state.initialView };
   state.lotes = initialData.lotes;
   state.modelos = initialData.modelos;
+  state.synced = cloneLotes(initialData.lotes);
+  state.hasPublication = initialData.estadoPublicacion?.tienePublicacion ?? false;
+  state.hasUnpublished = initialData.estadoPublicacion?.pendiente ?? false;
+  commitHistory("Estado inicial");
 
   document.querySelectorAll<HTMLElement>("[data-mode]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -1536,6 +2000,21 @@ export function initEditor(): void {
   document.getElementById("zoom-fit")?.addEventListener("click", () => fitView());
   document.getElementById("paste-lote")?.addEventListener("click", () => {
     void pasteLote();
+  });
+  document.getElementById("undo")?.addEventListener("click", undo);
+  document.getElementById("redo")?.addEventListener("click", redo);
+  document.getElementById("save-all")?.addEventListener("click", () => {
+    void publicar();
+  });
+  document.getElementById("save-draft")?.addEventListener("click", () => {
+    void guardarBorrador();
+  });
+  document.getElementById("publicaciones")?.addEventListener("click", () => {
+    void openPublicaciones();
+  });
+  const historySelect = document.getElementById("history-select") as HTMLSelectElement | null;
+  historySelect?.addEventListener("change", () => {
+    goToHistory(Number(historySelect.value));
   });
 
   const viewSelect = document.getElementById("polygon-view") as HTMLSelectElement | null;
@@ -1554,11 +2033,13 @@ export function initEditor(): void {
   document.addEventListener("mouseup", handleDocumentMouseUp);
   document.addEventListener("keydown", handleKeyDown);
   window.addEventListener("beforeunload", (e) => {
-    if (hasUnsavedChanges()) {
+    if (hasUnsavedChanges() || documentDirty()) {
       e.preventDefault();
       e.returnValue = "";
     }
   });
 
   render();
+  renderHistoryControls();
+  updateDirtyIndicator();
 }

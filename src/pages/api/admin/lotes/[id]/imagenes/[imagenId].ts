@@ -5,7 +5,6 @@ import {
 } from "@features/lots/lote.service";
 import { jsonApi } from "@core/http/api";
 import { json } from "@core/http/json";
-import { deleteUpload } from "@core/storage";
 
 function parseId(raw: string | undefined): number | null {
   if (raw === undefined) return null;
@@ -20,12 +19,13 @@ export const DELETE: APIRoute = jsonApi(async ({ params }) => {
     return json({ ok: false, error: "id inválido" }, 400);
   }
 
+  // No se elimina el objeto de R2: la imagen puede seguir referenciada por
+  // alguna publicación guardada (historial) o por el borrador.
   const path = await deleteLoteImagen(loteId, imagenId);
   if (path === null) {
     return json({ ok: false, error: "Imagen no encontrada" }, 404);
   }
 
-  await deleteUpload(path);
   return json(
     { ok: true, data: { id: imagenId, deleted: true, imagenes: await getImagenesByLote(loteId) } },
     200,

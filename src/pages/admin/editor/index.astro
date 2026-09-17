@@ -1,7 +1,11 @@
 ---
 import AdminLayout from "@shared/layouts/AdminLayout.astro";
 import { getPlanoActivo } from "@features/plan/plano.service";
-import { getLotes } from "@features/lots/lote.service";
+import {
+  getLotes,
+  getEstadoPublicacion,
+  asegurarPublicacionInicial,
+} from "@features/lots/lote.service";
 import { getModelos } from "@features/catalog/modelo.service";
 
 const user = Astro.locals.user;
@@ -12,8 +16,12 @@ if (!user) {
 const plan = await getPlanoActivo();
 const lotes = plan ? await getLotes() : [];
 const modelos = await getModelos();
+if (plan) await asegurarPublicacionInicial();
+const estadoPublicacion = plan
+  ? await getEstadoPublicacion()
+  : { tienePublicacion: false, pendiente: false };
 
-const initialData = { plan, lotes, modelos };
+const initialData = { plan, lotes, modelos, estadoPublicacion };
 ---
 
 <AdminLayout title="Editor de Plano" user={user}>
@@ -34,6 +42,18 @@ const initialData = { plan, lotes, modelos };
       <div class="paste-group" id="paste-group" hidden>
         <button id="paste-lote" class="zoom-btn" type="button" title="Pegar lote copiado (Ctrl+V)">Pegar lote</button>
       </div>
+      <div class="history-group" role="group" aria-label="Historial de pasos">
+        <button id="undo" class="zoom-btn history-icon" type="button" title="Deshacer (Ctrl+Z)" aria-label="Deshacer" disabled>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5 5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
+        </button>
+        <select id="history-select" class="history-select" aria-label="Saltar a un paso" disabled></select>
+        <button id="redo" class="zoom-btn history-icon" type="button" title="Rehacer (Ctrl+Shift+Z)" aria-label="Rehacer" disabled>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5 5.5 5.5 0 0 0 9.5 20H13"/></svg>
+        </button>
+      </div>
+      <button id="save-draft" class="btn-secondary save-draft" type="button" disabled>Guardar borrador</button>
+      <button id="save-all" class="btn-primary save-all" type="button" disabled>Publicar</button>
+      <button id="publicaciones" class="btn-secondary save-draft" type="button">Publicaciones</button>
       <div class="zoom-group" role="group" aria-label="Zoom">
         <button id="zoom-out" class="zoom-btn" type="button" aria-label="Zoom out">−</button>
         <span id="zoom-display" class="zoom-display">100%</span>
@@ -165,6 +185,46 @@ const initialData = { plan, lotes, modelos };
   .paste-group .zoom-btn {
     padding: 0.4rem 0.85rem;
     color: var(--c-text);
+  }
+  .history-group {
+    display: inline-flex;
+    background: var(--c-surface);
+    border-radius: var(--r-md);
+    padding: 0.25rem;
+    border: 1px solid var(--c-line);
+    box-shadow: var(--c-shadow-soft);
+    align-items: center;
+    gap: 0.15rem;
+  }
+  .history-icon svg {
+    width: 15px;
+    height: 15px;
+    display: block;
+  }
+  .history-icon:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .history-select {
+    max-width: 190px;
+    border: 0;
+    background: transparent;
+    color: var(--c-text);
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 0.15rem 0.25rem;
+    outline: none;
+  }
+  .history-select:disabled {
+    color: var(--c-text-muted);
+    cursor: default;
+  }
+  .save-all {
+    align-self: center;
+  }
+  .save-draft {
+    align-self: center;
   }
 
   .canvas-wrap :global(.selection-toolbar) {

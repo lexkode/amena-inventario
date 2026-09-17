@@ -1,6 +1,13 @@
-import { and, asc, eq, isNull, ne } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, ne } from "drizzle-orm";
 import { db } from "@core/db/client";
-import { lotes, loteImagenes, modelos, type Lote, type Modelo } from "@core/db/schema";
+import {
+  lotes,
+  loteImagenes,
+  lotePublicaciones,
+  modelos,
+  type Lote,
+  type Modelo,
+} from "@core/db/schema";
 import { parsePoligonoJson } from "@core/geometry";
 import { modeloExiste } from "@features/catalog/modelo.service";
 import { parseModelo } from "@features/catalog/modelo.types";
@@ -221,4 +228,152 @@ export async function deleteLote(id: number): Promise<boolean> {
     .where(eq(lotes.id, id))
     .returning({ id: lotes.id });
   return deleted.length > 0;
+}
+
+// ============ Publicaciones (borrador vs publicado) ============
+
+export type PublicacionResumen = {
+  id: number;
+  totalLotes: number;
+  createdAt: number;
+};
+
+export type EstadoPublicacion = {
+  tienePublicacion: boolean;
+  pendiente: boolean;
+};
+
+function comparableLotes(lotesList: LoteConModelo[]): string {
+  return JSON.stringify(
+    lotesList.map((l) => ({
+      numeroLote: l.numeroLote,
+      estado: l.estado,
+      poligono: l.poligono,
+      modeloId: l.modeloId,
+      terrenoM2: l.terrenoM2,
+      dimensionesLote: l.dimensionesLote,
+      imagenes: l.imagenes.map((i) => i.path),
+    })),
+  );
+}
+
+function parsePublicacionSnapshot(json: string): LoteConModelo[] {
+  try {
+    const parsed = JSON.parse(json) as LoteConModelo[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function publicarLotes(): Promise<PublicacionResumen> {
+  const draft = await getLotes();
+  const [row] = await db
+    .insert(lotePublicaciones)
+    .values({ snapshotJson: JSON.stringify(draft), totalLotes: draft.length })
+    .returning();
+  if (!row) throw new Error("No se pudo crear la publicación");
+  return { id: row.id, totalLotes: row.totalLotes, createdAt: row.createdAt };
+}
+
+export async function getLotesPublicados(): Promise<LoteConModelo[] | null> {
+  try {
+    const row = (
+      await db
+        .select()
+        .from(lotePublicaciones)
+        .orderBy(desc(lotePublicaciones.createdAt), desc(lotePublicaciones.id))
+        .limit(1)
+    )[0];
+    if (!row) return null;
+    return parsePublicacionSnapshot(row.snapshotJson);
+  } catch {
+    return null;
+  }
+}
+
+export async function getPublicaciones(): Promise<PublicacionResumen[]> {
+  try {
+    return await db
+      .select({
+        id: lotePublicaciones.id,
+        totalLotes: lotePublicaciones.totalLotes,
+        createdAt: lotePublicaciones.createdAt,
+      })
+      .from(lotePublicaciones)
+      .orderBy(desc(lotePublicaciones.createdAt), desc(lotePublicaciones.id));
+  } catch {
+    return [];
+  }
+}
+
+export async function getEstadoPublicacion(): Promise<EstadoPublicacion> {
+  const publicados = await getLotesPublicados();
+  if (!publicados) return { tienePublicacion: false, pendiente: false };
+  const draft = await getLotes();
+  return {
+    tienePublicacion: true,
+    pendiente: comparableLotes(draft) !== comparableLotes(publicados),
+  };
+}
+
+/**
+ * Crea una publicación inicial con el estado actual del borrador si todavía no
+ * existe ninguna. Sirve para migrar instalaciones con lotes ya cargados.
+ */
+export async function asegurarPublicacionInicial(): Promise<void> {
+  try {
+    if ((await getLotesPublicados()) !== null) return;
+    const draft = await getLotes();
+    if (draft.length === 0) return;
+    await publicarLotes();
+  } catch {
+    /* si la tabla aún no existe, no bloquear la página */
+  }
+}
+
+export async function restaurarPublicacion(
+  id: number,
+): Promise<{ lotes: LoteConModelo[]; pendiente: boolean } | null> {
+  const row = (
+    await db
+      .select()
+      .from(lotePublicaciones)
+      .where(eq(lotePublicaciones.id, id))
+      .limit(1)
+  )[0];
+  if (!row) return null;
+  const snapshot = parsePublicacionSnapshot(row.snapshotJson);
+
+  await db.transaction(async (tx) => {
+    await tx.delete(lotes);
+    for (const l of snapshot) {
+      const [created] = await tx
+        .insert(lotes)
+        .values({
+          numeroLote: l.numeroLote,
+          estado: l.estado,
+          poligonoJson: JSON.stringify(l.poligono),
+          modeloId: l.modeloId,
+          terrenoM2: l.terrenoM2,
+          dimensionesLote: l.dimensionesLote,
+        })
+        .returning({ id: lotes.id });
+      if (!created) continue;
+      let orden = 0;
+      for (const img of l.imagenes) {
+        await tx
+          .insert(loteImagenes)
+          .values({ loteId: created.id, path: img.path, orden: orden++ });
+      }
+    }
+  });
+
+  const restaurados = await getLotes();
+  const publicados = await getLotesPublicados();
+  return {
+    lotes: restaurados,
+    pendiente:
+      publicados !== null && comparableLotes(restaurados) !== comparableLotes(publicados),
+  };
 }

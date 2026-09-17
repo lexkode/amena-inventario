@@ -1,13 +1,14 @@
 ---
 import PublicLayout from "@shared/layouts/PublicLayout.astro";
 import { getPlanoActivo } from "@features/plan/plano.service";
-import { getLotes } from "@features/lots/lote.service";
+import { getLotesPublicados } from "@features/lots/lote.service";
 import { getModelos } from "@features/catalog/modelo.service";
 import mapBg from "@assets/logo-bg-transparency.webp";
 import logo from "@assets/logo-AMENA.webp";
 
 const plan = await getPlanoActivo();
-const lotes = plan ? await getLotes() : [];
+const publicados = await getLotesPublicados();
+const lotes = publicados ?? [];
 const modelos = await getModelos();
 
 const counts = {
