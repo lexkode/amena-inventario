@@ -11,6 +11,10 @@ Confirmación previa opcional: si un cambio es grande o ambiguo, se puede
 preguntar antes de commitear, pero la regla base es **esperar la instrucción
 explícita**.
 
+**Solo hacer `git push` cuando el usuario lo pida explícitamente.** No hacer
+push después de commitear ni como paso automático; esperar a que el usuario
+escriba algo como "haz push", "sube", "pushea" o similar.
+
 ## Notas adicionales
 
 - Repositorio: Residencial Amena (Astro 7 + Drizzle + PostgreSQL/Supabase + Cloudflare R2)

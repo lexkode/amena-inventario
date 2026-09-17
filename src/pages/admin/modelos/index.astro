@@ -21,7 +21,10 @@ const usd = new Intl.NumberFormat("en-US", {
   <div class="page-header">
     <h1>Modelos</h1>
     <div class="actions">
-      <a href="/admin/modelos/nuevo" class="btn-primary">+ Nuevo modelo</a>
+      <a href="/admin/modelos/nuevo" class="btn-primary new-modelo-btn">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+        Nuevo modelo
+      </a>
     </div>
   </div>
 
@@ -67,16 +70,18 @@ const usd = new Intl.NumberFormat("en-US", {
               <td>{m.habitaciones}/{m.banos}/{m.parqueos}</td>
               <td>{m.orden}</td>
               <td class="row-actions">
-                <a href={`/admin/modelos/${m.id}`} class="btn-secondary">Editar</a>
-                <form
-                  method="POST"
-                  action={`/api/admin/modelos/${m.id}`}
-                  onsubmit="return confirm('¿Eliminar este modelo? Esta acción no se puede deshacer.')"
-                  class="row-form"
-                >
-                  <input type="hidden" name="_method" value="DELETE" />
-                  <button type="submit" class="btn-danger">Eliminar</button>
-                </form>
+                <div class="row-actions-inner">
+                  <a href={`/admin/modelos/${m.id}`} class="btn-secondary">Editar</a>
+                  <form
+                    method="POST"
+                    action={`/api/admin/modelos/${m.id}`}
+                    onsubmit="return confirm('¿Eliminar este modelo? Esta acción no se puede deshacer.')"
+                    class="row-form"
+                  >
+                    <input type="hidden" name="_method" value="DELETE" />
+                    <button type="submit" class="btn-danger">Eliminar</button>
+                  </form>
+                </div>
               </td>
             </tr>
           ))}
@@ -147,10 +152,21 @@ const usd = new Intl.NumberFormat("en-US", {
     background: var(--c-badge-apto-bg);
     color: var(--c-badge-apto-fg);
   }
-  .row-actions {
+  .row-actions-inner {
     display: flex;
     gap: 0.4rem;
     align-items: center;
+  }
+  .new-modelo-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .new-modelo-btn svg {
+    width: 20px;
+    height: 20px;
+    display: block;
+    flex-shrink: 0;
   }
   .row-form {
     display: inline;

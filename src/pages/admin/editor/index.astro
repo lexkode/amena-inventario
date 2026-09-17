@@ -56,10 +56,16 @@ const initialData = { plan, lotes, modelos, estadoPublicacion };
           <button id="zoom-in" class="zoom-btn" type="button" aria-label="Zoom in">+</button>
           <button id="zoom-fit" class="zoom-btn zoom-fit" type="button" title="Restablecer zoom">Fit</button>
         </div>
-        <div class="mode-group" role="tablist" aria-label="Modo de edición">
-          <button data-mode="lotes" class="mode-btn" type="button">Lotes</button>
-          <button data-mode="draw" class="mode-btn" type="button">Dibujar</button>
-        </div>
+        <button
+          id="create-lote"
+          class="create-lote-btn"
+          type="button"
+          title="Crear nuevo lote"
+          aria-label="Crear nuevo lote"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+          <span>Nuevo lote</span>
+        </button>
         <div class="paste-group" id="paste-group" hidden>
           <button id="paste-lote" class="zoom-btn" type="button" title="Pegar lote copiado (Ctrl+V)">Pegar lote</button>
         </div>
@@ -137,7 +143,7 @@ const initialData = { plan, lotes, modelos, estadoPublicacion };
         <svg
           id="canvas"
           viewBox={`0 0 ${plan.anchoPx} ${plan.altoPx}`}
-          preserveAspectRatio="xMidYMid meet"
+          preserveAspectRatio="xMidYMid slice"
         >
           <image id="plan-image" href={plan.imagenPath} x="0" y="0" width={plan.anchoPx} height={plan.altoPx} preserveAspectRatio="xMidYMid meet" />
           <g id="lots-layer"></g>
@@ -174,7 +180,6 @@ const initialData = { plan, lotes, modelos, estadoPublicacion };
       flex: 1 1 100%;
     }
   }
-  .mode-group,
   .zoom-group {
     display: inline-flex;
     height: var(--control-h);
@@ -227,7 +232,6 @@ const initialData = { plan, lotes, modelos, estadoPublicacion };
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .mode-btn,
   .zoom-btn {
     padding: 0.4rem 0.85rem;
     background: transparent;
@@ -239,16 +243,43 @@ const initialData = { plan, lotes, modelos, estadoPublicacion };
     font-weight: 500;
     transition: color 150ms ease, background-color 150ms ease;
   }
-  .mode-btn:hover,
   .zoom-btn:hover {
     color: var(--c-text);
   }
-  .mode-btn.active {
-    background: var(--c-accent);
-    color: var(--c-white);
-  }
   .zoom-btn {
     min-width: 2rem;
+  }
+  .create-lote-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    height: var(--control-h);
+    padding: 0 0.95rem;
+    background: var(--c-accent);
+    color: var(--c-white);
+    border: 1px solid var(--c-accent);
+    border-radius: var(--r-md);
+    box-shadow: var(--c-shadow-soft);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+  }
+  .create-lote-btn svg {
+    width: 20px;
+    height: 20px;
+    display: block;
+    flex-shrink: 0;
+  }
+  .create-lote-btn:hover {
+    background: var(--c-accent-hover);
+    border-color: var(--c-accent-hover);
+  }
+  .create-lote-btn.active {
+    background: var(--c-accent-hover);
+    border-color: var(--c-accent-hover);
   }
   .zoom-display {
     display: inline-flex;
@@ -450,8 +481,8 @@ const initialData = { plan, lotes, modelos, estadoPublicacion };
     display: grid;
     grid-template-columns: 1fr 340px;
     gap: 1rem;
-    height: calc(100dvh - 140px);
-    min-height: 480px;
+    flex: 1;
+    min-height: 0;
   }
   .canvas-wrap {
     position: relative;
@@ -519,18 +550,24 @@ const initialData = { plan, lotes, modelos, estadoPublicacion };
     min-height: 0;
   }
   .side-panel :global(.form-head) {
-    display: grid;
-    grid-template-columns: 2.2rem 1fr 2.2rem;
+    display: flex;
     align-items: center;
+    gap: 0.5rem;
     margin-bottom: 0.75rem;
     flex-shrink: 0;
   }
   .side-panel :global(.form-head h2) {
     margin: 0;
-    text-align: center;
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: left;
     font-size: 0.95rem;
     font-weight: 600;
     line-height: 1.2;
+  }
+  .side-panel :global(.panel-spacer) {
+    flex: 0 0 2.2rem;
+    align-self: stretch;
   }
   .side-panel :global(.form-fields) {
     flex: 1 1 auto;
@@ -714,6 +751,7 @@ const initialData = { plan, lotes, modelos, estadoPublicacion };
   @media (max-width: 900px) {
     .editor-container {
       grid-template-columns: 1fr;
+      flex: none;
       height: auto;
     }
     .canvas-wrap {

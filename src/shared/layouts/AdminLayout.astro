@@ -70,13 +70,15 @@ const { title, user } = Astro.props;
 
 <style>
   .admin-body {
-    background: var(--c-bg);
+    background: var(--c-bg-dark);
     color: var(--c-text);
   }
 
   .admin-shell {
     display: flex;
+    height: 100dvh;
     min-height: 100dvh;
+    background: var(--c-bg-dark);
   }
 
   .admin-main {
@@ -84,16 +86,43 @@ const { title, user } = Astro.props;
     min-width: 0;
     display: flex;
     flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--c-bg-dark);
   }
 
   .admin-content {
     flex: 1;
-    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 1rem;
     max-width: 100%;
+    background: var(--c-bg-dark);
+  }
+
+  .admin-content :global(.page-header h1) {
+    color: var(--c-header-fg);
+  }
+
+  .admin-content :global(.page-header .subtitle) {
+    color: var(--c-header-fg-muted);
+  }
+
+  .admin-content :global(.page-header .btn-secondary) {
+    color: var(--c-header-fg);
+    border-color: rgba(255, 255, 255, 0.35);
+  }
+
+  .admin-content :global(.page-header .btn-secondary:hover) {
+    color: var(--c-white);
+    border-color: var(--c-accent);
+    background: rgba(255, 255, 255, 0.08);
   }
 
   .admin-content :global(.page-header) {
-    margin-bottom: 1.25rem;
+    margin-bottom: 1rem;
   }
 
   .mobile-fab {
@@ -114,10 +143,13 @@ const { title, user } = Astro.props;
     box-shadow: var(--c-shadow-medium);
   }
 
-  @media (max-width: 860px) {
+  @media (min-width: 861px) {
     .admin-content {
-      padding: 0.75rem;
+      padding-left: 0;
     }
+  }
+
+  @media (max-width: 860px) {
     .mobile-fab {
       display: inline-flex;
     }

@@ -11,7 +11,7 @@ import type { ModeloConCaracteristicas } from "@features/catalog/modelo.types";
 import {
   applyViewTransform as applySvgView,
   clientToSvg as svgToPoint,
-  fitView as makeFitView,
+  coverView as makeCoverView,
   panTo as panView,
   zoomAtPoint as zoomViewAt,
   zoomBy as zoomViewBy,
@@ -69,6 +69,7 @@ type State = {
   polygonView: PolygonView;
   view: { x: number; y: number; w: number; h: number };
   initialView: { w: number; h: number };
+  atDefaultView: boolean;
   isPanning: boolean;
   panStart: { clientX: number; clientY: number; vbX: number; vbY: number };
   panFromBackground: boolean;
@@ -118,6 +119,7 @@ const state: State = {
   polygonView: "estandar",
   view: { x: 0, y: 0, w: 1, h: 1 },
   initialView: { w: 1, h: 1 },
+  atDefaultView: true,
   isPanning: false,
   panStart: { clientX: 0, clientY: 0, vbX: 0, vbY: 0 },
   panFromBackground: false,
@@ -438,6 +440,24 @@ function renderOverlayLayer(): void {
     }
   }
 
+  if (state.mode === "draw" && state.pendingNewLote !== null) {
+    const poligono = state.pendingNewLote.poligono;
+    const polygon = document.createElementNS(SVG_NS, "polygon");
+    polygon.setAttribute(
+      "points",
+      poligono.map((p) => `${p.x},${p.y}`).join(" "),
+    );
+    polygon.setAttribute("fill", STANDARD_SELECTED_FILL);
+    polygon.setAttribute("stroke", STANDARD_SELECTED_STROKE);
+    polygon.setAttribute("stroke-width", "2");
+    polygon.setAttribute("stroke-dasharray", STANDARD_DASH);
+    overlayLayer.appendChild(polygon);
+
+    for (const p of poligono) {
+      overlayLayer.appendChild(createVertexMarker(p.x, p.y));
+    }
+  }
+
   if (state.mode === "lotes" && state.selectedLoteId !== null) {
     const lote = state.lotes.find((l) => l.id === state.selectedLoteId);
     if (lote) {
@@ -715,6 +735,7 @@ function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
     document.getElementById("cancel-new")?.addEventListener("click", () => {
       state.pendingNewLote = null;
       state.currentPolygon = [];
+      state.mode = "lotes";
       render();
     });
   } else {
@@ -868,9 +889,8 @@ function bindImageHandlers(): void {
 }
 
 function renderModeButtons(): void {
-  document.querySelectorAll<HTMLElement>("[data-mode]").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.mode === state.mode);
-  });
+  const btn = document.getElementById("create-lote");
+  if (btn) btn.classList.toggle("active", state.mode === "draw");
 }
 
 function renderMapOpacity(): void {
@@ -1238,6 +1258,7 @@ function closePolygon(): void {
 function cancelDraw(): void {
   state.currentPolygon = [];
   state.pendingNewLote = null;
+  state.mode = "lotes";
   render();
 }
 
@@ -1256,6 +1277,7 @@ function startPan(clientX: number, clientY: number): void {
 
 function panTo(clientX: number, clientY: number): void {
   state.view = panView(state.view, state.panStart, svg, clientX, clientY);
+  state.atDefaultView = false;
   renderViewTransform();
 }
 
@@ -1268,16 +1290,29 @@ function zoomAtPoint(factor: number, clientX: number, clientY: number): void {
     state.initialView,
     svg,
   );
+  state.atDefaultView = false;
   renderViewTransform();
 }
 
 function zoomBy(factor: number): void {
   state.view = zoomViewBy(state.view, factor, state.initialView, svg);
+  state.atDefaultView = false;
   renderViewTransform();
 }
 
+function defaultView(): {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+} {
+  const rect = svg.getBoundingClientRect();
+  return makeCoverView(state.initialView, { w: rect.width, h: rect.height });
+}
+
 function fitView(): void {
-  state.view = makeFitView(state.initialView);
+  state.view = defaultView();
+  state.atDefaultView = true;
   renderViewTransform();
 }
 
@@ -1388,6 +1423,15 @@ function handleWheel(e: WheelEvent): void {
 function handleKeyDown(e: KeyboardEvent): void {
   if (activeModal !== null) return;
 
+  // Escape cancels a new-lote creation even while typing in the form.
+  if (e.key === "Escape" && state.pendingNewLote !== null) {
+    state.pendingNewLote = null;
+    state.currentPolygon = [];
+    state.mode = "lotes";
+    render();
+    return;
+  }
+
   const target = e.target as HTMLElement | null;
   if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
 
@@ -1422,12 +1466,9 @@ function handleKeyDown(e: KeyboardEvent): void {
   }
 
   if (e.key === "Escape") {
-    if (state.pendingNewLote !== null) {
-      state.pendingNewLote = null;
+    if (state.currentPolygon.length > 0) {
       state.currentPolygon = [];
-      render();
-    } else if (state.currentPolygon.length > 0) {
-      state.currentPolygon = [];
+      state.mode = "lotes";
       render();
     } else if (state.selectedVertex !== null) {
       state.selectedVertex = null;
@@ -1630,6 +1671,7 @@ function saveLote(): boolean {
     state.lotes.push(lote);
     state.selectedLoteId = lote.id;
     state.pendingNewLote = null;
+    state.mode = "lotes";
     clearFormDraft();
     state.editSnapshot = captureSnapshot(lote);
     commitHistory(`Crear lote ${lote.numeroLote}`);
@@ -2253,7 +2295,8 @@ export function initEditor(): void {
   createSelectionToolbar();
 
   state.initialView = { w: initialData.plan.anchoPx, h: initialData.plan.altoPx };
-  state.view = { x: 0, y: 0, ...state.initialView };
+  state.view = defaultView();
+  state.atDefaultView = true;
   state.lotes = initialData.lotes;
   state.modelos = initialData.modelos;
   state.synced = cloneLotes(initialData.lotes);
@@ -2261,11 +2304,12 @@ export function initEditor(): void {
   state.hasUnpublished = initialData.estadoPublicacion?.pendiente ?? false;
   commitHistory("Estado inicial");
 
-  document.querySelectorAll<HTMLElement>("[data-mode]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const mode = btn.dataset.mode as Mode | undefined;
-      if (mode) void setMode(mode);
-    });
+  document.getElementById("create-lote")?.addEventListener("click", () => {
+    if (state.mode === "draw" && state.pendingNewLote === null) {
+      cancelDraw();
+      return;
+    }
+    void setMode("draw");
   });
   document.getElementById("zoom-in")?.addEventListener("click", () => zoomBy(0.8));
   document.getElementById("zoom-out")?.addEventListener("click", () => zoomBy(1.25));
@@ -2306,6 +2350,13 @@ export function initEditor(): void {
       e.returnValue = "";
     }
   });
+
+  const resizeTarget = svg.parentElement ?? svg;
+  new ResizeObserver(() => {
+    if (!state.atDefaultView) return;
+    state.view = defaultView();
+    renderViewTransform();
+  }).observe(resizeTarget);
 
   render();
   renderHistoryControls();

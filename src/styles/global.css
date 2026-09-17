@@ -139,7 +139,7 @@ button {
   color: var(--c-white);
 }
 .btn-primary:disabled {
-  background: var(--c-bg-light);
+  background: var(--c-white);
   color: var(--c-text-muted);
   cursor: not-allowed;
 }

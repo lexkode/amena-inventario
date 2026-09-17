@@ -90,3 +90,26 @@ export function zoomBy(
 export function fitView(initial: { w: number; h: number }): View {
   return { x: 0, y: 0, w: initial.w, h: initial.h };
 }
+
+// Región del plano que cubre por completo el contenedor (equivalente a
+// background-size: cover), recortando lo que sobre y centrándola.
+export function coverView(
+  image: { w: number; h: number },
+  container: { w: number; h: number },
+): View {
+  if (image.w <= 0 || image.h <= 0 || container.w <= 0 || container.h <= 0) {
+    return { x: 0, y: 0, w: image.w, h: image.h };
+  }
+  const imageAspect = image.w / image.h;
+  const containerAspect = container.w / container.h;
+  let w: number;
+  let h: number;
+  if (containerAspect > imageAspect) {
+    w = image.w;
+    h = image.w / containerAspect;
+  } else {
+    h = image.h;
+    w = image.h * containerAspect;
+  }
+  return { x: (image.w - w) / 2, y: (image.h - h) / 2, w, h };
+}
