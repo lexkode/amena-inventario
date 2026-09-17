@@ -26,39 +26,63 @@ const initialData = { plan, lotes, modelos, estadoPublicacion };
 
 <AdminLayout title="Editor de Plano" user={user}>
   <div class="page-header">
-    <h1>Editor de Plano</h1>
-    <div class="toolbar">
-      <div class="view-group" role="group" aria-label="Visualización de polígonos">
-        <label class="view-label" for="polygon-view">Vista</label>
-        <select id="polygon-view" class="view-select">
-          <option value="estandar">Edición</option>
-          <option value="disponibilidad">Previsualización</option>
-        </select>
+    <div class="ph-block ph-title">
+      <h1>Editor de Plano</h1>
+    </div>
+
+    <div class="ph-block" role="group" aria-label="Vista y edición">
+      <div class="ph-controls">
+        <div class="view-group" role="group" aria-label="Visualización de polígonos">
+          <label class="view-label" for="polygon-view">Vista</label>
+          <select id="polygon-view" class="view-select">
+            <option value="estandar">Edición</option>
+            <option value="disponibilidad">Previsualización</option>
+          </select>
+        </div>
+        <div class="zoom-group" role="group" aria-label="Zoom">
+          <button id="zoom-out" class="zoom-btn" type="button" aria-label="Zoom out">−</button>
+          <span id="zoom-display" class="zoom-display">100%</span>
+          <button id="zoom-in" class="zoom-btn" type="button" aria-label="Zoom in">+</button>
+          <button id="zoom-fit" class="zoom-btn zoom-fit" type="button" title="Restablecer zoom">Fit</button>
+        </div>
+        <div class="mode-group" role="tablist" aria-label="Modo de edición">
+          <button data-mode="lotes" class="mode-btn" type="button">Lotes</button>
+          <button data-mode="draw" class="mode-btn" type="button">Dibujar</button>
+        </div>
+        <div class="paste-group" id="paste-group" hidden>
+          <button id="paste-lote" class="zoom-btn" type="button" title="Pegar lote copiado (Ctrl+V)">Pegar lote</button>
+        </div>
       </div>
-      <div class="mode-group" role="tablist" aria-label="Modo de edición">
-        <button data-mode="lotes" class="mode-btn" type="button">Lotes</button>
-        <button data-mode="draw" class="mode-btn" type="button">Dibujar</button>
-      </div>
-      <div class="paste-group" id="paste-group" hidden>
-        <button id="paste-lote" class="zoom-btn" type="button" title="Pegar lote copiado (Ctrl+V)">Pegar lote</button>
-      </div>
-      <div class="history-group" role="group" aria-label="Historial de pasos">
-        <button id="undo" class="zoom-btn history-icon" type="button" title="Deshacer (Ctrl+Z)" aria-label="Deshacer" disabled>
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5 5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
-        </button>
-        <select id="history-select" class="history-select" aria-label="Saltar a un paso" disabled></select>
-        <button id="redo" class="zoom-btn history-icon" type="button" title="Rehacer (Ctrl+Shift+Z)" aria-label="Rehacer" disabled>
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5 5.5 5.5 0 0 0 9.5 20H13"/></svg>
-        </button>
-      </div>
-      <button id="save-draft" class="btn-secondary save-draft" type="button" disabled>Guardar borrador</button>
-      <button id="save-all" class="btn-primary save-all" type="button" disabled>Publicar</button>
-      <button id="publicaciones" class="btn-secondary save-draft" type="button">Publicaciones</button>
-      <div class="zoom-group" role="group" aria-label="Zoom">
-        <button id="zoom-out" class="zoom-btn" type="button" aria-label="Zoom out">−</button>
-        <span id="zoom-display" class="zoom-display">100%</span>
-        <button id="zoom-in" class="zoom-btn" type="button" aria-label="Zoom in">+</button>
-        <button id="zoom-fit" class="zoom-btn zoom-fit" type="button" title="Restablecer zoom">Fit</button>
+    </div>
+
+    <div class="ph-block" role="group" aria-label="Contenido y publicaciones">
+      <div class="ph-controls">
+        <div class="history-group" role="group" aria-label="Historial de pasos">
+          <button id="undo" class="zoom-btn history-icon" type="button" title="Deshacer (Ctrl+Z)" aria-label="Deshacer" disabled>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5 5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
+          </button>
+          <select id="history-select" class="history-select" aria-label="Saltar a un paso" disabled></select>
+          <button id="redo" class="zoom-btn history-icon" type="button" title="Rehacer (Ctrl+Shift+Z)" aria-label="Rehacer" disabled>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5 5.5 5.5 0 0 0 9.5 20H13"/></svg>
+          </button>
+        </div>
+        <div class="publish-group" id="publish-group">
+          <button id="publish-action" class="btn-primary publish-main" type="button" disabled>Publicar</button>
+          <button
+            id="publish-toggle"
+            class="btn-primary publish-toggle"
+            type="button"
+            aria-haspopup="menu"
+            aria-expanded="false"
+            aria-label="Más opciones de contenido"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="publish-menu" id="publish-menu" role="menu" hidden>
+            <button type="button" role="menuitem" data-publish-action="draft">Guardar como borrador</button>
+            <button type="button" role="menuitem" data-publish-action="restore">Restaurar publicación</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -96,11 +120,20 @@ const initialData = { plan, lotes, modelos, estadoPublicacion };
 </AdminLayout>
 
 <style>
-  .toolbar {
+  .ph-block {
     display: flex;
-    gap: 0.75rem;
+    min-width: 0;
+  }
+  .ph-controls {
+    display: flex;
     align-items: center;
+    gap: 0.6rem;
     flex-wrap: wrap;
+  }
+  @media (max-width: 900px) {
+    .ph-block {
+      flex: 1 1 100%;
+    }
   }
   .mode-group,
   .zoom-group,
@@ -220,11 +253,60 @@ const initialData = { plan, lotes, modelos, estadoPublicacion };
     color: var(--c-text-muted);
     cursor: default;
   }
-  .save-all {
-    align-self: center;
+  .publish-group {
+    position: relative;
+    display: inline-flex;
+    align-items: stretch;
   }
-  .save-draft {
-    align-self: center;
+  .publish-main {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  .publish-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.55rem 0.5rem;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    border-left: 1px solid rgba(255, 255, 255, 0.35);
+  }
+  .publish-toggle svg {
+    width: 14px;
+    height: 14px;
+    display: block;
+  }
+  .publish-menu {
+    position: absolute;
+    top: calc(100% + 0.35rem);
+    right: 0;
+    min-width: 210px;
+    background: var(--c-surface);
+    border: 1px solid var(--c-line);
+    border-radius: var(--r-md);
+    box-shadow: var(--c-shadow-medium);
+    padding: 0.25rem;
+    display: flex;
+    flex-direction: column;
+    z-index: 20;
+  }
+  .publish-menu[hidden] {
+    display: none;
+  }
+  .publish-menu button {
+    text-align: left;
+    padding: 0.5rem 0.65rem;
+    background: transparent;
+    border: 0;
+    border-radius: var(--r-sm);
+    color: var(--c-text);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 150ms ease;
+  }
+  .publish-menu button:hover {
+    background: var(--c-surface-muted);
   }
 
   .canvas-wrap :global(.selection-toolbar) {

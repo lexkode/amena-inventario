@@ -93,6 +93,7 @@ type State = {
   nextTempId: number;
   pendingImageFiles: Map<number, File>;
   syncing: boolean;
+  busyLabel: string;
   hasPublication: boolean;
   hasUnpublished: boolean;
 };
@@ -141,6 +142,7 @@ const state: State = {
   nextTempId: -1,
   pendingImageFiles: new Map(),
   syncing: false,
+  busyLabel: "",
   hasPublication: false,
   hasUnpublished: false,
 };
@@ -208,17 +210,19 @@ function loteBody(lote: LoteConModelo): {
 
 function updateDirtyIndicator(): void {
   const localDirty = documentDirty() || hasUnsavedChanges();
-  const publishBtn = document.getElementById("save-all") as HTMLButtonElement | null;
+  const publishBtn = document.getElementById("publish-action") as HTMLButtonElement | null;
   if (publishBtn) {
-    const pending = localDirty || state.hasUnpublished || !state.hasPublication;
-    publishBtn.disabled = !pending || state.syncing;
-    publishBtn.textContent = state.syncing ? "Publicando…" : pending ? "Publicar *" : "Publicar";
+    if (state.syncing) {
+      publishBtn.disabled = true;
+      publishBtn.textContent = state.busyLabel || "Publicando…";
+    } else {
+      const pending = localDirty || state.hasUnpublished || !state.hasPublication;
+      publishBtn.disabled = !pending;
+      publishBtn.textContent = pending ? "Publicar *" : "Publicar";
+    }
   }
-  const draftBtn = document.getElementById("save-draft") as HTMLButtonElement | null;
-  if (draftBtn) {
-    draftBtn.disabled = !localDirty || state.syncing;
-    draftBtn.textContent = localDirty ? "Guardar borrador *" : "Guardar borrador";
-  }
+  const toggle = document.getElementById("publish-toggle") as HTMLButtonElement | null;
+  if (toggle) toggle.disabled = state.syncing;
 }
 
 function renderHistoryControls(): void {
@@ -1361,6 +1365,11 @@ function handleKeyDown(e: KeyboardEvent): void {
   const target = e.target as HTMLElement | null;
   if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
 
+  if (e.key === "Escape" && isPublishMenuOpen()) {
+    setPublishMenuOpen(false);
+    return;
+  }
+
   if ((e.ctrlKey || e.metaKey) && !e.altKey) {
     const key = e.key.toLowerCase();
     if (key === "z") {
@@ -1675,6 +1684,7 @@ async function guardarBorrador(): Promise<boolean> {
   if (hasUnsavedChanges() && !saveLote()) return false;
   if (!documentDirty()) return true;
   state.syncing = true;
+  state.busyLabel = "Guardando borrador…";
   clearFormError();
   updateDirtyIndicator();
 
@@ -1775,6 +1785,7 @@ async function guardarBorrador(): Promise<boolean> {
     return false;
   } finally {
     state.syncing = false;
+    state.busyLabel = "";
     updateDirtyIndicator();
   }
 }
@@ -1783,6 +1794,7 @@ async function publicar(): Promise<void> {
   if (state.syncing) return;
   if (!(await guardarBorrador())) return;
   state.syncing = true;
+  state.busyLabel = "Publicando…";
   clearFormError();
   updateDirtyIndicator();
   try {
@@ -1797,6 +1809,7 @@ async function publicar(): Promise<void> {
     showFormError(err instanceof Error ? err.message : String(err));
   } finally {
     state.syncing = false;
+    state.busyLabel = "";
     updateDirtyIndicator();
   }
 }
@@ -1883,9 +1896,44 @@ async function openPublicaciones(): Promise<void> {
   if (confirmed === "confirm") await restaurarPublicacion(id);
 }
 
+function isPublishMenuOpen(): boolean {
+  const menu = document.getElementById("publish-menu");
+  return menu !== null && !menu.hidden;
+}
+
+function setPublishMenuOpen(open: boolean): void {
+  const menu = document.getElementById("publish-menu");
+  const toggle = document.getElementById("publish-toggle");
+  if (menu) menu.hidden = !open;
+  if (toggle) toggle.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+function setupPublishMenu(): void {
+  const toggle = document.getElementById("publish-toggle");
+  const menu = document.getElementById("publish-menu");
+  toggle?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    setPublishMenuOpen(!isPublishMenuOpen());
+  });
+  menu?.addEventListener("click", (e) => {
+    const item = (e.target as HTMLElement).closest<HTMLElement>("[data-publish-action]");
+    if (!item) return;
+    const action = item.dataset.publishAction;
+    setPublishMenuOpen(false);
+    if (action === "draft") void guardarBorrador();
+    else if (action === "restore") void openPublicaciones();
+  });
+  document.addEventListener("click", (e) => {
+    if (!isPublishMenuOpen()) return;
+    const group = document.getElementById("publish-group");
+    if (group && !group.contains(e.target as Node)) setPublishMenuOpen(false);
+  });
+}
+
 async function restaurarPublicacion(id: number): Promise<void> {
   if (state.syncing) return;
   state.syncing = true;
+  state.busyLabel = "Restaurando…";
   updateDirtyIndicator();
   try {
     const res = await fetch(`/api/admin/lotes/publicaciones/${id}/restaurar`, {
@@ -1903,6 +1951,7 @@ async function restaurarPublicacion(id: number): Promise<void> {
     showFormError(err instanceof Error ? err.message : String(err));
   } finally {
     state.syncing = false;
+    state.busyLabel = "";
     updateDirtyIndicator();
   }
 }
@@ -2003,15 +2052,10 @@ export function initEditor(): void {
   });
   document.getElementById("undo")?.addEventListener("click", undo);
   document.getElementById("redo")?.addEventListener("click", redo);
-  document.getElementById("save-all")?.addEventListener("click", () => {
+  document.getElementById("publish-action")?.addEventListener("click", () => {
     void publicar();
   });
-  document.getElementById("save-draft")?.addEventListener("click", () => {
-    void guardarBorrador();
-  });
-  document.getElementById("publicaciones")?.addEventListener("click", () => {
-    void openPublicaciones();
-  });
+  setupPublishMenu();
   const historySelect = document.getElementById("history-select") as HTMLSelectElement | null;
   historySelect?.addEventListener("change", () => {
     goToHistory(Number(historySelect.value));
