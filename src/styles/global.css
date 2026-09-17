@@ -328,7 +328,7 @@ textarea:focus {
   outline-offset: 2px;
 }
 .publicaciones-modal {
-  max-width: 520px;
+  max-width: 560px;
 }
 .publicaciones-list {
   display: flex;
@@ -359,6 +359,35 @@ textarea:focus {
 .publicacion-meta {
   font-size: 0.78rem;
   color: var(--c-text-muted);
+}
+.publicacion-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+.publicacion-actions .btn-secondary {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.78rem;
+  text-decoration: none;
+}
+.tipo-badge {
+  display: inline-block;
+  padding: 0.05rem 0.45rem;
+  margin-right: 0.4rem;
+  border-radius: var(--r-pill);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.badge-pub {
+  background: var(--c-badge-apto-bg);
+  color: var(--c-badge-apto-fg);
+}
+.badge-backup {
+  background: var(--c-badge-casa-bg);
+  color: var(--c-badge-casa-fg);
 }
 @media (max-width: 480px) {
   .confirm-actions {

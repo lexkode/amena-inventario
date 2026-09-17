@@ -4,13 +4,17 @@ import {
   lotes,
   loteImagenes,
   lotePublicaciones,
+  loteRespaldos,
   modelos,
   type Lote,
   type Modelo,
 } from "@core/db/schema";
 import { parsePoligonoJson } from "@core/geometry";
+import { listJsonBackups, saveJsonBackup } from "@core/storage";
+import { parse } from "@core/validation/parse";
 import { modeloExiste } from "@features/catalog/modelo.service";
 import { parseModelo } from "@features/catalog/modelo.types";
+import { loteBackupSchema } from "@features/lots/lote.types";
 import type {
   CreateLoteInput,
   LoteConModelo,
@@ -449,6 +453,101 @@ export async function restaurarPublicacion(
 export async function restaurarDesdeRespaldo(
   snapshot: SnapshotLote[],
 ): Promise<ResultadoRestauracion> {
+  await reemplazarBorrador(snapshot);
+  return resultadoRestauracion();
+}
+
+export type RespaldoResumen = {
+  id: number;
+  totalLotes: number;
+  createdAt: number;
+  url: string;
+};
+
+export async function crearRespaldo(): Promise<RespaldoResumen> {
+  const draft = await getLotes();
+  const fecha = new Date().toISOString().slice(0, 10);
+  const url = await saveJsonBackup(draft, `respaldo-lotes-${fecha}.json`);
+  const [row] = await db
+    .insert(loteRespaldos)
+    .values({ url, totalLotes: draft.length })
+    .returning();
+  if (!row) throw new Error("No se pudo registrar el respaldo");
+  return {
+    id: row.id,
+    totalLotes: row.totalLotes,
+    createdAt: row.createdAt,
+    url: row.url,
+  };
+}
+
+export async function getRespaldos(): Promise<RespaldoResumen[]> {
+  await sincronizarRespaldosR2();
+  try {
+    return await db
+      .select({
+        id: loteRespaldos.id,
+        totalLotes: loteRespaldos.totalLotes,
+        createdAt: loteRespaldos.createdAt,
+        url: loteRespaldos.url,
+      })
+      .from(loteRespaldos)
+      .orderBy(desc(loteRespaldos.createdAt), desc(loteRespaldos.id));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Registra en la BD los respaldos que existen en R2 pero no tienen fila
+ * (p. ej. creados antes de guardar metadata o subidos manualmente).
+ */
+async function sincronizarRespaldosR2(): Promise<void> {
+  try {
+    const conocidos = new Set(
+      (await db.select({ url: loteRespaldos.url }).from(loteRespaldos)).map(
+        (r) => r.url,
+      ),
+    );
+    const objetos = await listJsonBackups();
+    const faltantes = objetos.filter((o) => !conocidos.has(o.url));
+    if (faltantes.length === 0) return;
+
+    const values: { url: string; totalLotes: number; createdAt: number }[] = [];
+    for (const o of faltantes) {
+      let totalLotes = 0;
+      try {
+        const res = await fetch(o.url);
+        if (res.ok) {
+          const data = (await res.json()) as unknown;
+          if (Array.isArray(data)) totalLotes = data.length;
+        }
+      } catch {
+        /* sin conteo disponible */
+      }
+      values.push({ url: o.url, totalLotes, createdAt: o.createdAt });
+    }
+    await db.insert(loteRespaldos).values(values);
+  } catch {
+    /* sin R2 o sin tabla: no bloquear el listado */
+  }
+}
+
+export async function restaurarRespaldo(
+  id: number,
+): Promise<ResultadoRestauracion | null> {
+  const row = (
+    await db
+      .select()
+      .from(loteRespaldos)
+      .where(eq(loteRespaldos.id, id))
+      .limit(1)
+  )[0];
+  if (!row) return null;
+  const res = await fetch(row.url);
+  if (!res.ok) throw new Error("No se pudo descargar el respaldo desde R2");
+  const json = (await res.json()) as unknown;
+  const snapshot = parse(json, loteBackupSchema);
   await reemplazarBorrador(snapshot);
   return resultadoRestauracion();
 }

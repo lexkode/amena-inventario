@@ -1,6 +1,7 @@
 import { extname } from "node:path";
 import {
   DeleteObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -113,7 +114,21 @@ export async function saveJsonBackup(
   return `${publicBaseUrl}/${key}`;
 }
 
-/** Elimina el objeto de R2 a partir de su URL pública. */
+export type BackupObject = { url: string; createdAt: number };
+
+/** Lista los respaldos JSON guardados en R2 (prefijo backups/). */
+export async function listJsonBackups(prefix = "backups/"): Promise<BackupObject[]> {
+  const { client, bucket, publicBaseUrl } = getStorage();
+  const out = await client.send(
+    new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix }),
+  );
+  return (out.Contents ?? [])
+    .filter((o) => o.Key && o.Key.endsWith(".json"))
+    .map((o) => ({
+      url: `${publicBaseUrl}/${o.Key}`,
+      createdAt: o.LastModified ? o.LastModified.getTime() : Date.now(),
+    }));
+}
 export async function deleteUpload(publicUrl: string): Promise<void> {
   let storage: StorageConfig;
   try {

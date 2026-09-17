@@ -1,9 +1,9 @@
 import type { APIRoute } from "astro";
-import { crearRespaldo } from "@features/lots/lote.service";
+import { getRespaldos } from "@features/lots/lote.service";
 import { jsonApi } from "@core/http/api";
 import { json } from "@core/http/json";
 
-export const POST: APIRoute = jsonApi(async () => {
-  const data = await crearRespaldo();
+export const GET: APIRoute = jsonApi(async () => {
+  const data = await getRespaldos();
   return json({ ok: true, data }, 200);
 });

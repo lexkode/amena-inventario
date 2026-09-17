@@ -1815,16 +1815,18 @@ async function publicar(): Promise<void> {
 }
 
 type PublicacionItem = { id: number; totalLotes: number; createdAt: number };
+type RespaldoItem = { id: number; totalLotes: number; createdAt: number; url: string };
+type RestoreTarget = { kind: "publicacion" | "respaldo"; id: number };
 
-function showPublicacionesModal(): Promise<number | null> {
+function showPublicacionesModal(): Promise<RestoreTarget | null> {
   if (activeModal !== null) return Promise.resolve(null);
   return new Promise((resolve) => {
     const overlay = document.createElement("div");
     overlay.className = "confirm-overlay";
     overlay.innerHTML = `
       <div class="confirm-modal publicaciones-modal" role="dialog" aria-modal="true">
-        <h3>Publicaciones</h3>
-        <p class="confirm-text">Historial de versiones publicadas. Restaurar reemplaza el borrador actual.</p>
+        <h3>Publicaciones y respaldos</h3>
+        <p class="confirm-text">Historial de versiones publicadas y respaldos guardados en R2. Restaurar reemplaza el borrador actual.</p>
         <div class="publicaciones-list" id="publicaciones-list">Cargando…</div>
         <div class="confirm-actions">
           <button type="button" class="btn-secondary" data-close="1">Cerrar</button>
@@ -1834,7 +1836,7 @@ function showPublicacionesModal(): Promise<number | null> {
     activeModal = overlay;
     (document.activeElement as HTMLElement | null)?.blur();
 
-    const cleanup = (value: number | null): void => {
+    const cleanup = (value: RestoreTarget | null): void => {
       overlay.remove();
       activeModal = null;
       resolve(value);
@@ -1848,31 +1850,62 @@ function showPublicacionesModal(): Promise<number | null> {
       const listEl = overlay.querySelector<HTMLElement>("#publicaciones-list");
       if (!listEl) return;
       try {
-        const res = await fetch("/api/admin/lotes/publicaciones");
-        const r = (await res.json()) as {
-          ok: boolean;
-          data?: PublicacionItem[];
-          error?: string;
+        const [pubsRes, respRes] = (await Promise.all([
+          fetch("/api/admin/lotes/publicaciones").then((r) => r.json()),
+          fetch("/api/admin/lotes/respaldos").then((r) => r.json()),
+        ])) as [{ ok: boolean; data?: PublicacionItem[] }, { ok: boolean; data?: RespaldoItem[] }];
+
+        const pubs = pubsRes.ok ? (pubsRes.data ?? []) : [];
+        const respaldos = respRes.ok ? (respRes.data ?? []) : [];
+        const latestPubId = pubs[0]?.id ?? null;
+
+        type Row = {
+          kind: "publicacion" | "respaldo";
+          id: number;
+          totalLotes: number;
+          createdAt: number;
+          url?: string;
         };
-        if (!r.ok || !r.data) throw new Error(r.error ?? "Error al cargar");
-        if (r.data.length === 0) {
-          listEl.innerHTML = `<p class="lote-vacio">Todavía no se ha publicado ninguna versión.</p>`;
+        const rows: Row[] = [
+          ...pubs.map((p) => ({ kind: "publicacion" as const, ...p })),
+          ...respaldos.map((r) => ({ kind: "respaldo" as const, ...r })),
+        ].sort((a, b) => b.createdAt - a.createdAt);
+
+        if (rows.length === 0) {
+          listEl.innerHTML = `<p class="lote-vacio">Todavía no hay publicaciones ni respaldos.</p>`;
           return;
         }
-        listEl.innerHTML = r.data
-          .map(
-            (p, i) => `
+
+        listEl.innerHTML = rows
+          .map((row) => {
+            const esActual = row.kind === "publicacion" && row.id === latestPubId;
+            const badge =
+              row.kind === "publicacion"
+                ? '<span class="tipo-badge badge-pub">Publicación</span>'
+                : '<span class="tipo-badge badge-backup">Respaldo R2</span>';
+            const download =
+              row.kind === "respaldo" && row.url
+                ? `<a class="btn-secondary" href="${escapeHtml(row.url)}" download>Descargar</a>`
+                : "";
+            return `
           <div class="publicacion-row">
             <div class="publicacion-info">
-              <span class="publicacion-fecha">${new Date(p.createdAt).toLocaleString("es-SV")}</span>
-              <span class="publicacion-meta">${p.totalLotes} lote(s)${i === 0 ? " · actual" : ""}</span>
+              <span class="publicacion-fecha">${new Date(row.createdAt).toLocaleString("es-SV")}</span>
+              <span class="publicacion-meta">${badge}${row.totalLotes} lote(s)${esActual ? " · actual" : ""}</span>
             </div>
-            <button type="button" class="btn-secondary" data-restore="${p.id}">Restaurar</button>
-          </div>`,
-          )
+            <div class="publicacion-actions">
+              ${download}
+              <button type="button" class="btn-secondary" data-restore-kind="${row.kind}" data-restore-id="${row.id}">Restaurar</button>
+            </div>
+          </div>`;
+          })
           .join("");
-        listEl.querySelectorAll<HTMLElement>("[data-restore]").forEach((btn) => {
-          btn.addEventListener("click", () => cleanup(Number(btn.dataset.restore)));
+
+        listEl.querySelectorAll<HTMLElement>("[data-restore-kind]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const kind = btn.dataset.restoreKind === "respaldo" ? "respaldo" : "publicacion";
+            cleanup({ kind, id: Number(btn.dataset.restoreId) });
+          });
         });
       } catch (err) {
         listEl.innerHTML = `<p class="form-error">${escapeHtml(err instanceof Error ? err.message : String(err))}</p>`;
@@ -1882,18 +1915,23 @@ function showPublicacionesModal(): Promise<number | null> {
 }
 
 async function openPublicaciones(): Promise<void> {
-  const id = await showPublicacionesModal();
-  if (id === null) return;
+  const target = await showPublicacionesModal();
+  if (!target) return;
+  const esRespaldo = target.kind === "respaldo";
   const confirmed = await showModal({
-    title: "Restaurar versión",
-    message: "Se reemplazará el borrador actual por esta versión publicada. ¿Continuar?",
+    title: esRespaldo ? "Restaurar respaldo" : "Restaurar versión",
+    message: esRespaldo
+      ? "Se reemplazará el borrador actual por el contenido de este respaldo de R2. ¿Continuar?"
+      : "Se reemplazará el borrador actual por esta versión publicada. ¿Continuar?",
     defaultAction: "cancel",
     buttons: [
       { label: "Cancelar", value: "cancel", className: "btn-secondary" },
       { label: "Restaurar", value: "confirm", className: "btn-danger" },
     ],
   });
-  if (confirmed === "confirm") await restaurarPublicacion(id);
+  if (confirmed !== "confirm") return;
+  if (target.kind === "publicacion") await restaurarPublicacion(target.id);
+  else await restaurarRespaldo(target.id);
 }
 
 async function respaldarJson(): Promise<void> {
@@ -2046,6 +2084,35 @@ async function restaurarPublicacion(id: number): Promise<void> {
       pendiente: r.data.pendiente,
     });
     showFormSuccess("Versión restaurada en el borrador");
+  } catch (err) {
+    showFormError(err instanceof Error ? err.message : String(err));
+  } finally {
+    state.syncing = false;
+    state.busyLabel = "";
+    updateDirtyIndicator();
+  }
+}
+
+async function restaurarRespaldo(id: number): Promise<void> {
+  if (state.syncing) return;
+  state.syncing = true;
+  state.busyLabel = "Restaurando…";
+  updateDirtyIndicator();
+  try {
+    const res = await fetch(`/api/admin/lotes/respaldos/${id}/restaurar`, {
+      method: "POST",
+    });
+    const r = (await res.json()) as {
+      ok: boolean;
+      data?: { lotes: LoteConModelo[]; pendiente: boolean; tienePublicacion: boolean };
+      error?: string;
+    };
+    if (!r.ok || !r.data) throw new Error(r.error ?? "Error al restaurar");
+    loadDocument(r.data.lotes, {
+      tienePublicacion: r.data.tienePublicacion,
+      pendiente: r.data.pendiente,
+    });
+    showFormSuccess("Respaldo restaurado en el borrador");
   } catch (err) {
     showFormError(err instanceof Error ? err.message : String(err));
   } finally {
