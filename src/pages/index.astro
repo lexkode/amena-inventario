@@ -3,6 +3,7 @@ import PublicLayout from "@shared/layouts/PublicLayout.astro";
 import { getPlanoActivo } from "@features/plan/plano.service";
 import { getLotesPublicados } from "@features/lots/lote.service";
 import { getModelos } from "@features/catalog/modelo.service";
+import { getMarca } from "@features/branding/marca.service";
 import mapBg from "@assets/logo-bg-transparency.webp";
 import logo from "@assets/logo-AMENA.webp";
 
@@ -10,6 +11,8 @@ const plan = await getPlanoActivo();
 const publicados = await getLotesPublicados();
 const lotes = publicados ?? [];
 const modelos = await getModelos();
+const marca = await getMarca();
+const logoFront = marca.logoFrontPath ?? logo.src;
 
 const counts = {
   all: lotes.length,
@@ -21,10 +24,10 @@ const counts = {
 const initialData = { plan, lotes, modelos, counts };
 ---
 
-<PublicLayout title="Residencial Amena · Lotes disponibles en Comalapa">
+<PublicLayout title="Residencial Amena · Lotes disponibles en Comalapa" brand={marca}>
   <section class="map-section">
     <div class="logo-float">
-      <img src={logo.src} alt="Residencial Amena" />
+      <img src={logoFront} alt="Residencial Amena" />
     </div>
     <div class="container">
       {

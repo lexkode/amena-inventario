@@ -76,6 +76,9 @@
   --r-xl: 14px;
   --r-2xl: 16px;
   --r-pill: 999px;
+
+  /* --- Tipografía --- */
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 /* ============================================================
@@ -92,7 +95,7 @@ body {
   padding: 0;
 }
 body {
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-sans);
   background: var(--c-bg);
   color: var(--c-text);
   min-height: 100dvh;
@@ -249,7 +252,44 @@ textarea {
   transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 input[type="file"] {
-  padding: 0.5rem;
+  padding: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--c-text-muted);
+  cursor: pointer;
+}
+input[type="file"]::file-selector-button {
+  margin-right: 0.75rem;
+  padding: 0.45rem 0.9rem;
+  background: var(--c-surface-muted);
+  color: var(--c-text);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-sm);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 150ms ease, border-color 150ms ease, background-color 150ms ease;
+}
+input[type="file"]::-webkit-file-upload-button {
+  margin-right: 0.75rem;
+  padding: 0.45rem 0.9rem;
+  background: var(--c-surface-muted);
+  color: var(--c-text);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-sm);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 150ms ease, border-color 150ms ease, background-color 150ms ease;
+}
+input[type="file"]::file-selector-button:hover {
+  color: var(--c-accent);
+  border-color: var(--c-accent);
+}
+input[type="file"]::-webkit-file-upload-button:hover {
+  color: var(--c-accent);
+  border-color: var(--c-accent);
 }
 input:focus,
 select:focus,

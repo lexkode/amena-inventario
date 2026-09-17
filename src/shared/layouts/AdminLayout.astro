@@ -2,6 +2,7 @@
 import "@styles/global.css";
 import type { User } from "@db/schema";
 import Sidebar from "@shared/components/admin/Sidebar.astro";
+import { getMarca, buildMarcaCss, brandFontHref } from "@features/branding/marca.service";
 
 type Props = {
   title: string;
@@ -9,6 +10,10 @@ type Props = {
 };
 
 const { title, user } = Astro.props;
+const marca = await getMarca();
+const brandCss = buildMarcaCss(marca);
+const fontHref = brandFontHref(marca.tipografia);
+const themeColor = marca.colores["c-bg-dark"] ?? "#244858";
 ---
 
 <!doctype html>
@@ -17,6 +22,15 @@ const { title, user } = Astro.props;
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title} · Amena Inventario</title>
+    <meta name="theme-color" content={themeColor} />
+    {fontHref && (
+      <>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link rel="stylesheet" href={fontHref} />
+      </>
+    )}
+    {brandCss && <style is:inline set:html={brandCss}></style>}
     <script is:inline>
       (function () {
         try {
@@ -35,7 +49,11 @@ const { title, user } = Astro.props;
   </head>
   <body class="admin-body">
     <div class="admin-shell">
-      <Sidebar user={user} />
+      <Sidebar
+        user={user}
+        logoAdminPath={marca.logoAdminPath}
+        logoAdminColapsadoPath={marca.logoAdminColapsadoPath}
+      />
       <div class="admin-main" id="admin-main">
         <!-- Mobile: floating hamburger (replaces old top header) -->
         <button

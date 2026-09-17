@@ -1,0 +1,307 @@
+---
+import AdminLayout from "@shared/layouts/AdminLayout.astro";
+import { getMarca, coloresEfectivos } from "@features/branding/marca.service";
+import { BRAND_FONTS, BRAND_TOKENS } from "@features/branding/marca.types";
+import logo from "@assets/logo-AMENA.webp";
+import logoColapsado from "@assets/logo-AMENA-colapsado.webp";
+
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect("/admin/login");
+}
+
+const marca = await getMarca();
+const valores = coloresEfectivos(marca.colores);
+
+const error = Astro.url.searchParams.get("error");
+const ok = Astro.url.searchParams.get("ok");
+
+const grupos = [...new Set(BRAND_TOKENS.map((t) => t.group))].map((group) => ({
+  group,
+  tokens: BRAND_TOKENS.filter((t) => t.group === group),
+}));
+
+const logos = [
+  {
+    field: "logoFront",
+    label: "Logo del sitio público",
+    hint: "Se muestra flotando sobre el mapa en la página pública.",
+    current: marca.logoFrontPath ?? logo.src,
+  },
+  {
+    field: "logoAdmin",
+    label: "Logo del panel (expandido)",
+    hint: "Sidebar del admin cuando está expandido.",
+    current: marca.logoAdminPath ?? logo.src,
+  },
+  {
+    field: "logoAdminColapsado",
+    label: "Logo del panel (colapsado)",
+    hint: "Versión cuadrada para el sidebar colapsado.",
+    current: marca.logoAdminColapsadoPath ?? logoColapsado.src,
+  },
+];
+---
+
+<AdminLayout title="Marca" user={user}>
+  <div class="page-header">
+    <div>
+      <h1>Marca</h1>
+      <p class="subtitle">
+        Personaliza los colores y los logos que usan el sitio público y el panel de administración.
+      </p>
+    </div>
+  </div>
+
+  {error && <div class="alert" role="alert">{error}</div>}
+  {ok && (
+    <div class="alert alert-info" role="status">
+      {ok === "logos" ? "Logos restablecidos a los valores por defecto." : "Marca guardada correctamente."}
+    </div>
+  )}
+
+  <form method="POST" action="/api/admin/marca" enctype="multipart/form-data" class="marca-form">
+    <section class="card">
+      <h2 class="card-title">Colores</h2>
+      <p class="muted intro">
+        Estos colores se aplican tanto al sitio público como al admin. Escribe un hex o usa el selector.
+      </p>
+
+      {grupos.map((grupo) => (
+        <fieldset class="color-group">
+          <legend>{grupo.group}</legend>
+          <div class="color-grid">
+            {grupo.tokens.map((token) => (
+              <div class="color-field">
+                <label for={`color-${token.key}`}>{token.label}</label>
+                <div class="color-inputs">
+                  <input
+                    id={`color-${token.key}`}
+                    type="color"
+                    data-color-sync
+                    value={valores[token.key]}
+                  />
+                  <input
+                    type="text"
+                    name={token.key}
+                    value={valores[token.key]}
+                    maxlength="9"
+                    spellcheck="false"
+                    autocomplete="off"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </fieldset>
+      ))}
+    </section>
+
+    <section class="card">
+      <h2 class="card-title">Tipografía</h2>
+      <p class="muted intro">
+        Fuente usada en el sitio público y en el admin. Las fuentes de la lista se cargan desde Google Fonts.
+      </p>
+      <div class="font-field">
+        <label for="tipografia">Fuente</label>
+        <select id="tipografia" name="tipografia">
+          {BRAND_FONTS.map((font) => (
+            <option value={font.value} selected={font.value === (marca.tipografia ?? "")}>
+              {font.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 class="card-title">Logos</h2>
+      <p class="muted intro">PNG, JPG, WEBP, GIF o SVG. Máximo 10MB. Deja vacío para conservar el actual.</p>
+
+      <div class="logo-grid">
+        {logos.map((item) => (
+          <div class="logo-field">
+            <div class="logo-preview">
+              <img src={item.current} alt={item.label} />
+            </div>
+            <div class="logo-body">
+              <label for={item.field}>{item.label}</label>
+              <p class="hint">{item.hint}</p>
+              <input
+                id={item.field}
+                name={item.field}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <div class="form-actions">
+      <button type="submit" name="accion" value="guardar" class="btn-primary">Guardar cambios</button>
+      <button type="submit" name="accion" value="reset-logos" class="btn-secondary">Restablecer logos</button>
+    </div>
+  </form>
+</AdminLayout>
+
+<script>
+  document.querySelectorAll<HTMLInputElement>("[data-color-sync]").forEach((picker) => {
+    const text = picker.parentElement?.querySelector<HTMLInputElement>('input[type="text"]');
+    if (!text) return;
+    picker.addEventListener("input", () => {
+      text.value = picker.value;
+    });
+    text.addEventListener("input", () => {
+      const value = text.value.trim();
+      if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(value)) {
+        picker.value = value;
+      }
+    });
+  });
+</script>
+
+<style>
+  .subtitle {
+    margin: 0.25rem 0 0;
+    color: var(--c-header-fg-muted);
+    font-size: 0.95rem;
+  }
+  .marca-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding-bottom: 1rem;
+  }
+  .marca-form :global(.card) {
+    margin-bottom: 0;
+  }
+  .card-title {
+    margin: 0 0 0.25rem;
+    font-size: 1.1rem;
+  }
+  .intro {
+    margin: 0 0 1rem;
+    font-size: 0.85rem;
+  }
+  .color-group {
+    border: 1px solid var(--c-line);
+    border-radius: var(--r-md);
+    padding: 0.75rem 1rem 1rem;
+    margin: 0 0 1rem;
+  }
+  .color-group:last-child {
+    margin-bottom: 0;
+  }
+  .color-group legend {
+    padding: 0 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--c-text-muted);
+  }
+  .color-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.85rem 1.25rem;
+  }
+  .color-field {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .color-field label {
+    font-size: 0.8rem;
+    color: var(--c-text-muted);
+    margin-bottom: 0.3rem;
+    font-weight: 500;
+  }
+  .color-inputs {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .color-inputs input[type="color"] {
+    width: 2.4rem;
+    height: 2.35rem;
+    padding: 0.15rem;
+    background: var(--c-white);
+    border: 1px solid var(--c-line);
+    border-radius: var(--r-sm);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .color-inputs input[type="text"] {
+    flex: 1;
+    min-width: 0;
+    font-family: ui-monospace, monospace;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+  }
+  .logo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem;
+  }
+  .font-field {
+    display: flex;
+    flex-direction: column;
+    max-width: 320px;
+  }
+  .font-field label {
+    font-size: 0.8rem;
+    color: var(--c-text-muted);
+    margin-bottom: 0.3rem;
+    font-weight: 500;
+  }
+  .logo-field {
+    display: flex;
+    gap: 0.9rem;
+    padding: 0.85rem;
+    border: 1px solid var(--c-line);
+    border-radius: var(--r-md);
+    background: var(--c-surface-muted);
+  }
+  .logo-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 96px;
+    height: 72px;
+    padding: 0.4rem;
+    background: var(--c-white);
+    border: 1px solid var(--c-line);
+    border-radius: var(--r-sm);
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  .logo-preview img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+  .logo-body {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .logo-body label {
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  .logo-body .hint {
+    margin: 0.15rem 0 0.4rem;
+    font-size: 0.78rem;
+    color: var(--c-text-muted);
+  }
+  .logo-body input[type="file"] {
+    font-size: 0.8rem;
+  }
+  .form-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+</style>

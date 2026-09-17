@@ -1,15 +1,24 @@
 ---
 import "@styles/global.css";
+import { getMarca, buildMarcaCss, brandFontHref } from "@features/branding/marca.service";
+import type { MarcaConfig } from "@features/branding/marca.types";
 
 type Props = {
   title: string;
   description?: string;
+  brand?: MarcaConfig;
 };
 
 const {
   title,
   description = "Residencial Amena — Lotes residenciales con casa modelo en Comalapa, El Salvador. Conoce la disponibilidad en tiempo real.",
+  brand,
 } = Astro.props;
+
+const marca = brand ?? (await getMarca());
+const brandCss = buildMarcaCss(marca);
+const fontHref = brandFontHref(marca.tipografia);
+const themeColor = marca.colores["c-bg-dark"] ?? "#244858";
 ---
 
 <!doctype html>
@@ -18,8 +27,16 @@ const {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#244858" />
+    <meta name="theme-color" content={themeColor} />
     <title>{title}</title>
+    {fontHref && (
+      <>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link rel="stylesheet" href={fontHref} />
+      </>
+    )}
+    {brandCss && <style is:inline set:html={brandCss}></style>}
   </head>
   <body>
     <slot />
