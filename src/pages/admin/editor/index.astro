@@ -7,6 +7,7 @@ import {
   asegurarPublicacionInicial,
 } from "@features/lots/lote.service";
 import { getModelos } from "@features/catalog/modelo.service";
+import { getPuntos } from "@features/points/punto.service";
 
 const user = Astro.locals.user;
 if (!user) {
@@ -16,12 +17,13 @@ if (!user) {
 const plan = await getPlanoActivo();
 const lotes = plan ? await getLotes() : [];
 const modelos = await getModelos();
+const puntos = await getPuntos();
 if (plan) await asegurarPublicacionInicial();
 const estadoPublicacion = plan
   ? await getEstadoPublicacion()
   : { tienePublicacion: false, pendiente: false };
 
-const initialData = { plan, lotes, modelos, estadoPublicacion };
+const initialData = { plan, lotes, modelos, puntos, estadoPublicacion };
 ---
 
 <AdminLayout title="Editor de Plano" user={user}>
@@ -65,6 +67,16 @@ const initialData = { plan, lotes, modelos, estadoPublicacion };
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
           <span>Nuevo lote</span>
+        </button>
+        <button
+          id="create-punto"
+          class="create-punto-btn"
+          type="button"
+          title="Agregar punto de interés"
+          aria-label="Agregar punto de interés"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>
+          <span>Punto de interés</span>
         </button>
         <div class="paste-group" id="paste-group" hidden>
           <button id="paste-lote" class="zoom-btn" type="button" title="Pegar lote copiado (Ctrl+V)">Pegar lote</button>
@@ -147,6 +159,7 @@ const initialData = { plan, lotes, modelos, estadoPublicacion };
         >
           <image id="plan-image" href={plan.imagenPath} x="0" y="0" width={plan.anchoPx} height={plan.altoPx} preserveAspectRatio="xMidYMid meet" />
           <g id="lots-layer"></g>
+          <g id="puntos-layer"></g>
           <g id="overlay-layer"></g>
         </svg>
       </div>
@@ -280,6 +293,39 @@ const initialData = { plan, lotes, modelos, estadoPublicacion };
   .create-lote-btn.active {
     background: var(--c-accent-hover);
     border-color: var(--c-accent-hover);
+  }
+  .create-punto-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    height: var(--control-h);
+    padding: 0 0.95rem;
+    background: var(--c-surface);
+    color: var(--c-text);
+    border: 1px solid var(--c-line);
+    border-radius: var(--r-md);
+    box-shadow: var(--c-shadow-soft);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+  }
+  .create-punto-btn svg {
+    width: 20px;
+    height: 20px;
+    display: block;
+    flex-shrink: 0;
+  }
+  .create-punto-btn:hover {
+    border-color: var(--c-accent);
+    color: var(--c-accent);
+  }
+  .create-punto-btn.active {
+    background: var(--c-accent);
+    color: var(--c-white);
+    border-color: var(--c-accent);
   }
   .zoom-display {
     display: inline-flex;

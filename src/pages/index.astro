@@ -2,6 +2,7 @@
 import PublicLayout from "@shared/layouts/PublicLayout.astro";
 import { getPlanoActivo } from "@features/plan/plano.service";
 import { getLotesPublicados } from "@features/lots/lote.service";
+import { getPuntosPublicados } from "@features/points/punto.service";
 import { getModelos } from "@features/catalog/modelo.service";
 import { getMarca } from "@features/branding/marca.service";
 import mapBg from "@assets/logo-bg-transparency.webp";
@@ -10,6 +11,7 @@ import logo from "@assets/logo-AMENA.webp";
 const plan = await getPlanoActivo();
 const publicados = await getLotesPublicados();
 const lotes = publicados ?? [];
+const puntos = (await getPuntosPublicados()) ?? [];
 const modelos = await getModelos();
 const marca = await getMarca();
 const logoFront = marca.logoFrontPath ?? logo.src;
@@ -21,7 +23,7 @@ const counts = {
   vendido: lotes.filter((l) => l.estado === "vendido").length,
 };
 
-const initialData = { plan, lotes, modelos, counts };
+const initialData = { plan, lotes, puntos, modelos, counts };
 ---
 
 <PublicLayout title="Residencial Amena · Lotes disponibles en Comalapa" brand={marca}>
@@ -60,6 +62,7 @@ const initialData = { plan, lotes, modelos, counts };
                   preserveAspectRatio="xMidYMid meet"
                 />
                 <g id="lots-layer" />
+                <g id="puntos-layer" />
               </svg>
               <div class="filter-bar">
                 <div class="filter-group">
@@ -157,6 +160,33 @@ const initialData = { plan, lotes, modelos, counts };
                 <div class="modal-grid">
                   <div class="modal-gallery" id="lot-modal-gallery" />
                   <div class="modal-info" id="lot-modal-info" />
+                </div>
+              </div>
+            </div>
+
+            <div
+              class="modal-backdrop"
+              id="punto-modal-backdrop"
+              aria-hidden="true"
+            >
+              <div
+                class="modal"
+                id="punto-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="punto-modal-title"
+              >
+                <button
+                  class="modal-close"
+                  id="punto-modal-close"
+                  type="button"
+                  aria-label="Cerrar"
+                >
+                  ×
+                </button>
+                <div class="modal-grid">
+                  <div class="modal-gallery" id="punto-modal-gallery" />
+                  <div class="modal-info" id="punto-modal-info" />
                 </div>
               </div>
             </div>
@@ -757,6 +787,28 @@ const initialData = { plan, lotes, modelos, counts };
       position: absolute;
       left: 0;
       color: var(--c-disponible);
+      font-weight: 700;
+    }
+    :global(.punto-marker) {
+      cursor: pointer;
+    }
+    :global(.modal-info .poi-info-text) {
+      margin: 0;
+      white-space: pre-line;
+      color: var(--c-text);
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+    :global(.poi-placeholder) {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      padding: 2rem;
+      text-align: center;
+      color: var(--c-white);
+      font-size: 1.15rem;
       font-weight: 700;
     }
     :global(.modal-info .info-footer) {

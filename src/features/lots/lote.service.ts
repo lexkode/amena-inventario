@@ -14,6 +14,11 @@ import { listJsonBackups, saveJsonBackup } from "@core/storage";
 import { parse } from "@core/validation/parse";
 import { modeloExiste } from "@features/catalog/modelo.service";
 import { parseModelo } from "@features/catalog/modelo.types";
+import {
+  comparablePuntos,
+  getPuntos,
+  getPuntosPublicados,
+} from "@features/points/punto.service";
 import { loteBackupSchema } from "@features/lots/lote.types";
 import type {
   CreateLoteInput,
@@ -358,12 +363,22 @@ export async function getPublicaciones(): Promise<PublicacionResumen[]> {
 }
 
 export async function getEstadoPublicacion(): Promise<EstadoPublicacion> {
-  const publicados = await getLotesPublicados();
-  if (!publicados) return { tienePublicacion: false, pendiente: false };
-  const draft = await getLotes();
+  const [lotesPublicados, puntosPublicados, draft, puntosDraft] = await Promise.all([
+    getLotesPublicados(),
+    getPuntosPublicados(),
+    getLotes(),
+    getPuntos(),
+  ]);
+  if (lotesPublicados === null && puntosPublicados === null) {
+    return { tienePublicacion: false, pendiente: false };
+  }
+  const pendienteLotes =
+    comparableLotes(draft) !== comparableLotes(lotesPublicados ?? []);
+  const pendientePuntos =
+    comparablePuntos(puntosDraft) !== comparablePuntos(puntosPublicados ?? []);
   return {
     tienePublicacion: true,
-    pendiente: comparableLotes(draft) !== comparableLotes(publicados),
+    pendiente: pendienteLotes || pendientePuntos,
   };
 }
 

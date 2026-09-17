@@ -2,6 +2,7 @@
 
 import type { LoteEstado, LoteConModelo } from "@features/lots/lote.types";
 import type { ModeloConCaracteristicas } from "@features/catalog/modelo.types";
+import type { PuntoInteres } from "@features/points/punto.types";
 import type { Plano } from "@db/schema";
 import {
   applyViewTransform as applySvgView,
@@ -19,6 +20,7 @@ type FilterStatus = "all" | LoteEstado;
 type InitialData = {
   plan: Plano | null;
   lotes: LoteConModelo[];
+  puntos: PuntoInteres[];
   modelos: ModeloConCaracteristicas[];
   counts: {
     all: number;
@@ -36,7 +38,9 @@ type State = {
   filter: { status: FilterStatus; modeloId: number | null };
   lotModalLoteId: number | null;
   contactModalLoteId: number | null;
+  puntoModalId: number | null;
   lotes: LoteConModelo[];
+  puntos: PuntoInteres[];
   modelos: ModeloConCaracteristicas[];
 };
 
@@ -58,12 +62,15 @@ const state: State = {
   filter: { status: "all", modeloId: null },
   lotModalLoteId: null,
   contactModalLoteId: null,
+  puntoModalId: null,
   lotes: [],
+  puntos: [],
   modelos: [],
 };
 
 let svg!: SVGSVGElement;
 let lotsLayer!: SVGGElement;
+let puntosLayer!: SVGGElement;
 let lotModal!: HTMLElement;
 let lotModalBackdrop!: HTMLElement;
 let lotModalGallery!: HTMLElement;
@@ -71,8 +78,15 @@ let lotModalInfo!: HTMLElement;
 let contactModal!: HTMLElement;
 let contactModalBackdrop!: HTMLElement;
 let contactHeader!: HTMLElement;
+let puntoModal!: HTMLElement;
+let puntoModalBackdrop!: HTMLElement;
+let puntoModalGallery!: HTMLElement;
+let puntoModalInfo!: HTMLElement;
 let zoomDisplay!: HTMLElement;
 let modeloFilter!: HTMLSelectElement;
+
+let planAncho = 1;
+let planAlto = 1;
 
 let touchStart: { x: number; y: number } | null = null;
 let touchMoved = false;
@@ -131,6 +145,160 @@ function renderLotsLayer(): void {
     const label = createLotLabel(lote);
     if (label) lotsLayer.appendChild(label);
   }
+}
+
+// ============ Render: points of interest ============
+
+function renderPuntosLayer(): void {
+  while (puntosLayer.firstChild) puntosLayer.removeChild(puntosLayer.firstChild);
+
+  const r = Math.max(planAncho, planAlto) * 0.012;
+  for (const punto of state.puntos) {
+    const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    group.setAttribute("class", "punto-marker");
+
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute("cx", String(punto.x));
+    circle.setAttribute("cy", String(punto.y));
+    circle.setAttribute("r", String(r));
+    circle.setAttribute("fill", "var(--c-accent)");
+    circle.setAttribute("stroke", "#ffffff");
+    circle.setAttribute("stroke-width", String(r * 0.22));
+    group.appendChild(circle);
+
+    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    dot.setAttribute("cx", String(punto.x));
+    dot.setAttribute("cy", String(punto.y));
+    dot.setAttribute("r", String(r * 0.3));
+    dot.setAttribute("fill", "#ffffff");
+    group.appendChild(dot);
+
+    group.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openPuntoModal(punto.id);
+    });
+    puntosLayer.appendChild(group);
+  }
+}
+
+function renderPuntoGallery(punto: PuntoInteres): void {
+  while (puntoModalGallery.firstChild) puntoModalGallery.removeChild(puntoModalGallery.firstChild);
+
+  if (punto.imagenes.length === 0) {
+    const galleryEmpty = document.createElement("div");
+    galleryEmpty.className = "lot-gallery";
+    const placeholder = document.createElement("div");
+    placeholder.className = "poi-placeholder";
+    placeholder.textContent = punto.nombre;
+    galleryEmpty.appendChild(placeholder);
+    puntoModalGallery.appendChild(galleryEmpty);
+    return;
+  }
+
+  let current = 0;
+  const gallery = document.createElement("div");
+  gallery.className = "lot-gallery";
+
+  const viewer = document.createElement("div");
+  viewer.className = "lot-gallery-viewer";
+
+  const img = document.createElement("img");
+  img.className = "lot-gallery-img";
+  img.src = punto.imagenes[0].path;
+  img.alt = punto.nombre;
+
+  const counter = document.createElement("div");
+  counter.className = "lot-gallery-counter";
+  counter.textContent = `1 / ${punto.imagenes.length}`;
+
+  const prev = document.createElement("button");
+  prev.type = "button";
+  prev.className = "lot-gallery-nav lot-gallery-prev";
+  prev.setAttribute("aria-label", "Imagen anterior");
+  prev.innerHTML =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>';
+
+  const next = document.createElement("button");
+  next.type = "button";
+  next.className = "lot-gallery-nav lot-gallery-next";
+  next.setAttribute("aria-label", "Imagen siguiente");
+  next.innerHTML =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';
+
+  viewer.appendChild(img);
+  viewer.appendChild(counter);
+  viewer.appendChild(prev);
+  viewer.appendChild(next);
+  gallery.appendChild(viewer);
+
+  const update = (): void => {
+    img.src = punto.imagenes[current].path;
+    counter.textContent = `${current + 1} / ${punto.imagenes.length}`;
+    thumbs.querySelectorAll<HTMLElement>(".lot-gallery-thumb").forEach((t, i) => {
+      t.classList.toggle("active", i === current);
+    });
+  };
+
+  prev.addEventListener("click", () => {
+    current = (current - 1 + punto.imagenes.length) % punto.imagenes.length;
+    update();
+  });
+  next.addEventListener("click", () => {
+    current = (current + 1) % punto.imagenes.length;
+    update();
+  });
+
+  const thumbs = document.createElement("div");
+  thumbs.className = "lot-gallery-thumbs";
+  punto.imagenes.forEach((im, i) => {
+    const thumb = document.createElement("button");
+    thumb.type = "button";
+    thumb.className = "lot-gallery-thumb" + (i === 0 ? " active" : "");
+    thumb.setAttribute("aria-label", `Ver imagen ${i + 1}`);
+    const thumbImg = document.createElement("img");
+    thumbImg.src = im.path;
+    thumbImg.alt = "";
+    thumb.appendChild(thumbImg);
+    thumb.addEventListener("click", () => {
+      current = i;
+      update();
+    });
+    thumbs.appendChild(thumb);
+  });
+  gallery.appendChild(thumbs);
+  puntoModalGallery.appendChild(gallery);
+}
+
+function renderPuntoInfo(punto: PuntoInteres): void {
+  const info = punto.informacion.trim();
+  puntoModalInfo.innerHTML = `
+    <div class="info-header">
+      <div class="info-title-row">
+        <h2 class="info-title" id="punto-modal-title">${escapeHtml(punto.nombre)}</h2>
+      </div>
+      <p class="info-model-name muted">Punto de interés</p>
+    </div>
+    <div class="info-body">
+      ${info ? `<p class="poi-info-text">${escapeHtml(info)}</p>` : `<p class="poi-info-text muted">Sin información adicional.</p>`}
+    </div>
+  `;
+}
+
+function renderPuntoModal(): void {
+  const open = state.puntoModalId !== null;
+  puntoModalBackdrop.classList.toggle("open", open);
+  puntoModalBackdrop.setAttribute("aria-hidden", open ? "false" : "true");
+  puntoModal.setAttribute("aria-hidden", open ? "false" : "true");
+
+  if (!open || state.puntoModalId === null) return;
+
+  const punto = state.puntos.find((p) => p.id === state.puntoModalId);
+  if (!punto) {
+    state.puntoModalId = null;
+    return;
+  }
+  renderPuntoGallery(punto);
+  renderPuntoInfo(punto);
 }
 
 // ============ Render: filter UI ============
@@ -475,8 +643,10 @@ function renderContactModal(): void {
 function render(): void {
   renderViewTransform();
   renderLotsLayer();
+  renderPuntosLayer();
   renderFilterUI();
   renderLotModal();
+  renderPuntoModal();
   renderContactModal();
 }
 
@@ -495,12 +665,25 @@ function setFilterModeloId(id: number | null): void {
 function openLotModal(id: number): void {
   state.lotModalLoteId = id;
   state.contactModalLoteId = null;
+  state.puntoModalId = null;
   render();
 }
 
 function closeLotModal(): void {
   state.lotModalLoteId = null;
   state.contactModalLoteId = null;
+  render();
+}
+
+function openPuntoModal(id: number): void {
+  state.puntoModalId = id;
+  state.lotModalLoteId = null;
+  state.contactModalLoteId = null;
+  render();
+}
+
+function closePuntoModal(): void {
+  state.puntoModalId = null;
   render();
 }
 
@@ -580,6 +763,12 @@ function setupEventListeners(): void {
 		closeLotModal();
 	});
 
+	document.getElementById("punto-modal-close")?.addEventListener("click", closePuntoModal);
+	puntoModalBackdrop.addEventListener("click", (e) => {
+		if (puntoModal.contains(e.target as Node)) return;
+		closePuntoModal();
+	});
+
   document.getElementById("contact-modal-close")?.addEventListener("click", closeContactModal);
   contactModalBackdrop.addEventListener("click", (e) => {
     if (contactModal.contains(e.target as Node)) return;
@@ -594,6 +783,8 @@ function setupEventListeners(): void {
       closeContactModal();
     } else if (state.lotModalLoteId !== null) {
       closeLotModal();
+    } else if (state.puntoModalId !== null) {
+      closePuntoModal();
     }
   });
 
@@ -680,10 +871,15 @@ export function initPublicMap(): void {
 
   svg = document.getElementById("canvas") as unknown as SVGSVGElement;
   lotsLayer = document.getElementById("lots-layer") as unknown as SVGGElement;
+  puntosLayer = document.getElementById("puntos-layer") as unknown as SVGGElement;
   lotModal = document.getElementById("lot-modal") as HTMLElement;
   lotModalBackdrop = document.getElementById("lot-modal-backdrop") as HTMLElement;
   lotModalGallery = document.getElementById("lot-modal-gallery") as HTMLElement;
   lotModalInfo = document.getElementById("lot-modal-info") as HTMLElement;
+  puntoModal = document.getElementById("punto-modal") as HTMLElement;
+  puntoModalBackdrop = document.getElementById("punto-modal-backdrop") as HTMLElement;
+  puntoModalGallery = document.getElementById("punto-modal-gallery") as HTMLElement;
+  puntoModalInfo = document.getElementById("punto-modal-info") as HTMLElement;
   contactModal = document.getElementById("contact-modal") as HTMLElement;
   contactModalBackdrop = document.getElementById("contact-modal-backdrop") as HTMLElement;
   contactHeader = document.getElementById("contact-header") as HTMLElement;
@@ -692,7 +888,10 @@ export function initPublicMap(): void {
 
   state.initialView = { w: initialData.plan.anchoPx, h: initialData.plan.altoPx };
   state.view = { x: 0, y: 0, ...state.initialView };
+  planAncho = initialData.plan.anchoPx;
+  planAlto = initialData.plan.altoPx;
   state.lotes = initialData.lotes;
+  state.puntos = initialData.puntos ?? [];
   state.modelos = initialData.modelos;
 
   populateModeloFilter();

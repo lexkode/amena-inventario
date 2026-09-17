@@ -9,6 +9,11 @@ import {
 } from "@features/lots/lote.types";
 import type { ModeloConCaracteristicas } from "@features/catalog/modelo.types";
 import {
+  MAX_IMAGENES_POR_PUNTO,
+  type PuntoImagenItem,
+  type PuntoInteres,
+} from "@features/points/punto.types";
+import {
   applyViewTransform as applySvgView,
   clientToSvg as svgToPoint,
   coverView as makeCoverView,
@@ -20,7 +25,7 @@ import { SVG_NS, escapeHtml } from "@shared/map/svg-utils";
 import { createLotLabel, createLotPolygon, LOT_BORDER_WIDTH } from "@shared/map/lot-renderer";
 import { ESTADO_FILL, ESTADO_STROKE } from "@shared/map/lot-colors";
 
-type Mode = "lotes" | "draw";
+type Mode = "lotes" | "draw" | "punto";
 
 type PolygonView = "disponibilidad" | "estandar";
 
@@ -81,6 +86,9 @@ type State = {
   draggingPolygon: { loteId: number; start: Punto; original: Punto[] } | null;
   dragMoved: boolean;
   lotes: LoteConModelo[];
+  puntos: PuntoInteres[];
+  selectedPuntoId: number | null;
+  nuevoPuntoPos: Punto | null;
   modelos: ModeloConCaracteristicas[];
   pendingImageAdds: { file: File; url: string }[];
   pendingImageRemoves: number[];
@@ -108,6 +116,7 @@ type InitialData = {
     altoPx: number;
   } | null;
   lotes: LoteConModelo[];
+  puntos: PuntoInteres[];
   modelos: ModeloConCaracteristicas[];
   estadoPublicacion: { tienePublicacion: boolean; pendiente: boolean };
 };
@@ -131,6 +140,9 @@ const state: State = {
   draggingPolygon: null,
   dragMoved: false,
   lotes: [],
+  puntos: [],
+  selectedPuntoId: null,
+  nuevoPuntoPos: null,
   modelos: [],
   pendingImageAdds: [],
   pendingImageRemoves: [],
@@ -160,6 +172,7 @@ const ICON_TRASH = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" 
 
 let svg!: SVGSVGElement;
 let lotsLayer!: SVGGElement;
+let puntosLayer!: SVGGElement;
 let overlayLayer!: SVGGElement;
 let sidePanel!: HTMLElement;
 let zoomDisplay!: HTMLElement;
@@ -343,6 +356,8 @@ function updateCursor(): void {
     svg.style.cursor = "grab";
   } else if (state.mode === "draw") {
     svg.style.cursor = state.pendingNewLote ? "not-allowed" : "crosshair";
+  } else if (state.mode === "punto") {
+    svg.style.cursor = state.nuevoPuntoPos !== null ? "default" : "crosshair";
   } else {
     svg.style.cursor = "default";
   }
@@ -405,6 +420,48 @@ function renderLotsLayer(): void {
     lotsLayer.appendChild(polygon);
 
     if (label) lotsLayer.appendChild(label);
+  }
+}
+
+function renderPuntosLayer(): void {
+  while (puntosLayer.firstChild) puntosLayer.removeChild(puntosLayer.firstChild);
+
+  for (const punto of state.puntos) {
+    const isSelected = punto.id === state.selectedPuntoId;
+    const group = document.createElementNS(SVG_NS, "g");
+    group.setAttribute("class", "punto-marker");
+    group.setAttribute("data-punto-id", String(punto.id));
+
+    const circle = document.createElementNS(SVG_NS, "circle");
+    circle.setAttribute("cx", String(punto.x));
+    circle.setAttribute("cy", String(punto.y));
+    circle.setAttribute("r", "14");
+    circle.setAttribute("fill", isSelected ? "#dc832f" : "#244858");
+    circle.setAttribute("stroke", "#ffffff");
+    circle.setAttribute("stroke-width", "3");
+    group.appendChild(circle);
+
+    const dot = document.createElementNS(SVG_NS, "circle");
+    dot.setAttribute("cx", String(punto.x));
+    dot.setAttribute("cy", String(punto.y));
+    dot.setAttribute("r", "4");
+    dot.setAttribute("fill", "#ffffff");
+    group.appendChild(dot);
+
+    if (state.mode === "punto") {
+      group.style.cursor = "pointer";
+      group.addEventListener("mousedown", (e) => {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        state.selectedPuntoId = punto.id;
+        state.nuevoPuntoPos = null;
+        render();
+      });
+    } else {
+      group.style.pointerEvents = "none";
+    }
+
+    puntosLayer.appendChild(group);
   }
 }
 
@@ -497,6 +554,22 @@ function renderSidePanel(): void {
     return;
   }
 
+  if (state.mode === "punto") {
+    if (state.nuevoPuntoPos !== null) {
+      renderPuntoForm(null, state.nuevoPuntoPos);
+      return;
+    }
+    if (state.selectedPuntoId !== null) {
+      const punto = state.puntos.find((p) => p.id === state.selectedPuntoId);
+      if (punto) {
+        renderPuntoForm(punto, null);
+        return;
+      }
+    }
+    renderPuntoList();
+    return;
+  }
+
   if (state.mode === "draw") {
     if (state.currentPolygon.length === 0) {
       sidePanel.innerHTML = `
@@ -585,6 +658,249 @@ function renderLoteList(): void {
       void selectLote(Number(btn.dataset.loteId));
     });
   });
+}
+
+function renderPuntoList(): void {
+  let html = `<h2 style="margin-top:0">Puntos de interés</h2>`;
+  html += `<p style="color:#5a7682;font-size:.9rem">Haz clic en el plano para ubicar un nuevo punto.</p>`;
+
+  if (state.puntos.length === 0) {
+    html += `<p class="lote-vacio">Todavía no hay puntos de interés.</p>`;
+  } else {
+    html += `<ul class="lote-list">`;
+    for (const punto of state.puntos) {
+      html += `<li><button type="button" class="lote-row" data-punto-id="${punto.id}">${escapeHtml(punto.nombre)}</button></li>`;
+    }
+    html += `</ul>`;
+  }
+
+  sidePanel.innerHTML = `<div class="lote-scroll">${html}</div>`;
+  sidePanel.querySelectorAll<HTMLElement>("[data-punto-id]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.selectedPuntoId = Number(btn.dataset.puntoId);
+      state.nuevoPuntoPos = null;
+      render();
+    });
+  });
+}
+
+function renderPuntoForm(punto: PuntoInteres | null, pos: Punto | null): void {
+  const isNew = punto === null;
+  const nombre = punto?.nombre ?? "";
+  const informacion = punto?.informacion ?? "";
+  const imagenes = punto?.imagenes ?? [];
+  const atLimit = imagenes.length >= MAX_IMAGENES_POR_PUNTO;
+
+  const imagenesHtml = isNew
+    ? ""
+    : `
+      <div class="field">
+        <label>Imágenes</label>
+        <div class="lote-imgs" id="punto-imgs">
+          ${imagenes
+            .map(
+              (img) => `
+            <div class="lote-img">
+              <img src="${escapeHtml(img.path)}" alt="Imagen del punto" />
+              <button type="button" class="img-remove" data-punto-img-id="${img.id}" aria-label="Quitar imagen">&times;</button>
+            </div>`,
+            )
+            .join("")}
+          ${
+            atLimit
+              ? ""
+              : `<label class="img-add" title="Subir imagen">
+            <input type="file" id="punto-img-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+            <span>+</span>
+          </label>`
+          }
+        </div>
+        ${atLimit ? `<small class="hint">Máximo ${MAX_IMAGENES_POR_PUNTO} imágenes</small>` : ""}
+      </div>`;
+
+  sidePanel.innerHTML = `
+    <form id="punto-form" class="form-col" autocomplete="off">
+      <div class="form-head">
+        <button type="button" id="punto-back" class="back-btn" aria-label="Volver"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg></button>
+        <h2>${escapeHtml(isNew ? "Nuevo punto de interés" : nombre)}</h2>
+        <span class="panel-spacer" aria-hidden="true"></span>
+      </div>
+      <div class="form-fields">
+        <div class="field">
+          <label for="punto-nombre">Nombre</label>
+          <input id="punto-nombre" type="text" maxlength="120" required value="${escapeHtml(nombre)}" />
+        </div>
+        <div class="field">
+          <label for="punto-info">Información</label>
+          <textarea id="punto-info" rows="7" maxlength="2000" placeholder="Descripción que verá el visitante en el popup">${escapeHtml(informacion)}</textarea>
+        </div>
+        ${imagenesHtml}
+      </div>
+      <div class="form-actions">
+        <p id="form-error" class="form-error" hidden></p>
+        <p id="form-success" class="form-success" hidden></p>
+        <div class="actions">
+          <button type="submit" class="btn-primary">${isNew ? "Crear punto" : "Guardar cambios"}</button>
+          ${!isNew ? '<button type="button" id="punto-delete" class="btn-danger">Eliminar</button>' : ""}
+          <button type="button" id="punto-cancel" class="btn-secondary">Cancelar</button>
+        </div>
+      </div>
+    </form>
+  `;
+
+  document.getElementById("punto-form")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    void savePunto(punto, pos);
+  });
+
+  const close = (): void => {
+    state.nuevoPuntoPos = null;
+    state.selectedPuntoId = null;
+    render();
+  };
+  document.getElementById("punto-cancel")?.addEventListener("click", close);
+  document.getElementById("punto-back")?.addEventListener("click", close);
+
+  if (punto) {
+    document.getElementById("punto-delete")?.addEventListener("click", () => {
+      void (async () => {
+        if (await confirmDeletePunto(punto)) void deletePunto(punto.id);
+      })();
+    });
+    bindPuntoImageHandlers(punto);
+  }
+}
+
+async function savePunto(punto: PuntoInteres | null, pos: Punto | null): Promise<void> {
+  clearFormError();
+  const nombreEl = document.getElementById("punto-nombre") as HTMLInputElement | null;
+  const infoEl = document.getElementById("punto-info") as HTMLTextAreaElement | null;
+  const nombre = nombreEl?.value.trim() ?? "";
+  const informacion = infoEl?.value.trim() ?? "";
+  if (!nombre) {
+    showFormError("El nombre es obligatorio");
+    return;
+  }
+
+  const isNew = punto === null;
+  const url = isNew ? "/api/admin/puntos" : `/api/admin/puntos/${punto.id}`;
+  const body = isNew
+    ? { nombre, informacion, x: pos?.x ?? 0, y: pos?.y ?? 0 }
+    : { nombre, informacion };
+
+  try {
+    const res = await fetch(url, {
+      method: isNew ? "POST" : "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const r = (await res.json()) as { ok: boolean; data?: PuntoInteres; error?: string };
+    if (!r.ok || !r.data) throw new Error(r.error ?? "Error al guardar el punto");
+
+    if (isNew) {
+      state.puntos.push(r.data);
+      state.selectedPuntoId = r.data.id;
+      state.nuevoPuntoPos = null;
+    } else {
+      const idx = state.puntos.findIndex((p) => p.id === r.data!.id);
+      if (idx >= 0) state.puntos[idx] = r.data;
+    }
+    state.hasUnpublished = true;
+    render();
+    updateDirtyIndicator();
+    showFormSuccess(isNew ? "Punto creado. No olvides publicar." : "Cambios aplicados. No olvides publicar.");
+  } catch (err) {
+    showFormError(err instanceof Error ? err.message : String(err));
+  }
+}
+
+async function deletePunto(id: number): Promise<void> {
+  try {
+    const res = await fetch(`/api/admin/puntos/${id}`, { method: "DELETE" });
+    const r = (await res.json()) as { ok: boolean; error?: string };
+    if (!r.ok) throw new Error(r.error ?? "Error al eliminar el punto");
+    state.puntos = state.puntos.filter((p) => p.id !== id);
+    if (state.selectedPuntoId === id) state.selectedPuntoId = null;
+    state.hasUnpublished = true;
+    render();
+    updateDirtyIndicator();
+    showFormSuccess("Punto eliminado. No olvides publicar.");
+  } catch (err) {
+    showFormError(err instanceof Error ? err.message : String(err));
+  }
+}
+
+async function confirmDeletePunto(punto: PuntoInteres): Promise<boolean> {
+  const action = await showModal({
+    title: "Eliminar punto de interés",
+    message: `¿Eliminar "${escapeHtml(punto.nombre)}"? Esta acción no se puede deshacer.`,
+    defaultAction: "cancel",
+    buttons: [
+      { label: "Cancelar", value: "cancel", className: "btn-secondary" },
+      { label: "Eliminar", value: "confirm", className: "btn-danger" },
+    ],
+  });
+  return action === "confirm";
+}
+
+function bindPuntoImageHandlers(punto: PuntoInteres): void {
+  document.getElementById("punto-img-input")?.addEventListener("change", (e) => {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = "";
+    if (file) void uploadPuntoImage(punto.id, file);
+  });
+  sidePanel.querySelectorAll<HTMLElement>("[data-punto-img-id]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const imagenId = Number(btn.dataset.puntoImgId);
+      if (Number.isInteger(imagenId)) void deletePuntoImage(punto.id, imagenId);
+    });
+  });
+}
+
+async function uploadPuntoImage(puntoId: number, file: File): Promise<void> {
+  const fd = new FormData();
+  fd.append("imagen", file);
+  try {
+    const res = await fetch(`/api/admin/puntos/${puntoId}/imagenes`, {
+      method: "POST",
+      body: fd,
+    });
+    const r = (await res.json()) as {
+      ok: boolean;
+      data?: { imagenes: PuntoImagenItem[] };
+      error?: string;
+    };
+    if (!r.ok || !r.data) throw new Error(r.error ?? "Error al subir la imagen");
+    const punto = state.puntos.find((p) => p.id === puntoId);
+    if (punto) punto.imagenes = r.data.imagenes;
+    state.hasUnpublished = true;
+    render();
+    updateDirtyIndicator();
+  } catch (err) {
+    showFormError(err instanceof Error ? err.message : String(err));
+  }
+}
+
+async function deletePuntoImage(puntoId: number, imagenId: number): Promise<void> {
+  try {
+    const res = await fetch(`/api/admin/puntos/${puntoId}/imagenes/${imagenId}`, {
+      method: "DELETE",
+    });
+    const r = (await res.json()) as {
+      ok: boolean;
+      data?: { imagenes: PuntoImagenItem[] };
+      error?: string;
+    };
+    if (!r.ok || !r.data) throw new Error(r.error ?? "Error al quitar la imagen");
+    const punto = state.puntos.find((p) => p.id === puntoId);
+    if (punto) punto.imagenes = r.data.imagenes;
+    state.hasUnpublished = true;
+    render();
+    updateDirtyIndicator();
+  } catch (err) {
+    showFormError(err instanceof Error ? err.message : String(err));
+  }
 }
 
 function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
@@ -889,8 +1205,12 @@ function bindImageHandlers(): void {
 }
 
 function renderModeButtons(): void {
-  const btn = document.getElementById("create-lote");
-  if (btn) btn.classList.toggle("active", state.mode === "draw");
+  document
+    .getElementById("create-lote")
+    ?.classList.toggle("active", state.mode === "draw");
+  document
+    .getElementById("create-punto")
+    ?.classList.toggle("active", state.mode === "punto");
 }
 
 function renderMapOpacity(): void {
@@ -1047,6 +1367,7 @@ function render(): void {
   renderViewTransform();
   updateCursor();
   renderLotsLayer();
+  renderPuntosLayer();
   renderOverlayLayer();
   renderSidePanel();
   renderModeButtons();
@@ -1216,6 +1537,8 @@ async function setMode(mode: Mode): Promise<void> {
   state.pendingNewLote = null;
   state.selectedVertex = null;
   state.draggingPolygon = null;
+  state.selectedPuntoId = null;
+  state.nuevoPuntoPos = null;
   resetPendingImages();
   clearFormDraft();
   if (mode !== "lotes") {
@@ -1340,6 +1663,10 @@ function handleSvgMouseDown(e: MouseEvent): void {
     const p = svgToPoint(svg, e.clientX, e.clientY);
     state.currentPolygon.push(p);
     render();
+  } else if (state.mode === "punto") {
+    state.nuevoPuntoPos = svgToPoint(svg, e.clientX, e.clientY);
+    state.selectedPuntoId = null;
+    render();
   }
 }
 
@@ -1423,11 +1750,21 @@ function handleWheel(e: WheelEvent): void {
 function handleKeyDown(e: KeyboardEvent): void {
   if (activeModal !== null) return;
 
-  // Escape cancels a new-lote creation even while typing in the form.
-  if (e.key === "Escape" && state.pendingNewLote !== null) {
-    state.pendingNewLote = null;
-    state.currentPolygon = [];
-    state.mode = "lotes";
+  // Escape cancels a new-lote or puncto creation even while typing in the form.
+  if (e.key === "Escape" && (state.pendingNewLote !== null || state.mode === "punto")) {
+    if (state.mode === "punto") {
+      if (state.nuevoPuntoPos !== null) {
+        state.nuevoPuntoPos = null;
+      } else if (state.selectedPuntoId !== null) {
+        state.selectedPuntoId = null;
+      } else {
+        state.mode = "lotes";
+      }
+    } else {
+      state.pendingNewLote = null;
+      state.currentPolygon = [];
+      state.mode = "lotes";
+    }
     render();
     return;
   }
@@ -2288,6 +2625,7 @@ export function initEditor(): void {
 
   svg = document.getElementById("canvas") as unknown as SVGSVGElement;
   lotsLayer = document.getElementById("lots-layer") as unknown as SVGGElement;
+  puntosLayer = document.getElementById("puntos-layer") as unknown as SVGGElement;
   overlayLayer = document.getElementById("overlay-layer") as unknown as SVGGElement;
   sidePanel = document.getElementById("side-panel") as HTMLElement;
   zoomDisplay = document.getElementById("zoom-display") as HTMLElement;
@@ -2298,6 +2636,7 @@ export function initEditor(): void {
   state.view = defaultView();
   state.atDefaultView = true;
   state.lotes = initialData.lotes;
+  state.puntos = initialData.puntos ?? [];
   state.modelos = initialData.modelos;
   state.synced = cloneLotes(initialData.lotes);
   state.hasPublication = initialData.estadoPublicacion?.tienePublicacion ?? false;
@@ -2310,6 +2649,16 @@ export function initEditor(): void {
       return;
     }
     void setMode("draw");
+  });
+  document.getElementById("create-punto")?.addEventListener("click", () => {
+    if (state.mode === "punto") {
+      state.nuevoPuntoPos = null;
+      state.selectedPuntoId = null;
+      state.mode = "lotes";
+      render();
+      return;
+    }
+    void setMode("punto");
   });
   document.getElementById("zoom-in")?.addEventListener("click", () => zoomBy(0.8));
   document.getElementById("zoom-out")?.addEventListener("click", () => zoomBy(1.25));

@@ -6,3 +6,4 @@ export * from "./lote-imagenes";
 export * from "./lote-publicaciones";
 export * from "./lote-respaldos";
 export * from "./marca";
+export * from "./puntos-interes";
