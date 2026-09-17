@@ -1896,6 +1896,100 @@ async function openPublicaciones(): Promise<void> {
   if (confirmed === "confirm") await restaurarPublicacion(id);
 }
 
+async function respaldarJson(): Promise<void> {
+  if (state.syncing) return;
+  if (hasUnsavedChanges() && !saveLote()) return;
+  if (documentDirty() && !(await guardarBorrador())) return;
+  state.syncing = true;
+  state.busyLabel = "Respaldando…";
+  updateDirtyIndicator();
+  try {
+    const res = await fetch("/api/admin/lotes/respaldo", { method: "POST" });
+    const r = (await res.json()) as {
+      ok: boolean;
+      data?: { url: string };
+      error?: string;
+    };
+    if (!r.ok || !r.data) throw new Error(r.error ?? "Error al respaldar");
+    const link = document.createElement("a");
+    link.href = r.data.url;
+    link.rel = "noopener";
+    link.download = "";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    showFormSuccess("Respaldo generado y descargándose");
+  } catch (err) {
+    showFormError(err instanceof Error ? err.message : String(err));
+  } finally {
+    state.syncing = false;
+    state.busyLabel = "";
+    updateDirtyIndicator();
+  }
+}
+
+function importarRespaldo(): void {
+  if (state.syncing) return;
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "application/json,.json";
+  input.addEventListener("change", () => {
+    const file = input.files?.[0];
+    if (file) void subirRespaldo(file);
+  });
+  input.click();
+}
+
+async function subirRespaldo(file: File): Promise<void> {
+  let payload: unknown;
+  try {
+    payload = JSON.parse(await file.text());
+  } catch {
+    showFormError("El archivo no es un JSON válido");
+    return;
+  }
+
+  const confirmed = await showModal({
+    title: "Restaurar desde respaldo",
+    message:
+      "Se reemplazará el borrador actual por el contenido del archivo. ¿Continuar?",
+    defaultAction: "cancel",
+    buttons: [
+      { label: "Cancelar", value: "cancel", className: "btn-secondary" },
+      { label: "Restaurar", value: "confirm", className: "btn-danger" },
+    ],
+  });
+  if (confirmed !== "confirm") return;
+
+  state.syncing = true;
+  state.busyLabel = "Restaurando…";
+  updateDirtyIndicator();
+  try {
+    const res = await fetch("/api/admin/lotes/respaldo/restaurar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(Array.isArray(payload) ? { lotes: payload } : payload),
+    });
+    const r = (await res.json()) as {
+      ok: boolean;
+      data?: { lotes: LoteConModelo[]; pendiente: boolean; tienePublicacion: boolean };
+      error?: string;
+    };
+    if (!r.ok || !r.data) throw new Error(r.error ?? "Error al restaurar");
+    loadDocument(r.data.lotes, {
+      tienePublicacion: r.data.tienePublicacion,
+      pendiente: r.data.pendiente,
+    });
+    showFormSuccess("Respaldo restaurado en el borrador");
+  } catch (err) {
+    showFormError(err instanceof Error ? err.message : String(err));
+  } finally {
+    state.syncing = false;
+    state.busyLabel = "";
+    updateDirtyIndicator();
+  }
+}
+
 function isPublishMenuOpen(): boolean {
   const menu = document.getElementById("publish-menu");
   return menu !== null && !menu.hidden;
@@ -1922,6 +2016,8 @@ function setupPublishMenu(): void {
     setPublishMenuOpen(false);
     if (action === "draft") void guardarBorrador();
     else if (action === "restore") void openPublicaciones();
+    else if (action === "backup") void respaldarJson();
+    else if (action === "import") importarRespaldo();
   });
   document.addEventListener("click", (e) => {
     if (!isPublishMenuOpen()) return;
@@ -1941,11 +2037,14 @@ async function restaurarPublicacion(id: number): Promise<void> {
     });
     const r = (await res.json()) as {
       ok: boolean;
-      data?: { lotes: LoteConModelo[]; pendiente: boolean };
+      data?: { lotes: LoteConModelo[]; pendiente: boolean; tienePublicacion: boolean };
       error?: string;
     };
     if (!r.ok || !r.data) throw new Error(r.error ?? "Error al restaurar");
-    loadDocument(r.data.lotes, { tienePublicacion: true, pendiente: r.data.pendiente });
+    loadDocument(r.data.lotes, {
+      tienePublicacion: r.data.tienePublicacion,
+      pendiente: r.data.pendiente,
+    });
     showFormSuccess("Versión restaurada en el borrador");
   } catch (err) {
     showFormError(err instanceof Error ? err.message : String(err));

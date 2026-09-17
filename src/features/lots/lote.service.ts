@@ -378,19 +378,23 @@ export async function asegurarPublicacionInicial(): Promise<void> {
   }
 }
 
-export async function restaurarPublicacion(
-  id: number,
-): Promise<{ lotes: LoteConModelo[]; pendiente: boolean } | null> {
-  const row = (
-    await db
-      .select()
-      .from(lotePublicaciones)
-      .where(eq(lotePublicaciones.id, id))
-      .limit(1)
-  )[0];
-  if (!row) return null;
-  const snapshot = parsePublicacionSnapshot(row.snapshotJson);
+type SnapshotLote = {
+  numeroLote: string;
+  estado: LoteConModelo["estado"];
+  poligono: LoteConModelo["poligono"];
+  modeloId: number | null;
+  terrenoM2: number | null;
+  dimensionesLote: string | null;
+  imagenes: { path: string }[];
+};
 
+export type ResultadoRestauracion = {
+  lotes: LoteConModelo[];
+  pendiente: boolean;
+  tienePublicacion: boolean;
+};
+
+async function reemplazarBorrador(snapshot: SnapshotLote[]): Promise<void> {
   await db.transaction(async (tx) => {
     await tx.delete(lotes);
     for (const l of snapshot) {
@@ -414,12 +418,37 @@ export async function restaurarPublicacion(
       }
     }
   });
+}
 
+async function resultadoRestauracion(): Promise<ResultadoRestauracion> {
   const restaurados = await getLotes();
   const publicados = await getLotesPublicados();
   return {
     lotes: restaurados,
+    tienePublicacion: publicados !== null,
     pendiente:
       publicados !== null && comparableLotes(restaurados) !== comparableLotes(publicados),
   };
+}
+
+export async function restaurarPublicacion(
+  id: number,
+): Promise<ResultadoRestauracion | null> {
+  const row = (
+    await db
+      .select()
+      .from(lotePublicaciones)
+      .where(eq(lotePublicaciones.id, id))
+      .limit(1)
+  )[0];
+  if (!row) return null;
+  await reemplazarBorrador(parsePublicacionSnapshot(row.snapshotJson));
+  return resultadoRestauracion();
+}
+
+export async function restaurarDesdeRespaldo(
+  snapshot: SnapshotLote[],
+): Promise<ResultadoRestauracion> {
+  await reemplazarBorrador(snapshot);
+  return resultadoRestauracion();
 }

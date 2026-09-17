@@ -81,6 +81,9 @@ const initialData = { plan, lotes, modelos, estadoPublicacion };
           <div class="publish-menu" id="publish-menu" role="menu" hidden>
             <button type="button" role="menuitem" data-publish-action="draft">Guardar como borrador</button>
             <button type="button" role="menuitem" data-publish-action="restore">Restaurar publicación</button>
+            <div class="publish-menu-sep" role="separator"></div>
+            <button type="button" role="menuitem" data-publish-action="backup">Respaldar JSON (R2)</button>
+            <button type="button" role="menuitem" data-publish-action="import">Restaurar desde respaldo</button>
           </div>
         </div>
       </div>
@@ -292,6 +295,11 @@ const initialData = { plan, lotes, modelos, estadoPublicacion };
   }
   .publish-menu[hidden] {
     display: none;
+  }
+  .publish-menu-sep {
+    height: 1px;
+    background: var(--c-line);
+    margin: 0.25rem 0.35rem;
   }
   .publish-menu button {
     text-align: left;

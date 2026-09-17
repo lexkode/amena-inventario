@@ -65,6 +65,25 @@ export const loteUpdateSchema = z.object({
 });
 export type UpdateLoteInput = z.infer<typeof loteUpdateSchema>;
 
+const backupImagenSchema = z.object({ path: z.string().min(1) });
+
+export const loteBackupItemSchema = z.object({
+  numeroLote: z
+    .string()
+    .trim()
+    .min(1, "numeroLote es obligatorio")
+    .max(64, "numeroLote demasiado largo (máx 64)"),
+  estado: loteEstadoSchema.default("disponible"),
+  poligono: poligonoSchema,
+  modeloId: z.number().int().positive().nullable().default(null),
+  terrenoM2: z.number().nonnegative().nullable().default(null),
+  dimensionesLote: z.string().max(64).nullable().default(null),
+  imagenes: z.array(backupImagenSchema).default([]),
+});
+export type LoteBackupItem = z.infer<typeof loteBackupItemSchema>;
+
+export const loteBackupSchema = z.array(loteBackupItemSchema);
+
 export type ModeloConCaracteristicas = Omit<Modelo, "caracteristicasJson"> & {
   caracteristicas: string[];
 };

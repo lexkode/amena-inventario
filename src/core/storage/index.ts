@@ -89,6 +89,30 @@ export async function saveUpload(file: File): Promise<string> {
   return `${publicBaseUrl}/${key}`;
 }
 
+/** Sube un JSON a R2 (con descarga forzada) y devuelve su URL pública. */
+export async function saveJsonBackup(
+  data: unknown,
+  filename: string,
+): Promise<string> {
+  const { client, bucket, publicBaseUrl } = getStorage();
+  const safe =
+    filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120) || "respaldo.json";
+  const key = `backups/${Date.now().toString(36)}-${safe}`;
+  const body = new TextEncoder().encode(JSON.stringify(data));
+
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: body,
+      ContentType: "application/json",
+      ContentDisposition: `attachment; filename="${safe}"`,
+    }),
+  );
+
+  return `${publicBaseUrl}/${key}`;
+}
+
 /** Elimina el objeto de R2 a partir de su URL pública. */
 export async function deleteUpload(publicUrl: string): Promise<void> {
   let storage: StorageConfig;
