@@ -1,0 +1,1 @@
+CREATE INDEX "lote_publicaciones_created_at_idx" ON "lote_publicaciones" USING btree ("created_at","id");

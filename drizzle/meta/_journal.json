@@ -15,6 +15,13 @@
       "when": 1789610584821,
       "tag": "0001_keen_blizzard",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789613408697,
+      "tag": "0002_messy_magma",
+      "breakpoints": true
     }
   ]
 }
