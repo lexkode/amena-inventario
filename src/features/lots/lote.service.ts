@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull, ne } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne } from "drizzle-orm";
 import { db } from "@core/db/client";
 import {
   lotes,
@@ -273,7 +273,53 @@ export async function publicarLotes(): Promise<PublicacionResumen> {
     .values({ snapshotJson: JSON.stringify(draft), totalLotes: draft.length })
     .returning();
   if (!row) throw new Error("No se pudo crear la publicación");
+  try {
+    await podarPublicaciones();
+  } catch {
+    /* la poda no debe bloquear la publicación */
+  }
   return { id: row.id, totalLotes: row.totalLotes, createdAt: row.createdAt };
+}
+
+const DIA_FMT = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/El_Salvador",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function diaEnZona(ts: number): string {
+  return DIA_FMT.format(new Date(ts));
+}
+
+/**
+ * Retención: conserva todas las publicaciones del día actual y solo la última
+ * de cada día anterior. Devuelve cuántas publicaciones eliminó.
+ */
+export async function podarPublicaciones(): Promise<number> {
+  const rows = await db
+    .select({ id: lotePublicaciones.id, createdAt: lotePublicaciones.createdAt })
+    .from(lotePublicaciones)
+    .orderBy(desc(lotePublicaciones.createdAt), desc(lotePublicaciones.id));
+  if (rows.length <= 1) return 0;
+
+  const hoy = diaEnZona(Date.now());
+  const diasVistos = new Set<string>();
+  const aBorrar: number[] = [];
+
+  for (const row of rows) {
+    const dia = diaEnZona(row.createdAt);
+    if (dia === hoy) continue;
+    if (!diasVistos.has(dia)) {
+      diasVistos.add(dia);
+      continue;
+    }
+    aBorrar.push(row.id);
+  }
+
+  if (aBorrar.length === 0) return 0;
+  await db.delete(lotePublicaciones).where(inArray(lotePublicaciones.id, aBorrar));
+  return aBorrar.length;
 }
 
 export async function getLotesPublicados(): Promise<LoteConModelo[] | null> {
