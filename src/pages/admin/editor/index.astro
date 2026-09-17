@@ -32,12 +32,23 @@ const initialData = { plan, lotes, modelos, estadoPublicacion };
 
     <div class="ph-block" role="group" aria-label="Vista y edición">
       <div class="ph-controls">
-        <div class="view-group" role="group" aria-label="Visualización de polígonos">
-          <label class="view-label" for="polygon-view">Vista</label>
-          <select id="polygon-view" class="view-select">
-            <option value="estandar">Edición</option>
-            <option value="disponibilidad">Previsualización</option>
-          </select>
+        <div class="dropdown" id="view-dropdown" data-dropdown>
+          <button
+            class="dropdown-toggle"
+            id="view-toggle"
+            data-dropdown-toggle
+            type="button"
+            aria-haspopup="menu"
+            aria-expanded="false"
+          >
+            <span class="dropdown-label">Vista</span>
+            <span class="dropdown-value" id="view-value">Edición</span>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="dropdown-menu" id="view-menu" data-dropdown-menu role="menu" hidden>
+            <button type="button" role="menuitem" data-view-value="estandar">Edición</button>
+            <button type="button" role="menuitem" data-view-value="disponibilidad">Previsualización</button>
+          </div>
         </div>
         <div class="zoom-group" role="group" aria-label="Zoom">
           <button id="zoom-out" class="zoom-btn" type="button" aria-label="Zoom out">−</button>
@@ -61,16 +72,41 @@ const initialData = { plan, lotes, modelos, estadoPublicacion };
           <button id="undo" class="zoom-btn history-icon" type="button" title="Deshacer (Ctrl+Z)" aria-label="Deshacer" disabled>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5 5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
           </button>
-          <select id="history-select" class="history-select" aria-label="Saltar a un paso" disabled></select>
+          <div class="dropdown history-dropdown" id="history-dropdown" data-dropdown>
+            <button
+              class="dropdown-toggle history-toggle"
+              id="history-toggle"
+              data-dropdown-toggle
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              disabled
+            >
+              <span class="dropdown-value" id="history-value">—</span>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="dropdown-menu" id="history-menu" data-dropdown-menu role="menu" hidden></div>
+          </div>
           <button id="redo" class="zoom-btn history-icon" type="button" title="Rehacer (Ctrl+Shift+Z)" aria-label="Rehacer" disabled>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5 5.5 5.5 0 0 0 9.5 20H13"/></svg>
           </button>
         </div>
-        <div class="publish-group" id="publish-group">
+        <div class="publish-group" id="publish-group" data-dropdown>
+          <button
+            id="save-draft"
+            class="btn-primary publish-save"
+            type="button"
+            title="Guardar borrador"
+            aria-label="Guardar borrador"
+            disabled
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg>
+          </button>
           <button id="publish-action" class="btn-primary publish-main" type="button" disabled>Publicar</button>
           <button
             id="publish-toggle"
             class="btn-primary publish-toggle"
+            data-dropdown-toggle
             type="button"
             aria-haspopup="menu"
             aria-expanded="false"
@@ -78,12 +114,11 @@ const initialData = { plan, lotes, modelos, estadoPublicacion };
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
           </button>
-          <div class="publish-menu" id="publish-menu" role="menu" hidden>
-            <button type="button" role="menuitem" data-publish-action="draft">Guardar como borrador</button>
-            <button type="button" role="menuitem" data-publish-action="restore">Restaurar publicación</button>
-            <div class="publish-menu-sep" role="separator"></div>
+          <div class="dropdown-menu dropdown-menu--right" id="publish-menu" data-dropdown-menu role="menu" hidden>
             <button type="button" role="menuitem" data-publish-action="backup">Respaldar JSON (R2)</button>
-            <button type="button" role="menuitem" data-publish-action="import">Restaurar desde respaldo</button>
+            <div class="dropdown-menu-sep" role="separator"></div>
+            <button type="button" role="menuitem" data-publish-action="restore">Restaurar publicación</button>
+            <button type="button" role="menuitem" data-publish-action="import">Restaurar desde archivo</button>
           </div>
         </div>
       </div>
@@ -132,6 +167,7 @@ const initialData = { plan, lotes, modelos, estadoPublicacion };
     align-items: center;
     gap: 0.6rem;
     flex-wrap: wrap;
+    --control-h: 2.35rem;
   }
   @media (max-width: 900px) {
     .ph-block {
@@ -139,9 +175,9 @@ const initialData = { plan, lotes, modelos, estadoPublicacion };
     }
   }
   .mode-group,
-  .zoom-group,
-  .view-group {
+  .zoom-group {
     display: inline-flex;
+    height: var(--control-h);
     background: var(--c-surface);
     border-radius: var(--r-md);
     padding: 0.25rem;
@@ -149,26 +185,47 @@ const initialData = { plan, lotes, modelos, estadoPublicacion };
     box-shadow: var(--c-shadow-soft);
     align-items: center;
   }
-  .view-group {
-    gap: 0.35rem;
-    padding: 0.35rem 0.5rem;
+  .dropdown {
+    position: relative;
+    display: inline-flex;
   }
-  .view-label {
+  .dropdown-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    height: var(--control-h);
+    background: var(--c-surface);
+    border: 1px solid var(--c-line);
+    border-radius: var(--r-md);
+    box-shadow: var(--c-shadow-soft);
+    padding: 0.4rem 0.6rem;
+    color: var(--c-text);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .dropdown-toggle > svg {
+    width: 14px;
+    height: 14px;
+    display: block;
+    color: var(--c-text-muted);
+    flex-shrink: 0;
+  }
+  .dropdown-toggle:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  .dropdown-label {
     font-size: 0.75rem;
     font-weight: 600;
     color: var(--c-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
-  .view-select {
-    border: 0;
-    background: transparent;
-    color: var(--c-text);
-    font-size: 0.85rem;
-    font-weight: 500;
-    cursor: pointer;
-    padding: 0.1rem 0.25rem;
-    outline: none;
+  .dropdown-value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .mode-btn,
   .zoom-btn {
@@ -208,6 +265,7 @@ const initialData = { plan, lotes, modelos, estadoPublicacion };
   }
   .paste-group {
     display: inline-flex;
+    height: var(--control-h);
     background: var(--c-surface);
     border-radius: var(--r-md);
     padding: 0.25rem;
@@ -224,6 +282,7 @@ const initialData = { plan, lotes, modelos, estadoPublicacion };
   }
   .history-group {
     display: inline-flex;
+    height: var(--control-h);
     background: var(--c-surface);
     border-radius: var(--r-md);
     padding: 0.25rem;
@@ -241,49 +300,64 @@ const initialData = { plan, lotes, modelos, estadoPublicacion };
     opacity: 0.4;
     cursor: not-allowed;
   }
-  .history-select {
-    max-width: 190px;
+  .history-toggle {
     border: 0;
+    box-shadow: none;
     background: transparent;
-    color: var(--c-text);
+    border-radius: var(--r-sm);
+    padding: 0.15rem 0.3rem;
     font-size: 0.82rem;
-    font-weight: 500;
-    cursor: pointer;
-    padding: 0.15rem 0.25rem;
-    outline: none;
+    height: auto;
   }
-  .history-select:disabled {
-    color: var(--c-text-muted);
-    cursor: default;
+  .history-toggle .dropdown-value {
+    max-width: 190px;
+  }
+  .history-toggle:disabled {
+    opacity: 0.45;
   }
   .publish-group {
     position: relative;
     display: inline-flex;
+    height: var(--control-h);
     align-items: stretch;
   }
+  .publish-save {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.55rem 0.6rem;
+    border-radius: var(--r-sm) 0 0 var(--r-sm);
+    border-right: 1px solid rgba(255, 255, 255, 0.35);
+  }
+  .publish-save svg {
+    width: 16px;
+    height: 16px;
+    display: block;
+  }
   .publish-main {
-    border-top-right-radius: 0;
-    border-bottom-right-radius: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0;
+    border-right: 1px solid rgba(255, 255, 255, 0.35);
   }
   .publish-toggle {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     padding: 0.55rem 0.5rem;
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
-    border-left: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
   }
   .publish-toggle svg {
     width: 14px;
     height: 14px;
     display: block;
   }
-  .publish-menu {
+  :global(.dropdown-menu) {
     position: absolute;
     top: calc(100% + 0.35rem);
-    right: 0;
-    min-width: 210px;
+    left: 0;
+    min-width: 100%;
     background: var(--c-surface);
     border: 1px solid var(--c-line);
     border-radius: var(--r-md);
@@ -291,17 +365,18 @@ const initialData = { plan, lotes, modelos, estadoPublicacion };
     padding: 0.25rem;
     display: flex;
     flex-direction: column;
-    z-index: 20;
+    z-index: 30;
+    max-height: 320px;
+    overflow-y: auto;
   }
-  .publish-menu[hidden] {
+  :global(.dropdown-menu[hidden]) {
     display: none;
   }
-  .publish-menu-sep {
-    height: 1px;
-    background: var(--c-line);
-    margin: 0.25rem 0.35rem;
+  :global(.dropdown-menu--right) {
+    left: auto;
+    right: 0;
   }
-  .publish-menu button {
+  :global(.dropdown-menu button) {
     text-align: left;
     padding: 0.5rem 0.65rem;
     background: transparent;
@@ -311,10 +386,20 @@ const initialData = { plan, lotes, modelos, estadoPublicacion };
     font-size: 0.85rem;
     font-weight: 500;
     cursor: pointer;
+    white-space: nowrap;
     transition: background-color 150ms ease;
   }
-  .publish-menu button:hover {
+  :global(.dropdown-menu button:hover) {
     background: var(--c-surface-muted);
+  }
+  :global(.dropdown-menu button.active) {
+    background: var(--c-surface-muted);
+    font-weight: 700;
+  }
+  :global(.dropdown-menu-sep) {
+    height: 1px;
+    background: var(--c-line);
+    margin: 0.25rem 0.35rem;
   }
 
   .canvas-wrap :global(.selection-toolbar) {

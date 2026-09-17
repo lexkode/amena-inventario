@@ -223,21 +223,46 @@ function updateDirtyIndicator(): void {
   }
   const toggle = document.getElementById("publish-toggle") as HTMLButtonElement | null;
   if (toggle) toggle.disabled = state.syncing;
+  const draftBtn = document.getElementById("save-draft") as HTMLButtonElement | null;
+  if (draftBtn) draftBtn.disabled = !localDirty || state.syncing;
 }
 
 function renderHistoryControls(): void {
-  const select = document.getElementById("history-select") as HTMLSelectElement | null;
-  if (select) {
-    select.innerHTML = state.history
-      .map((h, i) => `<option value="${i}">${escapeHtml(h.label)}</option>`)
+  const menu = document.getElementById("history-menu");
+  if (menu) {
+    menu.innerHTML = state.history
+      .map(
+        (h, i) =>
+          `<button type="button" role="menuitem" data-history-index="${i}" class="${i === state.historyIndex ? "active" : ""}">${escapeHtml(h.label)}</button>`,
+      )
       .join("");
-    select.disabled = state.history.length === 0;
-    if (state.historyIndex >= 0) select.value = String(state.historyIndex);
+    menu.querySelectorAll<HTMLElement>("[data-history-index]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        closeAllDropdowns();
+        goToHistory(Number(btn.dataset.historyIndex));
+      });
+    });
   }
+  const value = document.getElementById("history-value");
+  if (value) value.textContent = state.history[state.historyIndex]?.label ?? "—";
+  const toggle = document.getElementById("history-toggle") as HTMLButtonElement | null;
+  if (toggle) toggle.disabled = state.history.length === 0;
+
   const undoBtn = document.getElementById("undo") as HTMLButtonElement | null;
   const redoBtn = document.getElementById("redo") as HTMLButtonElement | null;
   if (undoBtn) undoBtn.disabled = state.historyIndex <= 0;
   if (redoBtn) redoBtn.disabled = state.historyIndex >= state.history.length - 1;
+}
+
+function renderViewControl(): void {
+  const value = document.getElementById("view-value");
+  if (value) {
+    value.textContent =
+      state.polygonView === "estandar" ? "Edición" : "Previsualización";
+  }
+  document.querySelectorAll<HTMLElement>("[data-view-value]").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.viewValue === state.polygonView);
+  });
 }
 
 function commitHistory(label: string, coalesceKey?: string): void {
@@ -1007,6 +1032,7 @@ function render(): void {
   renderModeButtons();
   renderMapOpacity();
   renderPasteButton();
+  renderViewControl();
 }
 
 // ============ Mode & selection ============
@@ -1365,8 +1391,8 @@ function handleKeyDown(e: KeyboardEvent): void {
   const target = e.target as HTMLElement | null;
   if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
 
-  if (e.key === "Escape" && isPublishMenuOpen()) {
-    setPublishMenuOpen(false);
+  if (e.key === "Escape" && anyDropdownOpen()) {
+    closeAllDropdowns();
     return;
   }
 
@@ -1790,6 +1816,21 @@ async function guardarBorrador(): Promise<boolean> {
   }
 }
 
+async function confirmarPublicacion(): Promise<void> {
+  if (state.syncing) return;
+  const ok = await showModal({
+    title: "Publicar cambios",
+    message:
+      "Se guardará el borrador actual y se publicará como la versión visible en el sitio público. Las ediciones que no se guarden como borrador se aplicarán antes de publicar. ¿Confirmar la publicación?",
+    defaultAction: "cancel",
+    buttons: [
+      { label: "Cancelar", value: "cancel", className: "btn-secondary" },
+      { label: "Publicar", value: "confirm", className: "btn-primary" },
+    ],
+  });
+  if (ok === "confirm") await publicar();
+}
+
 async function publicar(): Promise<void> {
   if (state.syncing) return;
   if (!(await guardarBorrador())) return;
@@ -2028,39 +2069,55 @@ async function subirRespaldo(file: File): Promise<void> {
   }
 }
 
-function isPublishMenuOpen(): boolean {
-  const menu = document.getElementById("publish-menu");
-  return menu !== null && !menu.hidden;
-}
-
-function setPublishMenuOpen(open: boolean): void {
-  const menu = document.getElementById("publish-menu");
-  const toggle = document.getElementById("publish-toggle");
+function setDropdownOpen(root: HTMLElement, open: boolean): void {
+  const menu = root.querySelector<HTMLElement>("[data-dropdown-menu]");
+  const toggle = root.querySelector<HTMLElement>("[data-dropdown-toggle]");
   if (menu) menu.hidden = !open;
   if (toggle) toggle.setAttribute("aria-expanded", open ? "true" : "false");
 }
 
-function setupPublishMenu(): void {
-  const toggle = document.getElementById("publish-toggle");
-  const menu = document.getElementById("publish-menu");
-  toggle?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    setPublishMenuOpen(!isPublishMenuOpen());
+function closeAllDropdowns(): void {
+  document.querySelectorAll<HTMLElement>("[data-dropdown]").forEach((root) => {
+    setDropdownOpen(root, false);
   });
-  menu?.addEventListener("click", (e) => {
+}
+
+function anyDropdownOpen(): boolean {
+  return Array.from(
+    document.querySelectorAll<HTMLElement>("[data-dropdown-menu]"),
+  ).some((m) => !m.hidden);
+}
+
+function setupDropdowns(): void {
+  document.querySelectorAll<HTMLElement>("[data-dropdown]").forEach((root) => {
+    root
+      .querySelector<HTMLElement>("[data-dropdown-toggle]")
+      ?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const menu = root.querySelector<HTMLElement>("[data-dropdown-menu]");
+        const willOpen = menu ? menu.hidden : false;
+        closeAllDropdowns();
+        setDropdownOpen(root, willOpen);
+      });
+  });
+
+  const publishMenu = document.getElementById("publish-menu");
+  publishMenu?.addEventListener("click", (e) => {
     const item = (e.target as HTMLElement).closest<HTMLElement>("[data-publish-action]");
     if (!item) return;
     const action = item.dataset.publishAction;
-    setPublishMenuOpen(false);
-    if (action === "draft") void guardarBorrador();
-    else if (action === "restore") void openPublicaciones();
+    closeAllDropdowns();
+    if (action === "restore") void openPublicaciones();
     else if (action === "backup") void respaldarJson();
     else if (action === "import") importarRespaldo();
   });
+
   document.addEventListener("click", (e) => {
-    if (!isPublishMenuOpen()) return;
-    const group = document.getElementById("publish-group");
-    if (group && !group.contains(e.target as Node)) setPublishMenuOpen(false);
+    const target = e.target as Node;
+    document.querySelectorAll<HTMLElement>("[data-dropdown]").forEach((root) => {
+      const menu = root.querySelector<HTMLElement>("[data-dropdown-menu]");
+      if (menu && !menu.hidden && !root.contains(target)) setDropdownOpen(root, false);
+    });
   });
 }
 
@@ -2219,22 +2276,23 @@ export function initEditor(): void {
   document.getElementById("undo")?.addEventListener("click", undo);
   document.getElementById("redo")?.addEventListener("click", redo);
   document.getElementById("publish-action")?.addEventListener("click", () => {
-    void publicar();
+    closeAllDropdowns();
+    void confirmarPublicacion();
   });
-  setupPublishMenu();
-  const historySelect = document.getElementById("history-select") as HTMLSelectElement | null;
-  historySelect?.addEventListener("change", () => {
-    goToHistory(Number(historySelect.value));
+  document.getElementById("save-draft")?.addEventListener("click", () => {
+    closeAllDropdowns();
+    void guardarBorrador();
   });
+  setupDropdowns();
 
-  const viewSelect = document.getElementById("polygon-view") as HTMLSelectElement | null;
-  if (viewSelect) {
-    viewSelect.value = state.polygonView;
-    viewSelect.addEventListener("change", () => {
-      state.polygonView = viewSelect.value === "estandar" ? "estandar" : "disponibilidad";
+  document.querySelectorAll<HTMLElement>("[data-view-value]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.polygonView =
+        btn.dataset.viewValue === "disponibilidad" ? "disponibilidad" : "estandar";
+      closeAllDropdowns();
       render();
     });
-  }
+  });
 
   svg.addEventListener("mousedown", handleSvgMouseDown);
   svg.addEventListener("wheel", handleWheel, { passive: false });
