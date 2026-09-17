@@ -31,6 +31,9 @@ const initialData = { plan, lotes, modelos };
         <button data-mode="lotes" class="mode-btn" type="button">Lotes</button>
         <button data-mode="draw" class="mode-btn" type="button">Dibujar</button>
       </div>
+      <div class="paste-group" id="paste-group" hidden>
+        <button id="paste-lote" class="zoom-btn" type="button" title="Pegar lote copiado (Ctrl+V)">Pegar lote</button>
+      </div>
       <div class="zoom-group" role="group" aria-label="Zoom">
         <button id="zoom-out" class="zoom-btn" type="button" aria-label="Zoom out">−</button>
         <span id="zoom-display" class="zoom-display">100%</span>
@@ -48,7 +51,7 @@ const initialData = { plan, lotes, modelos };
     </div>
   ) : (
     <div class="editor-container">
-      <div class="canvas-wrap">
+      <div class="canvas-wrap" id="canvas-wrap">
         <svg
           id="canvas"
           viewBox={`0 0 ${plan.anchoPx} ${plan.altoPx}`}
@@ -146,6 +149,66 @@ const initialData = { plan, lotes, modelos };
   }
   .zoom-fit {
     padding: 0.4rem 0.6rem;
+  }
+  .paste-group {
+    display: inline-flex;
+    background: var(--c-surface);
+    border-radius: var(--r-md);
+    padding: 0.25rem;
+    border: 1px solid var(--c-line);
+    box-shadow: var(--c-shadow-soft);
+    align-items: center;
+  }
+  .paste-group[hidden] {
+    display: none;
+  }
+  .paste-group .zoom-btn {
+    padding: 0.4rem 0.85rem;
+    color: var(--c-text);
+  }
+
+  .canvas-wrap :global(.selection-toolbar) {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.1rem;
+    padding: 0.2rem;
+    background: var(--c-bg-dark);
+    border-radius: var(--r-md);
+    box-shadow: var(--c-shadow-medium);
+    z-index: 5;
+  }
+  .canvas-wrap :global(.selection-toolbar[hidden]) {
+    display: none;
+  }
+  .canvas-wrap :global(.selection-toolbar button) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: var(--r-sm);
+    color: rgba(255, 255, 255, 0.92);
+    cursor: pointer;
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+  .canvas-wrap :global(.selection-toolbar button:hover) {
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+  }
+  .canvas-wrap :global(.selection-toolbar button[data-danger="true"]:hover) {
+    background: var(--c-danger);
+    color: #fff;
+  }
+  .canvas-wrap :global(.selection-toolbar button svg) {
+    width: 15px;
+    height: 15px;
+    display: block;
   }
 
   .editor-container {

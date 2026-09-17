@@ -323,6 +323,10 @@ textarea:focus {
   flex: 1 1 auto;
   min-width: 0;
 }
+.confirm-actions button:focus {
+  outline: 2px solid var(--c-focus);
+  outline-offset: 2px;
+}
 @media (max-width: 480px) {
   .confirm-actions {
     flex-direction: column;

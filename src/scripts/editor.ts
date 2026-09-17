@@ -54,6 +54,8 @@ type LoteSnapshot = {
   dimensionesLote: string | null;
 };
 
+type LoteClipboard = LoteSnapshot;
+
 type State = {
   mode: Mode;
   polygonView: PolygonView;
@@ -61,6 +63,7 @@ type State = {
   initialView: { w: number; h: number };
   isPanning: boolean;
   panStart: { clientX: number; clientY: number; vbX: number; vbY: number };
+  panFromBackground: boolean;
   currentPolygon: Punto[];
   pendingNewLote: NewLote | null;
   selectedLoteId: number | null;
@@ -74,6 +77,7 @@ type State = {
   formDirty: boolean;
   draft: LoteDraft | null;
   editSnapshot: LoteSnapshot | null;
+  clipboard: LoteClipboard | null;
 };
 
 type InitialData = {
@@ -97,6 +101,7 @@ const state: State = {
   initialView: { w: 1, h: 1 },
   isPanning: false,
   panStart: { clientX: 0, clientY: 0, vbX: 0, vbY: 0 },
+  panFromBackground: false,
   currentPolygon: [],
   pendingNewLote: null,
   selectedLoteId: null,
@@ -110,15 +115,24 @@ const state: State = {
   formDirty: false,
   draft: null,
   editSnapshot: null,
+  clipboard: null,
 };
 
 const VERTEX_RADIUS = 6; // radio unificado (mitad del original más grande)
 const VERTEX_STROKE = 2; // borde unificado
+const PASTE_OFFSET = 20; // desplazamiento (px de plano) del lote pegado
+const CLICK_MOVE_THRESHOLD = 4; // px para diferenciar clic de arrastre (pan)
+
+const ICON_EDIT = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const ICON_COPY = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`;
+const ICON_TRASH = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>`;
+
 let svg!: SVGSVGElement;
 let lotsLayer!: SVGGElement;
 let overlayLayer!: SVGGElement;
 let sidePanel!: HTMLElement;
 let zoomDisplay!: HTMLElement;
+let selectionToolbar: HTMLDivElement | null = null;
 let planImage: SVGGElement | null = null;
 let initialData: InitialData;
 
@@ -126,6 +140,7 @@ let initialData: InitialData;
 
 function renderViewTransform(): void {
   applySvgView(svg, state.view, state.initialView.w, zoomDisplay);
+  renderSelectionToolbar();
 }
 
 function updateCursor(): void {
@@ -199,6 +214,18 @@ function renderLotsLayer(): void {
   }
 }
 
+function createVertexMarker(x: number, y: number): SVGRectElement {
+  const rect = document.createElementNS(SVG_NS, "rect");
+  rect.setAttribute("x", String(x - VERTEX_RADIUS));
+  rect.setAttribute("y", String(y - VERTEX_RADIUS));
+  rect.setAttribute("width", String(VERTEX_RADIUS * 2));
+  rect.setAttribute("height", String(VERTEX_RADIUS * 2));
+  rect.setAttribute("fill", "#fff");
+  rect.setAttribute("stroke", "#dc832f");
+  rect.setAttribute("stroke-width", String(VERTEX_STROKE));
+  return rect;
+}
+
 function renderOverlayLayer(): void {
   while (overlayLayer.firstChild) overlayLayer.removeChild(overlayLayer.firstChild);
 
@@ -215,14 +242,7 @@ function renderOverlayLayer(): void {
     overlayLayer.appendChild(polyline);
 
     for (const p of state.currentPolygon) {
-      const c = document.createElementNS(SVG_NS, "circle");
-      c.setAttribute("cx", String(p.x));
-      c.setAttribute("cy", String(p.y));
-      c.setAttribute("r", String(VERTEX_RADIUS));
-      c.setAttribute("fill", "#fff");
-      c.setAttribute("stroke", "#dc832f");
-      c.setAttribute("stroke-width", String(VERTEX_STROKE));
-      overlayLayer.appendChild(c);
+      overlayLayer.appendChild(createVertexMarker(p.x, p.y));
     }
   }
 
@@ -231,13 +251,7 @@ function renderOverlayLayer(): void {
     if (lote) {
       for (let i = 0; i < lote.poligono.length; i++) {
         const p = lote.poligono[i];
-        const handle = document.createElementNS(SVG_NS, "circle");
-        handle.setAttribute("cx", String(p.x));
-        handle.setAttribute("cy", String(p.y));
-        handle.setAttribute("r", String(VERTEX_RADIUS));
-        handle.setAttribute("fill", "#fff");
-        handle.setAttribute("stroke", "#dc832f");
-        handle.setAttribute("stroke-width", String(VERTEX_STROKE));
+        const handle = createVertexMarker(p.x, p.y);
         handle.setAttribute("class", "vertex-handle");
         handle.setAttribute("data-lote-id", String(lote.id));
         handle.setAttribute("data-vertex-index", String(i));
@@ -671,6 +685,163 @@ function renderMapOpacity(): void {
   planImage.setAttribute("opacity", state.polygonView === "estandar" ? "0.5" : "1");
 }
 
+function createSelectionToolbar(): void {
+  const wrap = document.getElementById("canvas-wrap");
+  if (!wrap) return;
+
+  const el = document.createElement("div");
+  el.className = "selection-toolbar";
+  el.hidden = true;
+  el.innerHTML = `
+    <button type="button" data-action="edit" title="Editar lote" aria-label="Editar lote">${ICON_EDIT}</button>
+    <button type="button" data-action="copy" title="Copiar lote (Ctrl+C)" aria-label="Copiar lote">${ICON_COPY}</button>
+    <button type="button" data-action="delete" data-danger="true" title="Eliminar lote" aria-label="Eliminar lote">${ICON_TRASH}</button>
+  `;
+  el.querySelector<HTMLElement>('[data-action="edit"]')?.addEventListener("click", focusLotForm);
+  el.querySelector<HTMLElement>('[data-action="copy"]')?.addEventListener("click", copyLote);
+  el.querySelector<HTMLElement>('[data-action="delete"]')?.addEventListener("click", () => {
+    void (async () => {
+      if (await confirmDeleteLote()) await deleteLote();
+    })();
+  });
+
+  wrap.appendChild(el);
+  selectionToolbar = el;
+}
+
+function renderSelectionToolbar(): void {
+  if (!selectionToolbar) return;
+  const lote =
+    state.mode === "lotes" && state.selectedLoteId !== null
+      ? state.lotes.find((l) => l.id === state.selectedLoteId)
+      : undefined;
+
+  if (!lote || lote.poligono.length === 0) {
+    selectionToolbar.hidden = true;
+    return;
+  }
+
+  const wrap = selectionToolbar.parentElement;
+  const ctm = svg.getScreenCTM();
+  if (!wrap || !ctm) {
+    selectionToolbar.hidden = true;
+    return;
+  }
+
+  const xs = lote.poligono.map((p) => p.x);
+  const ys = lote.poligono.map((p) => p.y);
+  const corner = svg.createSVGPoint();
+  corner.x = Math.max(...xs);
+  corner.y = Math.min(...ys);
+  const screen = corner.matrixTransform(ctm);
+  const wrapRect = wrap.getBoundingClientRect();
+  const left = screen.x - wrapRect.left;
+  const top = screen.y - wrapRect.top;
+
+  selectionToolbar.hidden = false;
+  selectionToolbar.style.left = `${left}px`;
+  selectionToolbar.style.top = `${top}px`;
+  selectionToolbar.style.transform =
+    top < 46 ? "translate(-100%, 8px)" : "translate(-100%, calc(-100% - 8px))";
+}
+
+function focusLotForm(): void {
+  const input = document.getElementById("numeroLote") as HTMLInputElement | null;
+  if (input) {
+    input.focus();
+    input.select();
+  }
+}
+
+function captureSnapshot(lote: LoteConModelo): LoteSnapshot {
+  return {
+    polygon: lote.poligono.map((p) => ({ ...p })),
+    numeroLote: lote.numeroLote,
+    estado: lote.estado,
+    modeloId: lote.modeloId ?? null,
+    terrenoM2: lote.terrenoM2,
+    dimensionesLote: lote.dimensionesLote,
+  };
+}
+
+function copyLote(): void {
+  const lote = state.lotes.find((l) => l.id === state.selectedLoteId);
+  if (!lote) return;
+  state.clipboard = captureSnapshot(lote);
+  renderPasteButton();
+  showFormSuccess("Lote copiado. Pega con Ctrl+V o el botón Pegar lote.");
+}
+
+function numeroEnUso(modeloId: number | null, numeroLote: string): boolean {
+  return state.lotes.some(
+    (l) => (l.modeloId ?? null) === modeloId && l.numeroLote === numeroLote,
+  );
+}
+
+function nextNumeroLote(base: string, modeloId: number | null): string {
+  const parsed = Number.parseInt(base, 10);
+  if (Number.isNaN(parsed)) {
+    let candidate = `${base} copia`;
+    let i = 2;
+    while (numeroEnUso(modeloId, candidate)) candidate = `${base} copia ${i++}`;
+    return candidate;
+  }
+  let n = parsed + 1;
+  while (numeroEnUso(modeloId, String(n))) n++;
+  return String(n);
+}
+
+async function pasteLote(): Promise<void> {
+  const clip = state.clipboard;
+  if (!clip) return;
+  if (!(await confirmDiscard())) return;
+
+  const body = {
+    numeroLote: nextNumeroLote(clip.numeroLote, clip.modeloId),
+    estado: clip.estado,
+    poligono: clip.polygon.map((p) => ({ x: p.x + PASTE_OFFSET, y: p.y + PASTE_OFFSET })),
+    modeloId: clip.modeloId,
+    terrenoM2: clip.terrenoM2,
+    dimensionesLote: clip.dimensionesLote,
+  };
+
+  try {
+    const response = await fetch("/api/admin/lotes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const result = (await response.json()) as {
+      ok: boolean;
+      data?: LoteConModelo;
+      error?: string;
+    };
+    if (!result.ok || !result.data) {
+      showFormError(result.error ?? "Error al pegar el lote");
+      return;
+    }
+
+    state.lotes.push(result.data);
+    state.selectedLoteId = result.data.id;
+    state.selectedVertex = null;
+    state.draggingPolygon = null;
+    state.pendingNewLote = null;
+    state.currentPolygon = [];
+    resetPendingImages();
+    clearFormDraft();
+    state.editSnapshot = captureSnapshot(result.data);
+    render();
+    showFormSuccess("Lote pegado");
+  } catch (err) {
+    showFormError(err instanceof Error ? err.message : String(err));
+  }
+}
+
+function renderPasteButton(): void {
+  const group = document.getElementById("paste-group");
+  if (group) group.hidden = state.clipboard === null;
+}
+
 function render(): void {
   renderViewTransform();
   updateCursor();
@@ -679,6 +850,7 @@ function render(): void {
   renderSidePanel();
   renderModeButtons();
   renderMapOpacity();
+  renderPasteButton();
 }
 
 // ============ Mode & selection ============
@@ -693,11 +865,15 @@ function hasUnsavedChanges(): boolean {
 
 type ModalButton = { label: string; value: string; className: string };
 
+let activeModal: HTMLElement | null = null;
+
 function showModal(opts: {
   title: string;
   message: string;
   buttons: ModalButton[];
+  defaultAction?: string;
 }): Promise<string> {
+  if (activeModal !== null) return Promise.resolve("cancel");
   return new Promise((resolve) => {
     const overlay = document.createElement("div");
     overlay.className = "confirm-overlay";
@@ -715,9 +891,12 @@ function showModal(opts: {
         </div>
       </div>`;
     document.body.appendChild(overlay);
+    activeModal = overlay;
+    (document.activeElement as HTMLElement | null)?.blur();
 
     const cleanup = (value: string): void => {
       overlay.remove();
+      activeModal = null;
       resolve(value);
     };
     opts.buttons.forEach((b) => {
@@ -728,6 +907,30 @@ function showModal(opts: {
     overlay.addEventListener("click", (e) => {
       if (e.target === overlay) cleanup("cancel");
     });
+    overlay.addEventListener("keydown", (e) => {
+      if (e.key !== "Tab") return;
+      const buttons = Array.from(
+        overlay.querySelectorAll<HTMLElement>("[data-confirm]"),
+      );
+      if (buttons.length === 0) return;
+      const first = buttons[0];
+      const last = buttons[buttons.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (e.shiftKey && active === first) {
+        e.preventDefault();
+        last?.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first?.focus();
+      }
+    });
+
+    const defaultValue = opts.defaultAction ?? opts.buttons[0]?.value;
+    if (defaultValue !== undefined) {
+      overlay
+        .querySelector<HTMLButtonElement>(`[data-confirm='${defaultValue}']`)
+        ?.focus();
+    }
   });
 }
 
@@ -750,28 +953,54 @@ function discardChanges(): void {
 
 async function confirmDiscard(): Promise<boolean> {
   if (!hasUnsavedChanges()) return true;
+  const numero = currentEditingLabel();
   const action = await showModal({
     title: "Cambios sin guardar",
-    message: "Hay cambios sin guardar. ¿Qué deseas hacer?",
+    message: numero
+      ? `El lote ${escapeHtml(numero)} tiene cambios sin guardar. ¿Qué deseas hacer?`
+      : "Hay cambios sin guardar. ¿Qué deseas hacer?",
+    defaultAction: "save",
     buttons: [
+      { label: "Guardar cambios", value: "save", className: "btn-primary" },
       { label: "Continuar editando", value: "cancel", className: "btn-secondary" },
       { label: "Descartar cambios", value: "discard", className: "btn-danger" },
     ],
   });
-  if (action === "discard") discardChanges();
-  return action === "discard";
+  if (action === "discard") {
+    discardChanges();
+    return true;
+  }
+  if (action === "save") {
+    return saveLote();
+  }
+  return false;
 }
 
 async function confirmDeleteLote(): Promise<boolean> {
+  const numero = currentEditingLabel();
   const action = await showModal({
     title: "Eliminar lote",
-    message: "¿Eliminar este lote? Esta acción no se puede deshacer.",
+    message: numero
+      ? `¿Eliminar el lote ${escapeHtml(numero)}? Esta acción no se puede deshacer.`
+      : "¿Eliminar este lote? Esta acción no se puede deshacer.",
+    defaultAction: "cancel",
     buttons: [
       { label: "Cancelar", value: "cancel", className: "btn-secondary" },
       { label: "Eliminar lote", value: "confirm", className: "btn-danger" },
     ],
   });
   return action === "confirm";
+}
+
+function currentEditingLabel(): string | null {
+  const input = document.getElementById("numeroLote") as HTMLInputElement | null;
+  const fromForm = input?.value.trim() ?? "";
+  if (fromForm) return fromForm;
+  const fromDraft = state.draft?.numeroLote.trim() ?? "";
+  if (fromDraft) return fromDraft;
+  const lote = state.lotes.find((l) => l.id === state.selectedLoteId);
+  const fromLote = lote?.numeroLote.trim() ?? "";
+  return fromLote || null;
 }
 
 async function setMode(mode: Mode): Promise<void> {
@@ -801,16 +1030,7 @@ async function selectLote(id: number | null): Promise<void> {
   resetPendingImages();
   clearFormDraft();
   const lote = id !== null ? state.lotes.find((l) => l.id === id) : undefined;
-  state.editSnapshot = lote
-    ? {
-        polygon: lote.poligono.map((p) => ({ ...p })),
-        numeroLote: lote.numeroLote,
-        estado: lote.estado,
-        modeloId: lote.modeloId ?? null,
-        terrenoM2: lote.terrenoM2,
-        dimensionesLote: lote.dimensionesLote,
-      }
-    : null;
+  state.editSnapshot = lote ? captureSnapshot(lote) : null;
   render();
 }
 
@@ -879,6 +1099,7 @@ function fitView(): void {
 // ============ Event handlers ============
 
 function handleSvgMouseDown(e: MouseEvent): void {
+  state.panFromBackground = false;
   if (e.button === 1 || e.button === 2) {
     e.preventDefault();
     startPan(e.clientX, e.clientY);
@@ -892,6 +1113,7 @@ function handleSvgMouseDown(e: MouseEvent): void {
   if (e.button !== 0) return;
 
   if (state.mode === "lotes") {
+    state.panFromBackground = true;
     startPan(e.clientX, e.clientY);
   } else if (state.mode === "draw") {
     if (state.pendingNewLote !== null) return;
@@ -926,10 +1148,28 @@ function handleDocumentMouseMove(e: MouseEvent): void {
   }
 }
 
-function handleDocumentMouseUp(): void {
+function handleDocumentMouseUp(e: MouseEvent): void {
   if (state.isPanning) {
+    const moved = Math.hypot(
+      e.clientX - state.panStart.clientX,
+      e.clientY - state.panStart.clientY,
+    );
+    const wasBackgroundClick = state.panFromBackground;
     state.isPanning = false;
+    state.panFromBackground = false;
     updateCursor();
+    if (
+      wasBackgroundClick &&
+      moved <= CLICK_MOVE_THRESHOLD &&
+      state.mode === "lotes"
+    ) {
+      if (state.selectedVertex !== null) {
+        state.selectedVertex = null;
+        render();
+      } else if (state.selectedLoteId !== null) {
+        void selectLote(null);
+      }
+    }
   }
   if (state.draggingVertex) {
     state.draggingVertex = null;
@@ -947,8 +1187,24 @@ function handleWheel(e: WheelEvent): void {
 }
 
 function handleKeyDown(e: KeyboardEvent): void {
+  if (activeModal !== null) return;
+
   const target = e.target as HTMLElement | null;
   if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+
+  if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+    const key = e.key.toLowerCase();
+    if (key === "c" && state.mode === "lotes" && state.selectedLoteId !== null) {
+      e.preventDefault();
+      copyLote();
+      return;
+    }
+    if (key === "v" && state.clipboard !== null) {
+      e.preventDefault();
+      void pasteLote();
+      return;
+    }
+  }
 
   if (e.key === "Escape") {
     if (state.pendingNewLote !== null) {
@@ -957,6 +1213,9 @@ function handleKeyDown(e: KeyboardEvent): void {
       render();
     } else if (state.currentPolygon.length > 0) {
       state.currentPolygon = [];
+      render();
+    } else if (state.selectedVertex !== null) {
+      state.selectedVertex = null;
       render();
     } else if (state.selectedLoteId !== null) {
       void (async () => {
@@ -1145,14 +1404,7 @@ async function saveLote(): Promise<boolean> {
     clearFormDraft();
     await refreshLotes();
     const saved = state.lotes.find((l) => l.id === result.data!.id) ?? result.data;
-    state.editSnapshot = {
-      polygon: saved.poligono.map((p) => ({ ...p })),
-      numeroLote: saved.numeroLote,
-      estado: saved.estado,
-      modeloId: saved.modeloId ?? null,
-      terrenoM2: saved.terrenoM2,
-      dimensionesLote: saved.dimensionesLote,
-    };
+    state.editSnapshot = captureSnapshot(saved);
     render();
     showFormSuccess("Cambios guardados con éxito");
     return true;
@@ -1174,6 +1426,11 @@ async function deleteLote(): Promise<void> {
     }
     state.lotes = state.lotes.filter((l) => l.id !== id);
     state.selectedLoteId = null;
+    state.selectedVertex = null;
+    state.draggingPolygon = null;
+    state.editSnapshot = null;
+    resetPendingImages();
+    clearFormDraft();
     render();
   } catch (err) {
     showFormError(err instanceof Error ? err.message : String(err));
@@ -1261,6 +1518,7 @@ export function initEditor(): void {
   sidePanel = document.getElementById("side-panel") as HTMLElement;
   zoomDisplay = document.getElementById("zoom-display") as HTMLElement;
   planImage = document.getElementById("plan-image") as SVGGElement | null;
+  createSelectionToolbar();
 
   state.initialView = { w: initialData.plan.anchoPx, h: initialData.plan.altoPx };
   state.view = { x: 0, y: 0, ...state.initialView };
@@ -1276,6 +1534,9 @@ export function initEditor(): void {
   document.getElementById("zoom-in")?.addEventListener("click", () => zoomBy(0.8));
   document.getElementById("zoom-out")?.addEventListener("click", () => zoomBy(1.25));
   document.getElementById("zoom-fit")?.addEventListener("click", () => fitView());
+  document.getElementById("paste-lote")?.addEventListener("click", () => {
+    void pasteLote();
+  });
 
   const viewSelect = document.getElementById("polygon-view") as HTMLSelectElement | null;
   if (viewSelect) {
