@@ -6,6 +6,7 @@ import type { PuntoInteres } from "@features/points/punto.types";
 import type { Plano } from "@db/schema";
 import {
   applyViewTransform as applySvgView,
+  fitView as makeFitView,
   panTo as panView,
   zoomAtPoint as zoomViewAt,
   zoomBy as zoomViewBy,
@@ -725,25 +726,8 @@ function applyZoomDisplay(): void {
 }
 
 function fitView(): void {
-  state.view = makeInitialView(state.initialView);
+  state.view = makeFitView(state.initialView);
   renderViewTransform();
-}
-
-const MOBILE_MAX_WIDTH = 1024;
-const MOBILE_INITIAL_ZOOM = 1.5;
-
-function makeInitialView(initial: { w: number; h: number }): {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-} {
-  if (!window.matchMedia(`(max-width: ${MOBILE_MAX_WIDTH}px)`).matches) {
-    return { x: 0, y: 0, ...initial };
-  }
-  const w = initial.w / MOBILE_INITIAL_ZOOM;
-  const h = initial.h / MOBILE_INITIAL_ZOOM;
-  return { x: (initial.w - w) / 2, y: (initial.h - h) / 2, w, h };
 }
 
 // ============ Event handlers ============
@@ -957,7 +941,7 @@ export function initPublicMap(): void {
   modeloFilter = document.getElementById("modelo-filter") as HTMLSelectElement;
 
   state.initialView = { w: initialData.plan.anchoPx, h: initialData.plan.altoPx };
-  state.view = makeInitialView(state.initialView);
+  state.view = makeFitView(state.initialView);
   planAncho = initialData.plan.anchoPx;
   planAlto = initialData.plan.altoPx;
   state.lotes = initialData.lotes;
