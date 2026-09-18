@@ -4,7 +4,6 @@ export const users = pgTable("users", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
   email: varchar("email", { length: 255 }).notNull().unique(),
   passwordHash: text("password_hash").notNull(),
-  role: text("role").notNull().default("admin"),
   createdAt: bigint("created_at", { mode: "number" })
     .notNull()
     .$defaultFn(() => Date.now()),

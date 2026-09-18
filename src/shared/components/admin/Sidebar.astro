@@ -97,7 +97,6 @@ const icons: Record<string, string> = {
     <div class="sidebar-user">
       <div class="user-meta">
         <span class="user-email" title={user.email}>{user.email}</span>
-        <span class="role-badge">{user.role}</span>
       </div>
       <div class="user-row">
         <form method="POST" action="/api/auth/logout" class="logout-form">
@@ -291,18 +290,6 @@ const icons: Record<string, string> = {
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .role-badge {
-    display: inline-block;
-    align-self: flex-start;
-    padding: 0.1rem 0.5rem;
-    border-radius: var(--r-pill);
-    background: var(--c-accent);
-    color: var(--c-white);
-    font-size: 0.65rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
   .user-row {
     display: flex;
     flex-direction: column;
@@ -420,49 +407,14 @@ const icons: Record<string, string> = {
       border-top: 0;
       align-items: center;
     }
-    .admin-sidebar.collapsed .logout-btn,
-    :global([data-amena-sidebar="collapsed"]) .admin-sidebar .logout-btn {
-      width: 32px;
-      height: 32px;
-      padding: 0;
-      justify-content: center;
-    }
     .admin-sidebar:not(.collapsed) .logout-btn {
       width: auto;
       height: 32px;
       padding: 0 0.75rem;
     }
-    .admin-sidebar.collapsed .logout-label,
-    :global([data-amena-sidebar="collapsed"]) .admin-sidebar .logout-label {
+    .admin-sidebar.collapsed .logout-form,
+    :global([data-amena-sidebar="collapsed"]) .admin-sidebar .logout-form {
       display: none;
-    }
-    .admin-sidebar.collapsed .logout-btn::after,
-    :global([data-amena-sidebar="collapsed"]) .admin-sidebar .logout-btn::after {
-      content: "Salir";
-      position: absolute;
-      left: calc(100% + 12px);
-      top: 50%;
-      transform: translateY(-50%) translateX(-4px);
-      padding: 0.35rem 0.6rem;
-      background: var(--c-bg-dark);
-      color: var(--c-white);
-      font-size: 0.8rem;
-      font-weight: 500;
-      border-radius: var(--r-sm);
-      white-space: nowrap;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 150ms ease, transform 150ms ease;
-      box-shadow: var(--c-shadow-medium);
-      z-index: 50;
-    }
-    .admin-sidebar.collapsed .logout-btn:hover::after,
-    :global([data-amena-sidebar="collapsed"]) .admin-sidebar .logout-btn:hover::after {
-      opacity: 1;
-      transform: translateY(-50%) translateX(0);
-    }
-    .logout-btn {
-      position: relative;
     }
     .sidebar-toggle {
       display: inline-flex;

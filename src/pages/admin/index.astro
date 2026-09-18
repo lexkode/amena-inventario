@@ -16,7 +16,6 @@ if (!user) {
     <h2 class="card-title">Bienvenido</h2>
     <p class="muted welcome-line">
       Sesión iniciada como <strong>{user.email}</strong>
-      <span class="role-badge">{user.role}</span>
     </p>
   </section>
 </AdminLayout>
@@ -28,17 +27,5 @@ if (!user) {
   }
   .welcome-line {
     margin: 0;
-  }
-  .role-badge {
-    display: inline-block;
-    padding: 0.15rem 0.55rem;
-    border-radius: var(--r-pill);
-    background: var(--c-accent);
-    color: var(--c-white);
-    font-size: 0.75rem;
-    font-weight: 600;
-    margin-left: 0.5rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
   }
 </style>

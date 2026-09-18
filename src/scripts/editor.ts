@@ -24,6 +24,7 @@ import {
 import { SVG_NS, escapeHtml } from "@shared/map/svg-utils";
 import { createLotLabel, createLotPolygon, LOT_BORDER_WIDTH } from "@shared/map/lot-renderer";
 import { ESTADO_FILL, ESTADO_STROKE } from "@shared/map/lot-colors";
+import { puntoMarkerRadius } from "@shared/map/punto-marker";
 
 type Mode = "lotes" | "draw" | "punto";
 
@@ -67,6 +68,8 @@ type HistoryEntry = {
   at: number;
   lotes: LoteConModelo[];
   selectedLoteId: number | null;
+  puntos: PuntoInteres[];
+  selectedPuntoId: number | null;
 };
 
 type State = {
@@ -84,6 +87,7 @@ type State = {
   selectedVertex: { loteId: number; index: number } | null;
   draggingVertex: { loteId: number; index: number } | null;
   draggingPolygon: { loteId: number; start: Punto; original: Punto[] } | null;
+  draggingPunto: { puntoId: number; dx: number; dy: number } | null;
   dragMoved: boolean;
   lotes: LoteConModelo[];
   puntos: PuntoInteres[];
@@ -94,11 +98,14 @@ type State = {
   pendingImageRemoves: number[];
   formDirty: boolean;
   draft: LoteDraft | null;
+  puntoDirty: boolean;
+  puntoDraft: { nombre: string; informacion: string } | null;
   editSnapshot: LoteSnapshot | null;
   clipboard: LoteClipboard | null;
   history: HistoryEntry[];
   historyIndex: number;
   synced: LoteConModelo[];
+  syncedPuntos: PuntoInteres[];
   nextTempId: number;
   pendingImageFiles: Map<number, File>;
   pendingImagePaths: Map<number, string>;
@@ -115,6 +122,7 @@ type InitialData = {
     imagenPath: string;
     anchoPx: number;
     altoPx: number;
+    opacidad: number;
   } | null;
   lotes: LoteConModelo[];
   puntos: PuntoInteres[];
@@ -139,6 +147,7 @@ const state: State = {
   selectedVertex: null,
   draggingVertex: null,
   draggingPolygon: null,
+  draggingPunto: null,
   dragMoved: false,
   lotes: [],
   puntos: [],
@@ -149,11 +158,14 @@ const state: State = {
   pendingImageRemoves: [],
   formDirty: false,
   draft: null,
+  puntoDirty: false,
+  puntoDraft: null,
   editSnapshot: null,
   clipboard: null,
   history: [],
   historyIndex: -1,
   synced: [],
+  syncedPuntos: [],
   nextTempId: -1,
   pendingImageFiles: new Map(),
   pendingImagePaths: new Map(),
@@ -180,6 +192,7 @@ let sidePanel!: HTMLElement;
 let zoomDisplay!: HTMLElement;
 let selectionToolbar: HTMLDivElement | null = null;
 let planImage: SVGGElement | null = null;
+let planOpacity = 0.8;
 let initialData: InitialData;
 
 // ============ Working copy & history ============
@@ -190,6 +203,10 @@ function cloneLotes(lotes: LoteConModelo[]): LoteConModelo[] {
   return structuredClone(lotes);
 }
 
+function clonePuntos(puntos: PuntoInteres[]): PuntoInteres[] {
+  return structuredClone(puntos);
+}
+
 function genTempId(): number {
   const id = state.nextTempId;
   state.nextTempId -= 1;
@@ -197,7 +214,19 @@ function genTempId(): number {
 }
 
 function documentDirty(): boolean {
-  return JSON.stringify(state.lotes) !== JSON.stringify(state.synced);
+  return (
+    JSON.stringify(state.lotes) !== JSON.stringify(state.synced) ||
+    JSON.stringify(state.puntos) !== JSON.stringify(state.syncedPuntos)
+  );
+}
+
+function puntoFieldsChanged(a: PuntoInteres, b: PuntoInteres): boolean {
+  return (
+    a.nombre !== b.nombre ||
+    a.informacion !== b.informacion ||
+    a.x !== b.x ||
+    a.y !== b.y
+  );
 }
 
 function loteFieldsChanged(a: LoteConModelo, b: LoteConModelo): boolean {
@@ -290,6 +319,8 @@ function commitHistory(label: string, coalesceKey?: string): void {
     last.at = now;
     last.lotes = cloneLotes(state.lotes);
     last.selectedLoteId = state.selectedLoteId;
+    last.puntos = clonePuntos(state.puntos);
+    last.selectedPuntoId = state.selectedPuntoId;
     renderHistoryControls();
     updateDirtyIndicator();
     return;
@@ -302,6 +333,8 @@ function commitHistory(label: string, coalesceKey?: string): void {
     at: now,
     lotes: cloneLotes(state.lotes),
     selectedLoteId: state.selectedLoteId,
+    puntos: clonePuntos(state.puntos),
+    selectedPuntoId: state.selectedPuntoId,
   });
   state.historyIndex = state.history.length - 1;
 
@@ -319,15 +352,22 @@ function goToHistory(index: number): void {
   state.historyIndex = index;
   const entry = state.history[index];
   state.lotes = cloneLotes(entry.lotes);
+  state.puntos = clonePuntos(entry.puntos);
   state.pendingNewLote = null;
   state.currentPolygon = [];
   state.selectedVertex = null;
   state.draggingPolygon = null;
+  state.draggingPunto = null;
+  state.nuevoPuntoPos = null;
   resetPendingImages();
   clearFormDraft();
   state.selectedLoteId =
     entry.selectedLoteId !== null && state.lotes.some((l) => l.id === entry.selectedLoteId)
       ? entry.selectedLoteId
+      : null;
+  state.selectedPuntoId =
+    entry.selectedPuntoId !== null && state.puntos.some((p) => p.id === entry.selectedPuntoId)
+      ? entry.selectedPuntoId
       : null;
   const lote = state.lotes.find((l) => l.id === state.selectedLoteId);
   state.editSnapshot = lote ? captureSnapshot(lote) : null;
@@ -428,6 +468,8 @@ function renderLotsLayer(): void {
 function renderPuntosLayer(): void {
   while (puntosLayer.firstChild) puntosLayer.removeChild(puntosLayer.firstChild);
 
+  const r = puntoMarkerRadius(state.initialView.w, state.initialView.h);
+
   for (const punto of state.puntos) {
     const isSelected = punto.id === state.selectedPuntoId;
     const group = document.createElementNS(SVG_NS, "g");
@@ -437,31 +479,72 @@ function renderPuntosLayer(): void {
     const circle = document.createElementNS(SVG_NS, "circle");
     circle.setAttribute("cx", String(punto.x));
     circle.setAttribute("cy", String(punto.y));
-    circle.setAttribute("r", "14");
+    circle.setAttribute("r", String(r));
     circle.setAttribute("fill", isSelected ? "#dc832f" : "#244858");
     circle.setAttribute("stroke", "#ffffff");
-    circle.setAttribute("stroke-width", "3");
+    circle.setAttribute("stroke-width", String(r * 0.22));
     group.appendChild(circle);
 
     const dot = document.createElementNS(SVG_NS, "circle");
     dot.setAttribute("cx", String(punto.x));
     dot.setAttribute("cy", String(punto.y));
-    dot.setAttribute("r", "4");
+    dot.setAttribute("r", String(r * 0.3));
     dot.setAttribute("fill", "#ffffff");
     group.appendChild(dot);
 
-    if (state.mode === "punto") {
-      group.style.cursor = "pointer";
+    if (state.mode !== "draw") {
+      group.style.cursor = isSelected ? "grab" : "pointer";
       group.addEventListener("mousedown", (e) => {
         if (e.button !== 0) return;
         e.stopPropagation();
-        state.selectedPuntoId = punto.id;
-        state.nuevoPuntoPos = null;
-        render();
+        if (isSelected) {
+          const p = svgToPoint(svg, e.clientX, e.clientY);
+          state.draggingPunto = {
+            puntoId: punto.id,
+            dx: p.x - punto.x,
+            dy: p.y - punto.y,
+          };
+          state.dragMoved = false;
+          group.style.cursor = "grabbing";
+        } else {
+          state.selectedPuntoId = punto.id;
+          state.selectedLoteId = null;
+          state.selectedVertex = null;
+          state.nuevoPuntoPos = null;
+          state.mode = "lotes";
+          state.puntoDraft = null;
+          state.puntoDirty = false;
+          render();
+        }
       });
     } else {
       group.style.pointerEvents = "none";
     }
+
+    puntosLayer.appendChild(group);
+  }
+
+  if (state.nuevoPuntoPos !== null) {
+    const { x, y } = state.nuevoPuntoPos;
+    const group = document.createElementNS(SVG_NS, "g");
+    group.setAttribute("class", "punto-marker punto-marker-pending");
+    group.style.pointerEvents = "none";
+
+    const circle = document.createElementNS(SVG_NS, "circle");
+    circle.setAttribute("cx", String(x));
+    circle.setAttribute("cy", String(y));
+    circle.setAttribute("r", String(r));
+    circle.setAttribute("fill", "#dc832f");
+    circle.setAttribute("stroke", "#ffffff");
+    circle.setAttribute("stroke-width", String(r * 0.22));
+    group.appendChild(circle);
+
+    const dot = document.createElementNS(SVG_NS, "circle");
+    dot.setAttribute("cx", String(x));
+    dot.setAttribute("cy", String(y));
+    dot.setAttribute("r", String(r * 0.3));
+    dot.setAttribute("fill", "#ffffff");
+    group.appendChild(dot);
 
     puntosLayer.appendChild(group);
   }
@@ -556,19 +639,24 @@ function renderSidePanel(): void {
     return;
   }
 
-  if (state.mode === "punto") {
-    if (state.nuevoPuntoPos !== null) {
-      renderPuntoForm(null, state.nuevoPuntoPos);
+  if (state.nuevoPuntoPos !== null) {
+    renderPuntoForm(null, state.nuevoPuntoPos);
+    return;
+  }
+
+  if (state.selectedPuntoId !== null) {
+    const punto = state.puntos.find((p) => p.id === state.selectedPuntoId);
+    if (punto) {
+      renderPuntoForm(punto, null);
       return;
     }
-    if (state.selectedPuntoId !== null) {
-      const punto = state.puntos.find((p) => p.id === state.selectedPuntoId);
-      if (punto) {
-        renderPuntoForm(punto, null);
-        return;
-      }
-    }
-    renderPuntoList();
+  }
+
+  if (state.mode === "punto") {
+    sidePanel.innerHTML = `
+      <h2 style="margin-top:0">Nuevo punto de interés</h2>
+      <p style="color:#5a7682;font-size:.9rem">Haz clic en el plano para ubicarlo.</p>
+    `;
     return;
   }
 
@@ -662,39 +750,19 @@ function renderLoteList(): void {
   });
 }
 
-function renderPuntoList(): void {
-  let html = `<h2 style="margin-top:0">Puntos de interés</h2>`;
-  html += `<p style="color:#5a7682;font-size:.9rem">Haz clic en el plano para ubicar un nuevo punto.</p>`;
-
-  if (state.puntos.length === 0) {
-    html += `<p class="lote-vacio">Todavía no hay puntos de interés.</p>`;
-  } else {
-    html += `<ul class="lote-list">`;
-    for (const punto of state.puntos) {
-      html += `<li><button type="button" class="lote-row" data-punto-id="${punto.id}">${escapeHtml(punto.nombre)}</button></li>`;
-    }
-    html += `</ul>`;
-  }
-
-  sidePanel.innerHTML = `<div class="lote-scroll">${html}</div>`;
-  sidePanel.querySelectorAll<HTMLElement>("[data-punto-id]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      state.selectedPuntoId = Number(btn.dataset.puntoId);
-      state.nuevoPuntoPos = null;
-      render();
-    });
-  });
-}
-
 function renderPuntoForm(punto: PuntoInteres | null, pos: Punto | null): void {
   const isNew = punto === null;
-  const nombre = punto?.nombre ?? "";
-  const informacion = punto?.informacion ?? "";
+  const draft = state.puntoDraft;
+  const nombre = draft ? draft.nombre : (punto?.nombre ?? "");
+  const informacion = draft ? draft.informacion : (punto?.informacion ?? "");
   const imagenes = punto?.imagenes ?? [];
   const atLimit = imagenes.length >= MAX_IMAGENES_POR_PUNTO;
+  const canEditImages = punto !== null && punto.id > 0;
 
-  const imagenesHtml = isNew
-    ? ""
+  const imagenesHtml = !canEditImages
+    ? isNew
+      ? ""
+      : '<p class="hint">Guarda el borrador para poder agregar imágenes.</p>'
     : `
       <div class="field">
         <label>Imágenes</label>
@@ -722,7 +790,11 @@ function renderPuntoForm(punto: PuntoInteres | null, pos: Punto | null): void {
   sidePanel.innerHTML = `
     <form id="punto-form" class="form-col" autocomplete="off">
       <div class="form-head">
-        <button type="button" id="punto-back" class="back-btn" aria-label="Volver"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg></button>
+        ${
+          isNew
+            ? ""
+            : '<button type="button" id="punto-back" class="back-btn" aria-label="Volver"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg></button>'
+        }
         <h2>${escapeHtml(isNew ? "Nuevo punto de interés" : nombre)}</h2>
         <span class="panel-spacer" aria-hidden="true"></span>
       </div>
@@ -741,9 +813,9 @@ function renderPuntoForm(punto: PuntoInteres | null, pos: Punto | null): void {
         <p id="form-error" class="form-error" hidden></p>
         <p id="form-success" class="form-success" hidden></p>
         <div class="actions">
-          <button type="submit" class="btn-primary">${isNew ? "Crear punto" : "Guardar cambios"}</button>
-          ${!isNew ? '<button type="button" id="punto-delete" class="btn-danger">Eliminar</button>' : ""}
-          <button type="button" id="punto-cancel" class="btn-secondary">Cancelar</button>
+          <button type="submit" id="punto-save-btn" class="btn-primary" ${!isNew && !state.puntoDirty ? "disabled" : ""}>${isNew ? "Crear punto" : "Aplicar cambios"}</button>
+          ${!isNew ? '<button type="button" id="punto-delete" class="btn-danger">Eliminar punto</button>' : ""}
+          ${isNew ? '<button type="button" id="punto-cancel" class="btn-secondary">Cancelar</button>' : ""}
         </div>
       </div>
     </form>
@@ -754,9 +826,25 @@ function renderPuntoForm(punto: PuntoInteres | null, pos: Punto | null): void {
     void savePunto(punto, pos);
   });
 
+  const markPuntoDirty = (): void => {
+    state.puntoDirty = true;
+    state.puntoDraft = {
+      nombre:
+        (document.getElementById("punto-nombre") as HTMLInputElement | null)?.value ?? "",
+      informacion:
+        (document.getElementById("punto-info") as HTMLTextAreaElement | null)?.value ?? "",
+    };
+    const btn = document.getElementById("punto-save-btn") as HTMLButtonElement | null;
+    if (btn) btn.disabled = false;
+  };
+  document.getElementById("punto-nombre")?.addEventListener("input", markPuntoDirty);
+  document.getElementById("punto-info")?.addEventListener("input", markPuntoDirty);
+
   const close = (): void => {
     state.nuevoPuntoPos = null;
     state.selectedPuntoId = null;
+    state.puntoDraft = null;
+    state.puntoDirty = false;
     render();
   };
   document.getElementById("punto-cancel")?.addEventListener("click", close);
@@ -768,11 +856,11 @@ function renderPuntoForm(punto: PuntoInteres | null, pos: Punto | null): void {
         if (await confirmDeletePunto(punto)) void deletePunto(punto.id);
       })();
     });
-    bindPuntoImageHandlers(punto);
+    if (punto.id > 0) bindPuntoImageHandlers(punto);
   }
 }
 
-async function savePunto(punto: PuntoInteres | null, pos: Punto | null): Promise<void> {
+function savePunto(punto: PuntoInteres | null, pos: Punto | null): void {
   clearFormError();
   const nombreEl = document.getElementById("punto-nombre") as HTMLInputElement | null;
   const infoEl = document.getElementById("punto-info") as HTMLTextAreaElement | null;
@@ -783,52 +871,50 @@ async function savePunto(punto: PuntoInteres | null, pos: Punto | null): Promise
     return;
   }
 
-  const isNew = punto === null;
-  const url = isNew ? "/api/admin/puntos" : `/api/admin/puntos/${punto.id}`;
-  const body = isNew
-    ? { nombre, informacion, x: pos?.x ?? 0, y: pos?.y ?? 0 }
-    : { nombre, informacion };
-
-  try {
-    const res = await fetch(url, {
-      method: isNew ? "POST" : "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const r = (await res.json()) as { ok: boolean; data?: PuntoInteres; error?: string };
-    if (!r.ok || !r.data) throw new Error(r.error ?? "Error al guardar el punto");
-
-    if (isNew) {
-      state.puntos.push(r.data);
-      state.selectedPuntoId = r.data.id;
-      state.nuevoPuntoPos = null;
-    } else {
-      const idx = state.puntos.findIndex((p) => p.id === r.data!.id);
-      if (idx >= 0) state.puntos[idx] = r.data;
-    }
-    state.hasUnpublished = true;
+  if (punto === null) {
+    const nuevo: PuntoInteres = {
+      id: genTempId(),
+      nombre,
+      informacion,
+      x: pos?.x ?? 0,
+      y: pos?.y ?? 0,
+      imagenes: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    state.puntos.push(nuevo);
+    state.selectedPuntoId = nuevo.id;
+    state.nuevoPuntoPos = null;
+    state.mode = "lotes";
+    state.puntoDraft = null;
+    state.puntoDirty = false;
+    commitHistory(`Crear punto ${nombre}`);
     render();
-    updateDirtyIndicator();
-    showFormSuccess(isNew ? "Punto creado. No olvides publicar." : "Cambios aplicados. No olvides publicar.");
-  } catch (err) {
-    showFormError(err instanceof Error ? err.message : String(err));
+    showFormSuccess("Punto creado. No olvides publicar.");
+    return;
   }
+
+  const target = state.puntos.find((p) => p.id === punto.id);
+  if (target) {
+    target.nombre = nombre;
+    target.informacion = informacion;
+  }
+  state.puntoDraft = null;
+  state.puntoDirty = false;
+  commitHistory(`Editar punto ${nombre}`);
+  render();
+  showFormSuccess("Cambios aplicados. No olvides publicar.");
 }
 
-async function deletePunto(id: number): Promise<void> {
-  try {
-    const res = await fetch(`/api/admin/puntos/${id}`, { method: "DELETE" });
-    const r = (await res.json()) as { ok: boolean; error?: string };
-    if (!r.ok) throw new Error(r.error ?? "Error al eliminar el punto");
-    state.puntos = state.puntos.filter((p) => p.id !== id);
-    if (state.selectedPuntoId === id) state.selectedPuntoId = null;
-    state.hasUnpublished = true;
-    render();
-    updateDirtyIndicator();
-    showFormSuccess("Punto eliminado. No olvides publicar.");
-  } catch (err) {
-    showFormError(err instanceof Error ? err.message : String(err));
-  }
+function deletePunto(id: number): void {
+  const punto = state.puntos.find((p) => p.id === id);
+  state.puntos = state.puntos.filter((p) => p.id !== id);
+  if (state.selectedPuntoId === id) state.selectedPuntoId = null;
+  state.puntoDraft = null;
+  state.puntoDirty = false;
+  commitHistory(`Eliminar punto ${punto?.nombre ?? ""}`.trim());
+  render();
+  showFormSuccess("Punto eliminado. No olvides publicar.");
 }
 
 async function confirmDeletePunto(punto: PuntoInteres): Promise<boolean> {
@@ -857,6 +943,7 @@ function bindPuntoImageHandlers(punto: PuntoInteres): void {
 }
 
 function openPuntoImagePicker(punto: PuntoInteres): void {
+  if (punto.id <= 0) return;
   const existing = punto.imagenes.map((img) => img.path);
   const remaining = MAX_IMAGENES_POR_PUNTO - existing.length;
   if (remaining <= 0) return;
@@ -1121,6 +1208,8 @@ function markFormDirty(): void {
 function clearFormDraft(): void {
   state.draft = null;
   state.formDirty = false;
+  state.puntoDraft = null;
+  state.puntoDirty = false;
 }
 
 function renderLoteImages(): void {
@@ -1225,17 +1314,17 @@ function bindImageHandlers(): void {
 }
 
 function renderModeButtons(): void {
-  document
-    .getElementById("create-lote")
-    ?.classList.toggle("active", state.mode === "draw");
-  document
-    .getElementById("create-punto")
-    ?.classList.toggle("active", state.mode === "punto");
+  const creating = state.mode === "draw" || state.mode === "punto";
+  document.getElementById("create-lote")?.classList.toggle("active", creating);
+  document.getElementById("create-toggle")?.classList.toggle("active", creating);
 }
 
 function renderMapOpacity(): void {
   if (!planImage) return;
-  planImage.setAttribute("opacity", state.polygonView === "estandar" ? "0.5" : "1");
+  planImage.setAttribute(
+    "opacity",
+    state.polygonView === "estandar" ? "0.5" : String(planOpacity),
+  );
 }
 
 function createSelectionToolbar(): void {
@@ -1815,6 +1904,8 @@ async function selectLote(id: number | null): Promise<void> {
   state.draggingPolygon = null;
   state.pendingNewLote = null;
   state.currentPolygon = [];
+  state.selectedPuntoId = null;
+  state.nuevoPuntoPos = null;
   resetPendingImages();
   clearFormDraft();
   const lote = id !== null ? state.lotes.find((l) => l.id === id) : undefined;
@@ -1926,6 +2017,10 @@ function handleSvgMouseDown(e: MouseEvent): void {
   } else if (state.mode === "punto") {
     state.nuevoPuntoPos = svgToPoint(svg, e.clientX, e.clientY);
     state.selectedPuntoId = null;
+    state.selectedLoteId = null;
+    state.mode = "lotes";
+    state.puntoDraft = null;
+    state.puntoDirty = false;
     render();
   }
 }
@@ -1952,6 +2047,16 @@ function handleDocumentMouseMove(e: MouseEvent): void {
       state.dragMoved = true;
       render();
     }
+  } else if (state.draggingPunto) {
+    const drag = state.draggingPunto;
+    const p = svgToPoint(svg, e.clientX, e.clientY);
+    const punto = state.puntos.find((pt) => pt.id === drag.puntoId);
+    if (punto) {
+      punto.x = Math.round(p.x - drag.dx);
+      punto.y = Math.round(p.y - drag.dy);
+      state.dragMoved = true;
+      render();
+    }
   }
 }
 
@@ -1975,6 +2080,10 @@ function handleDocumentMouseUp(e: MouseEvent): void {
         render();
       } else if (state.selectedLoteId !== null) {
         void selectLote(null);
+      } else if (state.selectedPuntoId !== null || state.nuevoPuntoPos !== null) {
+        state.selectedPuntoId = null;
+        state.nuevoPuntoPos = null;
+        render();
       }
     }
   }
@@ -1997,6 +2106,16 @@ function handleDocumentMouseUp(e: MouseEvent): void {
     if (moved) {
       const lote = state.lotes.find((l) => l.id === drag.loteId);
       if (lote) commitHistory(`Mover lote ${lote.numeroLote}`, `polygon:${lote.id}`);
+    }
+  }
+  if (state.draggingPunto) {
+    const drag = state.draggingPunto;
+    const moved = state.dragMoved;
+    state.draggingPunto = null;
+    state.dragMoved = false;
+    if (moved) {
+      const punto = state.puntos.find((p) => p.id === drag.puntoId);
+      if (punto) commitHistory(`Mover punto ${punto.nombre}`, `punto:${punto.id}`);
     }
   }
 }
@@ -2079,6 +2198,10 @@ function handleKeyDown(e: KeyboardEvent): void {
           render();
         }
       })();
+    } else if (state.nuevoPuntoPos !== null || state.selectedPuntoId !== null) {
+      state.nuevoPuntoPos = null;
+      state.selectedPuntoId = null;
+      render();
     } else {
       render();
     }
@@ -2112,6 +2235,19 @@ function handleKeyDown(e: KeyboardEvent): void {
         const p = lote.poligono[idx];
         lote.poligono[idx] = { x: p.x + dx, y: p.y + dy };
         commitHistory(`Mover vértice lote ${lote.numeroLote}`, `nudge-vertex:${lote.id}`);
+        e.preventDefault();
+        render();
+      }
+    }
+  } else if (state.selectedPuntoId !== null) {
+    const punto = state.puntos.find((p) => p.id === state.selectedPuntoId);
+    if (punto) {
+      const dx = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
+      const dy = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
+      if (dx !== 0 || dy !== 0) {
+        punto.x += dx;
+        punto.y += dy;
+        commitHistory(`Mover punto ${punto.nombre}`, `nudge-punto:${punto.id}`);
         e.preventDefault();
         render();
       }
@@ -2470,8 +2606,55 @@ async function guardarBorrador(): Promise<boolean> {
       }
     }
 
+    // Sincronizar puntos de interés (igual que los lotes: local hasta guardar)
+    const puntoIdMap = new Map<number, number>();
+    const syncedPuntosById = new Map(state.syncedPuntos.map((p) => [p.id, p]));
+    const currentPuntosById = new Map(state.puntos.map((p) => [p.id, p]));
+
+    for (const p of state.syncedPuntos) {
+      if (p.id > 0 && !currentPuntosById.has(p.id)) {
+        const res = await fetch(`/api/admin/puntos/${p.id}`, { method: "DELETE" });
+        const r = (await res.json()) as { ok: boolean; error?: string };
+        if (!r.ok) throw new Error(r.error ?? "Error al eliminar el punto");
+      }
+    }
+
+    for (const punto of state.puntos) {
+      const base = syncedPuntosById.get(punto.id);
+      if (!base) {
+        const res = await fetch("/api/admin/puntos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            nombre: punto.nombre,
+            informacion: punto.informacion,
+            x: punto.x,
+            y: punto.y,
+          }),
+        });
+        const r = (await res.json()) as { ok: boolean; data?: PuntoInteres; error?: string };
+        if (!r.ok || !r.data) throw new Error(r.error ?? "Error al crear el punto");
+        puntoIdMap.set(punto.id, r.data.id);
+      } else if (puntoFieldsChanged(base, punto)) {
+        const res = await fetch(`/api/admin/puntos/${punto.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            nombre: punto.nombre,
+            informacion: punto.informacion,
+            x: punto.x,
+            y: punto.y,
+          }),
+        });
+        const r = (await res.json()) as { ok: boolean; error?: string };
+        if (!r.ok) throw new Error(r.error ?? "Error al guardar el punto");
+      }
+    }
+
     remapDocumentIds(loteIdMap, imgIdMap);
+    remapPuntoIds(puntoIdMap);
     state.synced = cloneLotes(state.lotes);
+    state.syncedPuntos = clonePuntos(state.puntos);
     state.pendingImageFiles.clear();
     state.pendingImagePaths.clear();
     state.clipboard = null;
@@ -2906,6 +3089,24 @@ function remapDocumentIds(
   }
 }
 
+function remapPuntoIds(puntoIdMap: Map<number, number>): void {
+  if (puntoIdMap.size === 0) return;
+  const remap = (punto: PuntoInteres): void => {
+    const mapped = puntoIdMap.get(punto.id);
+    if (mapped !== undefined) punto.id = mapped;
+  };
+  for (const punto of state.puntos) remap(punto);
+  for (const entry of state.history) {
+    for (const punto of entry.puntos) remap(punto);
+    if (entry.selectedPuntoId !== null && puntoIdMap.has(entry.selectedPuntoId)) {
+      entry.selectedPuntoId = puntoIdMap.get(entry.selectedPuntoId)!;
+    }
+  }
+  if (state.selectedPuntoId !== null && puntoIdMap.has(state.selectedPuntoId)) {
+    state.selectedPuntoId = puntoIdMap.get(state.selectedPuntoId)!;
+  }
+}
+
 // ============ Init ============
 
 export function initEditor(): void {
@@ -2926,6 +3127,7 @@ export function initEditor(): void {
   sidePanel = document.getElementById("side-panel") as HTMLElement;
   zoomDisplay = document.getElementById("zoom-display") as HTMLElement;
   planImage = document.getElementById("plan-image") as SVGGElement | null;
+  planOpacity = (initialData.plan.opacidad ?? 80) / 100;
   createSelectionToolbar();
 
   state.initialView = { w: initialData.plan.anchoPx, h: initialData.plan.altoPx };
@@ -2935,6 +3137,7 @@ export function initEditor(): void {
   state.puntos = initialData.puntos ?? [];
   state.modelos = initialData.modelos;
   state.synced = cloneLotes(initialData.lotes);
+  state.syncedPuntos = clonePuntos(state.puntos);
   state.hasPublication = initialData.estadoPublicacion?.tienePublicacion ?? false;
   state.hasUnpublished = initialData.estadoPublicacion?.pendiente ?? false;
   commitHistory("Estado inicial");
@@ -2947,6 +3150,7 @@ export function initEditor(): void {
     void setMode("draw");
   });
   document.getElementById("create-punto")?.addEventListener("click", () => {
+    closeAllDropdowns();
     if (state.mode === "punto") {
       state.nuevoPuntoPos = null;
       state.selectedPuntoId = null;

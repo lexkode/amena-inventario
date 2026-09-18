@@ -14,6 +14,7 @@ import {
 import { escapeHtml } from "@shared/map/svg-utils";
 import { createLotLabel, createLotPolygon } from "@shared/map/lot-renderer";
 import { ESTADO_FILL, ESTADO_LABEL, ESTADO_STROKE } from "@shared/map/lot-colors";
+import { puntoMarkerRadius } from "@shared/map/punto-marker";
 
 type FilterStatus = "all" | LoteEstado;
 
@@ -152,7 +153,7 @@ function renderLotsLayer(): void {
 function renderPuntosLayer(): void {
   while (puntosLayer.firstChild) puntosLayer.removeChild(puntosLayer.firstChild);
 
-  const r = Math.max(planAncho, planAlto) * 0.012;
+  const r = puntoMarkerRadius(planAncho, planAlto);
   for (const punto of state.puntos) {
     const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
     group.setAttribute("class", "punto-marker");

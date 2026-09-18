@@ -6,7 +6,6 @@ import { modelos, users, type NewModelo } from "./schema";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-const ADMIN_ROLE = "admin";
 
 const AMENA_MODELOS: NewModelo[] = [
   {
@@ -278,12 +277,11 @@ async function seedAdmin(): Promise<void> {
     .values({
       email: ADMIN_EMAIL,
       passwordHash,
-      role: ADMIN_ROLE,
     })
     .returning({ id: users.id });
 
   console.log(
-    `[seed] created admin user "${ADMIN_EMAIL}" (id=${inserted?.id}, role=${ADMIN_ROLE})`,
+    `[seed] created admin user "${ADMIN_EMAIL}" (id=${inserted?.id})`,
   );
 }
 
