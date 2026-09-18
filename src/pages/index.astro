@@ -557,11 +557,22 @@ const planCornerRadius = plan
       z-index: 5;
       width: 2.25rem;
       height: 2.25rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       border: 0;
       border-radius: 999px;
       font-size: 1.4rem;
       line-height: 1;
       cursor: pointer;
+      background: var(--c-overlay-strong);
+      color: var(--c-white);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      transition: background 0.2s ease;
+    }
+    .modal-close:hover {
+      background: var(--c-accent);
     }
 
     .modal-grid {
@@ -607,8 +618,9 @@ const planCornerRadius = plan
     }
     :global(.lot-gallery-counter) {
       position: absolute;
-      top: 0.75rem;
+      bottom: 0.75rem;
       right: 0.75rem;
+      z-index: 2;
       padding: 0.25rem 0.6rem;
       background: var(--c-overlay-strong);
       color: var(--c-white);
@@ -678,9 +690,32 @@ const planCornerRadius = plan
       flex-direction: column;
       min-height: 0;
     }
+    :global(.modal-info .info-scroll) {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      scrollbar-gutter: stable;
+      overscroll-behavior: contain;
+    }
+    :global(.modal-info .info-scroll::-webkit-scrollbar) {
+      width: 10px;
+    }
+    :global(.modal-info .info-scroll::-webkit-scrollbar-track) {
+      background: transparent;
+    }
+    :global(.modal-info .info-scroll::-webkit-scrollbar-thumb) {
+      background: var(--c-text-muted);
+      border-radius: 999px;
+      border: 2px solid transparent;
+      background-clip: padding-box;
+    }
+    :global(.modal-info .info-scroll::-webkit-scrollbar-thumb:hover) {
+      background: var(--c-accent);
+    }
     :global(.modal-info .info-header) {
-      padding: 1.4rem 1.5rem 0.75rem;
-      border-bottom: 1px solid var(--c-line);
+      padding: 1.4rem 1.5rem 0;
     }
     :global(.modal-info .info-title-row) {
       display: flex;
@@ -752,12 +787,10 @@ const planCornerRadius = plan
     }
 
     :global(.modal-info .info-body) {
-      flex: 1;
       padding: 1.25rem 1.5rem;
       display: flex;
       flex-direction: column;
       gap: 1.25rem;
-      overflow-y: auto;
     }
     :global(.modal-info .lot-specs),
     :global(.modal-info .modelo-specs) {

@@ -92,6 +92,7 @@ let planAlto = 1;
 let touchStart: { x: number; y: number } | null = null;
 let touchMoved = false;
 let suppressNextClick = false;
+let pinchDist = 0;
 
 // ============ Helpers ============
 
@@ -273,14 +274,16 @@ function renderPuntoGallery(punto: PuntoInteres): void {
 function renderPuntoInfo(punto: PuntoInteres): void {
   const info = punto.informacion.trim();
   puntoModalInfo.innerHTML = `
-    <div class="info-header">
-      <div class="info-title-row">
-        <h2 class="info-title" id="punto-modal-title">${escapeHtml(punto.nombre)}</h2>
+    <div class="info-scroll">
+      <div class="info-header">
+        <div class="info-title-row">
+          <h2 class="info-title" id="punto-modal-title">${escapeHtml(punto.nombre)}</h2>
+        </div>
+        <p class="info-model-name muted">Punto de interés</p>
       </div>
-      <p class="info-model-name muted">Punto de interés</p>
-    </div>
-    <div class="info-body">
-      ${info ? `<p class="poi-info-text">${escapeHtml(info)}</p>` : `<p class="poi-info-text muted">Sin información adicional.</p>`}
+      <div class="info-body">
+        ${info ? `<p class="poi-info-text">${escapeHtml(info)}</p>` : `<p class="poi-info-text muted">Sin información adicional.</p>`}
+      </div>
     </div>
   `;
 }
@@ -498,6 +501,7 @@ function renderLotInfo(lote: LoteConModelo): void {
   const topFeatures = modelo ? modelo.caracteristicas.slice(0, 6) : [];
 
   lotModalInfo.innerHTML = `
+    <div class="info-scroll">
     <div class="info-header">
       <span class="status-badge status-${lote.estado}">${ESTADO_LABEL[lote.estado]}</span>
       <h2 class="info-title" id="lot-modal-title">Lote ${escapeHtml(lote.numeroLote)}${
@@ -531,6 +535,7 @@ function renderLotInfo(lote: LoteConModelo): void {
           </div>`
           : ""}`
         : ""}
+    </div>
     </div>
     <div class="info-footer">
       <button type="button" class="info-cta" id="lot-cta-consultar">Consultar por este Lote</button>
@@ -794,7 +799,22 @@ function handleWheel(e: WheelEvent): void {
   zoomAtPoint(factor, e.clientX, e.clientY);
 }
 
+function touchDistance(a: Touch, b: Touch): number {
+  return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+}
+
+function touchMidpoint(a: Touch, b: Touch): { x: number; y: number } {
+  return { x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 };
+}
+
 function handleTouchStart(e: TouchEvent): void {
+  if (e.touches.length === 2) {
+    state.isPanning = false;
+    touchStart = null;
+    touchMoved = true;
+    pinchDist = touchDistance(e.touches[0], e.touches[1]);
+    return;
+  }
   if (e.touches.length !== 1) return;
   const t = e.touches[0];
   touchStart = { x: t.clientX, y: t.clientY };
@@ -803,6 +823,17 @@ function handleTouchStart(e: TouchEvent): void {
 }
 
 function handleTouchMove(e: TouchEvent): void {
+  if (e.touches.length === 2) {
+    e.preventDefault();
+    const dist = touchDistance(e.touches[0], e.touches[1]);
+    const mid = touchMidpoint(e.touches[0], e.touches[1]);
+    if (pinchDist > 0 && dist > 0) {
+      zoomAtPoint(pinchDist / dist, mid.x, mid.y);
+    }
+    pinchDist = dist;
+    touchMoved = true;
+    return;
+  }
   if (e.touches.length !== 1 || !touchStart) return;
   e.preventDefault();
   const t = e.touches[0];
@@ -812,8 +843,15 @@ function handleTouchMove(e: TouchEvent): void {
   if (touchMoved) panTo(t.clientX, t.clientY);
 }
 
-function handleTouchEnd(): void {
+function handleTouchEnd(e: TouchEvent): void {
   if (touchMoved) suppressNextClick = true;
+  pinchDist = 0;
+  if (e.touches.length === 1) {
+    const t = e.touches[0];
+    touchStart = { x: t.clientX, y: t.clientY };
+    startPan(t.clientX, t.clientY);
+    return;
+  }
   touchStart = null;
   if (state.isPanning) {
     state.isPanning = false;
