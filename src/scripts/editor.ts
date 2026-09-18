@@ -757,12 +757,10 @@ function renderPuntoForm(punto: PuntoInteres | null, pos: Punto | null): void {
   const informacion = draft ? draft.informacion : (punto?.informacion ?? "");
   const imagenes = punto?.imagenes ?? [];
   const atLimit = imagenes.length >= MAX_IMAGENES_POR_PUNTO;
-  const canEditImages = punto !== null && punto.id > 0;
+  const canEditImages = punto !== null;
 
   const imagenesHtml = !canEditImages
-    ? isNew
-      ? ""
-      : '<p class="hint">Guarda el borrador para poder agregar imágenes.</p>'
+    ? ""
     : `
       <div class="field">
         <label>Imágenes</label>
@@ -813,7 +811,7 @@ function renderPuntoForm(punto: PuntoInteres | null, pos: Punto | null): void {
         <p id="form-error" class="form-error" hidden></p>
         <p id="form-success" class="form-success" hidden></p>
         <div class="actions">
-          <button type="submit" id="punto-save-btn" class="btn-primary" ${!isNew && !state.puntoDirty ? "disabled" : ""}>${isNew ? "Crear punto" : "Aplicar cambios"}</button>
+          <button type="submit" id="punto-save-btn" class="btn-primary" ${!isNew && !state.puntoDirty ? "disabled" : ""}>${isNew ? "Crear punto" : "Guardar cambios"}</button>
           ${!isNew ? '<button type="button" id="punto-delete" class="btn-danger">Eliminar punto</button>' : ""}
           ${isNew ? '<button type="button" id="punto-cancel" class="btn-secondary">Cancelar</button>' : ""}
         </div>
@@ -856,7 +854,7 @@ function renderPuntoForm(punto: PuntoInteres | null, pos: Punto | null): void {
         if (await confirmDeletePunto(punto)) void deletePunto(punto.id);
       })();
     });
-    if (punto.id > 0) bindPuntoImageHandlers(punto);
+    bindPuntoImageHandlers(punto);
   }
 }
 
@@ -943,14 +941,42 @@ function bindPuntoImageHandlers(punto: PuntoInteres): void {
 }
 
 function openPuntoImagePicker(punto: PuntoInteres): void {
-  if (punto.id <= 0) return;
   const existing = punto.imagenes.map((img) => img.path);
   const remaining = MAX_IMAGENES_POR_PUNTO - existing.length;
   if (remaining <= 0) return;
   void openImagePicker({ limit: remaining, existing }).then((paths) => {
     if (paths.length === 0) return;
-    void attachPuntoImages(punto.id, paths);
+    if (punto.id > 0) {
+      void attachPuntoImages(punto.id, paths);
+      return;
+    }
+    for (const path of paths) {
+      if (punto.imagenes.length >= MAX_IMAGENES_POR_PUNTO) break;
+      const imgId = genTempId();
+      punto.imagenes.push({ id: imgId, path });
+      state.pendingImagePaths.set(imgId, path);
+    }
+    state.puntoDirty = true;
+    render();
+    updateDirtyIndicator();
   });
+}
+
+async function attachPuntoImage(puntoId: number, path: string): Promise<PuntoImagenItem> {
+  const res = await fetch(`/api/admin/puntos/${puntoId}/imagenes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ paths: [path] }),
+  });
+  const r = (await res.json()) as {
+    ok: boolean;
+    data?: { added?: PuntoImagenItem[]; imagenes?: PuntoImagenItem[] };
+    error?: string;
+  };
+  const added =
+    r.data?.added?.[0] ?? r.data?.imagenes?.find((img) => img.path === path);
+  if (!r.ok || !added) throw new Error(r.error ?? "Error al adjuntar la imagen");
+  return added;
 }
 
 async function attachPuntoImages(puntoId: number, paths: string[]): Promise<void> {
@@ -968,6 +994,7 @@ async function attachPuntoImages(puntoId: number, paths: string[]): Promise<void
     if (!r.ok || !r.data) throw new Error(r.error ?? "Error al adjuntar las imágenes");
     const punto = state.puntos.find((p) => p.id === puntoId);
     if (punto) punto.imagenes = r.data.imagenes;
+    state.puntoDirty = true;
     state.hasUnpublished = true;
     render();
     updateDirtyIndicator();
@@ -977,6 +1004,15 @@ async function attachPuntoImages(puntoId: number, paths: string[]): Promise<void
 }
 
 async function deletePuntoImage(puntoId: number, imagenId: number): Promise<void> {
+  if (imagenId < 0) {
+    const punto = state.puntos.find((p) => p.id === puntoId);
+    if (punto) punto.imagenes = punto.imagenes.filter((img) => img.id !== imagenId);
+    state.pendingImagePaths.delete(imagenId);
+    state.puntoDirty = true;
+    render();
+    updateDirtyIndicator();
+    return;
+  }
   try {
     const res = await fetch(`/api/admin/puntos/${puntoId}/imagenes/${imagenId}`, {
       method: "DELETE",
@@ -989,6 +1025,7 @@ async function deletePuntoImage(puntoId: number, imagenId: number): Promise<void
     if (!r.ok || !r.data) throw new Error(r.error ?? "Error al quitar la imagen");
     const punto = state.puntos.find((p) => p.id === puntoId);
     if (punto) punto.imagenes = r.data.imagenes;
+    state.puntoDirty = true;
     state.hasUnpublished = true;
     render();
     updateDirtyIndicator();
@@ -1127,7 +1164,7 @@ function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
         <p id="form-error" class="form-error" hidden></p>
         <p id="form-success" class="form-success" hidden></p>
         <div class="actions">
-          <button type="submit" id="save-lote-btn" class="btn-primary" ${saveDisabled ? "disabled" : ""}>${isNew ? "Crear lote" : "Aplicar cambios"}</button>
+          <button type="submit" id="save-lote-btn" class="btn-primary" ${saveDisabled ? "disabled" : ""}>${isNew ? "Crear lote" : "Guardar cambios"}</button>
           ${!isNew ? '<button type="button" id="delete-lote" class="btn-danger">Eliminar lote</button>' : ""}
           ${isNew ? '<button type="button" id="cancel-new" class="btn-secondary">Cancelar</button>' : ""}
         </div>
@@ -2619,8 +2656,11 @@ async function guardarBorrador(): Promise<boolean> {
       }
     }
 
+    const puntoImagenIdMap = new Map<number, PuntoImagenItem>();
+
     for (const punto of state.puntos) {
       const base = syncedPuntosById.get(punto.id);
+      let realPuntoId = punto.id;
       if (!base) {
         const res = await fetch("/api/admin/puntos", {
           method: "POST",
@@ -2634,7 +2674,8 @@ async function guardarBorrador(): Promise<boolean> {
         });
         const r = (await res.json()) as { ok: boolean; data?: PuntoInteres; error?: string };
         if (!r.ok || !r.data) throw new Error(r.error ?? "Error al crear el punto");
-        puntoIdMap.set(punto.id, r.data.id);
+        realPuntoId = r.data.id;
+        puntoIdMap.set(punto.id, realPuntoId);
       } else if (puntoFieldsChanged(base, punto)) {
         const res = await fetch(`/api/admin/puntos/${punto.id}`, {
           method: "PATCH",
@@ -2649,10 +2690,19 @@ async function guardarBorrador(): Promise<boolean> {
         const r = (await res.json()) as { ok: boolean; error?: string };
         if (!r.ok) throw new Error(r.error ?? "Error al guardar el punto");
       }
+
+      for (const img of punto.imagenes) {
+        if (img.id >= 0) continue;
+        const path = state.pendingImagePaths.get(img.id);
+        if (!path) continue;
+        const added = await attachPuntoImage(realPuntoId, path);
+        puntoImagenIdMap.set(img.id, added);
+      }
     }
 
     remapDocumentIds(loteIdMap, imgIdMap);
     remapPuntoIds(puntoIdMap);
+    remapPuntoImagenIds(puntoImagenIdMap);
     state.synced = cloneLotes(state.lotes);
     state.syncedPuntos = clonePuntos(state.puntos);
     state.pendingImageFiles.clear();
@@ -3105,6 +3155,18 @@ function remapPuntoIds(puntoIdMap: Map<number, number>): void {
   if (state.selectedPuntoId !== null && puntoIdMap.has(state.selectedPuntoId)) {
     state.selectedPuntoId = puntoIdMap.get(state.selectedPuntoId)!;
   }
+}
+
+function remapPuntoImagenIds(imagenIdMap: Map<number, PuntoImagenItem>): void {
+  if (imagenIdMap.size === 0) return;
+  const remap = (punto: PuntoInteres): void => {
+    punto.imagenes = punto.imagenes.map((img) => {
+      const mapped = imagenIdMap.get(img.id);
+      return mapped ? { id: mapped.id, path: mapped.path } : img;
+    });
+  };
+  for (const punto of state.puntos) remap(punto);
+  for (const entry of state.history) for (const punto of entry.puntos) remap(punto);
 }
 
 // ============ Init ============
