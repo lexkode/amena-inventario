@@ -7,7 +7,12 @@ import {
 } from "@features/lots/lote.service";
 import { jsonApi } from "@core/http/api";
 import { json } from "@core/http/json";
-import { ALLOWED_MIME, MAX_FILE_SIZE, saveUpload } from "@core/storage";
+import {
+  ALLOWED_MIME,
+  MAX_FILE_SIZE,
+  isManagedUploadUrl,
+  saveUpload,
+} from "@core/storage";
 
 function parseId(raw: string | undefined): number | null {
   if (raw === undefined) return null;
@@ -22,6 +27,40 @@ export const POST: APIRoute = jsonApi(async ({ request, params }) => {
   const lote = await getLoteById(loteId);
   if (!lote) {
     return json({ ok: false, error: "Lote no encontrado" }, 404);
+  }
+
+  if ((request.headers.get("content-type") ?? "").includes("application/json")) {
+    let body: { paths?: unknown };
+    try {
+      body = (await request.json()) as { paths?: unknown };
+    } catch {
+      return json({ ok: false, error: "JSON inválido" }, 400);
+    }
+
+    const rawPaths = Array.isArray(body.paths) ? body.paths : [];
+    const paths = rawPaths.filter(
+      (p): p is string => typeof p === "string" && isManagedUploadUrl(p),
+    );
+    if (paths.length === 0) {
+      return json({ ok: false, error: "No se seleccionaron imágenes válidas" }, 400);
+    }
+
+    const actuales = await getImagenesByLote(loteId);
+    const existentes = new Set(actuales.map((i) => i.path));
+    const nuevos = paths.filter((p) => !existentes.has(p));
+    if (actuales.length + nuevos.length > MAX_IMAGENES_POR_LOTE) {
+      return json(
+        { ok: false, error: `Máximo ${MAX_IMAGENES_POR_LOTE} imágenes por lote` },
+        400,
+      );
+    }
+
+    const added: { id: number; path: string }[] = [];
+    for (const p of nuevos) added.push(await addLoteImagen(loteId, p));
+    return json(
+      { ok: true, data: { added, imagenes: await getImagenesByLote(loteId) } },
+      200,
+    );
   }
 
   let form: FormData;

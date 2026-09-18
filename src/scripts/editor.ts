@@ -90,7 +90,7 @@ type State = {
   selectedPuntoId: number | null;
   nuevoPuntoPos: Punto | null;
   modelos: ModeloConCaracteristicas[];
-  pendingImageAdds: { file: File; url: string }[];
+  pendingImageAdds: { file: File | null; url: string; path: string | null }[];
   pendingImageRemoves: number[];
   formDirty: boolean;
   draft: LoteDraft | null;
@@ -101,6 +101,7 @@ type State = {
   synced: LoteConModelo[];
   nextTempId: number;
   pendingImageFiles: Map<number, File>;
+  pendingImagePaths: Map<number, string>;
   syncing: boolean;
   busyLabel: string;
   hasPublication: boolean;
@@ -155,6 +156,7 @@ const state: State = {
   synced: [],
   nextTempId: -1,
   pendingImageFiles: new Map(),
+  pendingImagePaths: new Map(),
   syncing: false,
   busyLabel: "",
   hasPublication: false,
@@ -709,10 +711,9 @@ function renderPuntoForm(punto: PuntoInteres | null, pos: Punto | null): void {
           ${
             atLimit
               ? ""
-              : `<label class="img-add" title="Subir imagen">
-            <input type="file" id="punto-img-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+              : `<button type="button" class="img-add" id="punto-img-add" title="Agregar imagen" aria-label="Agregar imagen">
             <span>+</span>
-          </label>`
+          </button>`
           }
         </div>
         ${atLimit ? `<small class="hint">Máximo ${MAX_IMAGENES_POR_PUNTO} imágenes</small>` : ""}
@@ -844,12 +845,9 @@ async function confirmDeletePunto(punto: PuntoInteres): Promise<boolean> {
 }
 
 function bindPuntoImageHandlers(punto: PuntoInteres): void {
-  document.getElementById("punto-img-input")?.addEventListener("change", (e) => {
-    const input = e.target as HTMLInputElement;
-    const file = input.files?.[0];
-    input.value = "";
-    if (file) void uploadPuntoImage(punto.id, file);
-  });
+  document
+    .getElementById("punto-img-add")
+    ?.addEventListener("click", () => openPuntoImagePicker(punto));
   sidePanel.querySelectorAll<HTMLElement>("[data-punto-img-id]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const imagenId = Number(btn.dataset.puntoImgId);
@@ -858,20 +856,29 @@ function bindPuntoImageHandlers(punto: PuntoInteres): void {
   });
 }
 
-async function uploadPuntoImage(puntoId: number, file: File): Promise<void> {
-  const fd = new FormData();
-  fd.append("imagen", file);
+function openPuntoImagePicker(punto: PuntoInteres): void {
+  const existing = punto.imagenes.map((img) => img.path);
+  const remaining = MAX_IMAGENES_POR_PUNTO - existing.length;
+  if (remaining <= 0) return;
+  void openImagePicker({ limit: remaining, existing }).then((paths) => {
+    if (paths.length === 0) return;
+    void attachPuntoImages(punto.id, paths);
+  });
+}
+
+async function attachPuntoImages(puntoId: number, paths: string[]): Promise<void> {
   try {
     const res = await fetch(`/api/admin/puntos/${puntoId}/imagenes`, {
       method: "POST",
-      body: fd,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paths }),
     });
     const r = (await res.json()) as {
       ok: boolean;
       data?: { imagenes: PuntoImagenItem[] };
       error?: string;
     };
-    if (!r.ok || !r.data) throw new Error(r.error ?? "Error al subir la imagen");
+    if (!r.ok || !r.data) throw new Error(r.error ?? "Error al adjuntar las imágenes");
     const punto = state.puntos.find((p) => p.id === puntoId);
     if (punto) punto.imagenes = r.data.imagenes;
     state.hasUnpublished = true;
@@ -983,10 +990,9 @@ function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
         <div class="lote-imgs" id="lote-imgs">
           ${keptHtml}${pendingHtml}
           ${imagenesAtLimit ? "" : `
-          <label class="img-add" title="Subir imagen">
-            <input type="file" id="lote-img-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+          <button type="button" class="img-add" id="lote-img-add" title="Agregar imagen" aria-label="Agregar imagen">
             <span>+</span>
-          </label>`}
+          </button>`}
         </div>
         ${imagenesAtLimit ? `<small class="hint">Máximo ${MAX_IMAGENES_POR_LOTE} imágenes por lote</small>` : ""}
       </div>`;
@@ -1149,10 +1155,9 @@ function renderLoteImages(): void {
     (atLimit
       ? ""
       : `
-    <label class="img-add" title="Subir imagen">
-      <input type="file" id="lote-img-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+    <button type="button" class="img-add" id="lote-img-add" title="Agregar imagen" aria-label="Agregar imagen">
       <span>+</span>
-    </label>`);
+    </button>`);
 
   const field = container.closest(".field");
   field?.querySelector(".hint")?.remove();
@@ -1166,17 +1171,32 @@ function renderLoteImages(): void {
   bindImageHandlers();
 }
 
-function bindImageHandlers(): void {
-  document.getElementById("lote-img-input")?.addEventListener("change", (e) => {
-    const input = e.target as HTMLInputElement;
-    const file = input.files?.[0];
-    input.value = "";
-    if (file) {
-      state.pendingImageAdds.push({ file, url: URL.createObjectURL(file) });
-      markFormDirty();
-      renderLoteImages();
+function openLoteImagePicker(): void {
+  const lote = state.lotes.find((l) => l.id === state.selectedLoteId);
+  if (!lote) return;
+  const kept = lote.imagenes.filter(
+    (img) => !state.pendingImageRemoves.includes(img.id),
+  );
+  const existing = [
+    ...kept.map((img) => img.path),
+    ...state.pendingImageAdds.map((p) => p.url),
+  ];
+  const remaining = MAX_IMAGENES_POR_LOTE - existing.length;
+  if (remaining <= 0) return;
+  void openImagePicker({ limit: remaining, existing }).then((paths) => {
+    if (paths.length === 0) return;
+    for (const path of paths) {
+      state.pendingImageAdds.push({ file: null, url: path, path });
     }
+    markFormDirty();
+    renderLoteImages();
   });
+}
+
+function bindImageHandlers(): void {
+  document
+    .getElementById("lote-img-add")
+    ?.addEventListener("click", openLoteImagePicker);
   sidePanel.querySelectorAll<HTMLElement>("[data-img-id]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const imgId = Number(btn.dataset.imgId);
@@ -1196,7 +1216,7 @@ function bindImageHandlers(): void {
       const idx = Number(btn.dataset.pendingIndex);
       if (Number.isInteger(idx) && idx >= 0 && idx < state.pendingImageAdds.length) {
         const [removed] = state.pendingImageAdds.splice(idx, 1);
-        if (removed) URL.revokeObjectURL(removed.url);
+        if (removed?.url.startsWith("blob:")) URL.revokeObjectURL(removed.url);
         markFormDirty();
         renderLoteImages();
       }
@@ -1454,6 +1474,246 @@ function showModal(opts: {
         .querySelector<HTMLButtonElement>(`[data-confirm='${defaultValue}']`)
         ?.focus();
     }
+  });
+}
+
+type UploadImage = { url: string; key: string; createdAt: number; size: number };
+
+/**
+ * Abre la biblioteca de imágenes de R2. Permite seleccionar varias ya
+ * subidas, o subir una nueva. Devuelve las URLs seleccionadas.
+ */
+function openImagePicker(opts: {
+  limit: number;
+  existing: string[];
+}): Promise<string[]> {
+  if (activeModal !== null) return Promise.resolve([]);
+  return new Promise((resolve) => {
+    const selected = new Set<string>();
+    const existingSet = new Set(opts.existing);
+    const overlay = document.createElement("div");
+    overlay.className = "confirm-overlay";
+    overlay.innerHTML = `
+      <div class="img-picker" role="dialog" aria-modal="true" aria-labelledby="img-picker-title">
+        <div class="img-picker-head">
+          <div>
+            <h3 id="img-picker-title">Biblioteca de imágenes</h3>
+            <p class="img-picker-sub">Selecciona imágenes ya subidas o sube una nueva.</p>
+          </div>
+          <label class="btn-secondary img-picker-upload" title="Subir una imagen nueva">
+            Subir imagen
+            <input type="file" id="img-picker-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+          </label>
+        </div>
+        <div class="img-picker-body" id="img-picker-body">Cargando…</div>
+        <p class="img-picker-alert" id="img-picker-alert" hidden></p>
+        <div class="img-picker-foot">
+          <span class="img-picker-count" id="img-picker-count"></span>
+          <div class="img-picker-actions">
+            <button type="button" class="btn-secondary" data-picker-cancel>Cancelar</button>
+            <button type="button" class="btn-primary" id="img-picker-confirm" disabled>Adjuntar</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    activeModal = overlay;
+    (document.activeElement as HTMLElement | null)?.blur();
+
+    const body = overlay.querySelector<HTMLElement>("#img-picker-body")!;
+    const countEl = overlay.querySelector<HTMLElement>("#img-picker-count")!;
+    const confirmBtn = overlay.querySelector<HTMLButtonElement>("#img-picker-confirm")!;
+    const uploadInput = overlay.querySelector<HTMLInputElement>("#img-picker-input")!;
+
+    let items: UploadImage[] = [];
+
+    const cleanup = (value: string[]): void => {
+      if (alertTimer !== undefined) window.clearTimeout(alertTimer);
+      overlay.remove();
+      activeModal = null;
+      resolve(value);
+    };
+
+    const updateCount = (): void => {
+      const n = selected.size;
+      countEl.textContent = `${n} seleccionada${n === 1 ? "" : "s"} · máximo ${opts.limit}`;
+      confirmBtn.disabled = n === 0;
+    };
+
+    const renderSelection = (): void => {
+      body.querySelectorAll<HTMLElement>("[data-picker-url]").forEach((el) => {
+        el.classList.toggle("selected", selected.has(el.dataset.pickerUrl ?? ""));
+      });
+    };
+
+    const renderGrid = (): void => {
+      if (items.length === 0) {
+        body.innerHTML = `<p class="lote-vacio">Todavía no hay imágenes subidas. Usa “Subir imagen” para agregar la primera.</p>`;
+        return;
+      }
+      body.innerHTML = `<div class="img-picker-grid">${items
+        .map((it) => {
+          const url = escapeHtml(it.url);
+          const isExisting = existingSet.has(it.url);
+          return `<div class="img-picker-tile">
+            <button type="button" class="img-picker-item${isExisting ? " is-existing" : ""}${
+              selected.has(it.url) ? " selected" : ""
+            }" data-picker-url="${url}" ${isExisting ? 'title="Ya agregada"' : 'title="Seleccionar"'}>
+              <img src="${url}" alt="" loading="lazy" />
+              <span class="img-picker-check" aria-hidden="true">✓</span>
+              ${isExisting ? `<span class="img-picker-badge">Agregada</span>` : ""}
+            </button>
+            ${
+              isExisting
+                ? ""
+                : `<button type="button" class="img-picker-del" data-picker-del="${url}" title="Eliminar de R2" aria-label="Eliminar imagen de R2">${ICON_TRASH}</button>`
+            }
+          </div>`;
+        })
+        .join("")}</div>`;
+      body.querySelectorAll<HTMLElement>("[data-picker-url]").forEach((el) => {
+        el.addEventListener("click", () => toggle(el.dataset.pickerUrl ?? ""));
+      });
+      body.querySelectorAll<HTMLElement>("[data-picker-del]").forEach((el) => {
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const url = el.dataset.pickerDel ?? "";
+          void confirmDeleteFromLibrary().then((ok) => {
+            if (ok) void removeFromLibrary(url);
+          });
+        });
+      });
+    };
+
+    let alertTimer: number | undefined;
+    const showError = (err: unknown): void => {
+      const el = overlay.querySelector<HTMLElement>("#img-picker-alert");
+      if (!el) return;
+      if (alertTimer !== undefined) window.clearTimeout(alertTimer);
+      el.textContent = err instanceof Error ? err.message : String(err);
+      el.hidden = false;
+      alertTimer = window.setTimeout(() => {
+        el.hidden = true;
+      }, 4000);
+    };
+
+    const confirmDeleteFromLibrary = (): Promise<boolean> => {
+      return new Promise((resolve) => {
+        const dialog = document.createElement("div");
+        dialog.className = "img-picker-confirm-overlay";
+        dialog.innerHTML = `
+          <div class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="img-picker-del-title">
+            <h3 id="img-picker-del-title">Eliminar imagen</h3>
+            <p class="confirm-text">¿Eliminar esta imagen de R2? Esta acción no se puede deshacer.</p>
+            <div class="confirm-actions">
+              <button type="button" class="btn-secondary" data-del-cancel>Cancelar</button>
+              <button type="button" class="btn-danger" data-del-confirm>Eliminar</button>
+            </div>
+          </div>`;
+        overlay.appendChild(dialog);
+        const done = (value: boolean): void => {
+          dialog.remove();
+          resolve(value);
+        };
+        dialog
+          .querySelector("[data-del-cancel]")
+          ?.addEventListener("click", () => done(false));
+        dialog
+          .querySelector("[data-del-confirm]")
+          ?.addEventListener("click", () => done(true));
+        dialog.addEventListener("click", (e) => {
+          if (e.target === dialog) done(false);
+        });
+        dialog.querySelector<HTMLButtonElement>("[data-del-cancel]")?.focus();
+      });
+    };
+
+    const removeFromLibrary = async (url: string): Promise<void> => {
+      try {
+        const res = await fetch("/api/admin/imagenes", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path: url }),
+        });
+        const r = (await res.json()) as { ok: boolean; error?: string };
+        if (!r.ok) throw new Error(r.error ?? "Error al eliminar la imagen");
+        items = items.filter((it) => it.url !== url);
+        selected.delete(url);
+        existingSet.delete(url);
+        renderGrid();
+        updateCount();
+      } catch (err) {
+        showError(err);
+      }
+    };
+
+    const toggle = (path: string): void => {
+      if (existingSet.has(path)) return;
+      if (selected.has(path)) {
+        selected.delete(path);
+      } else {
+        if (selected.size >= opts.limit) return;
+        selected.add(path);
+      }
+      renderSelection();
+      updateCount();
+    };
+
+    const load = async (): Promise<void> => {
+      try {
+        const res = await fetch("/api/admin/imagenes");
+        const r = (await res.json()) as {
+          ok: boolean;
+          data?: { imagenes: UploadImage[] };
+          error?: string;
+        };
+        if (!r.ok || !r.data) throw new Error(r.error ?? "Error al cargar las imágenes");
+        items = r.data.imagenes;
+        renderGrid();
+      } catch (err) {
+        body.innerHTML = `<p class="form-error">${escapeHtml(
+          err instanceof Error ? err.message : String(err),
+        )}</p>`;
+      }
+    };
+
+    uploadInput.addEventListener("change", () => {
+      const file = uploadInput.files?.[0];
+      uploadInput.value = "";
+      if (!file) return;
+      void (async () => {
+        const fd = new FormData();
+        fd.append("imagen", file);
+        try {
+          const res = await fetch("/api/admin/imagenes", { method: "POST", body: fd });
+          const r = (await res.json()) as {
+            ok: boolean;
+            data?: { path: string };
+            error?: string;
+          };
+          if (!r.ok || !r.data) throw new Error(r.error ?? "Error al subir la imagen");
+          const path = r.data.path;
+          items = [
+            { url: path, key: "", createdAt: Date.now(), size: file.size },
+            ...items,
+          ];
+          if (selected.size < opts.limit) selected.add(path);
+          renderGrid();
+          renderSelection();
+          updateCount();
+        } catch (err) {
+          showError(err);
+        }
+      })();
+    });
+
+    overlay.querySelector("[data-picker-cancel]")?.addEventListener("click", () => cleanup([]));
+    confirmBtn.addEventListener("click", () => cleanup([...selected]));
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) cleanup([]);
+    });
+
+    updateCount();
+    void load();
   });
 }
 
@@ -1945,6 +2205,7 @@ function consumePendingImages(lote: LoteConModelo): void {
       if (id < 0) {
         const img = lote.imagenes.find((i) => i.id === id);
         state.pendingImageFiles.delete(id);
+        state.pendingImagePaths.delete(id);
         if (img?.path.startsWith("blob:")) URL.revokeObjectURL(img.path);
       }
     }
@@ -1953,7 +2214,8 @@ function consumePendingImages(lote: LoteConModelo): void {
   for (const p of state.pendingImageAdds) {
     const id = genTempId();
     lote.imagenes.push({ id, path: p.url });
-    state.pendingImageFiles.set(id, p.file);
+    if (p.file) state.pendingImageFiles.set(id, p.file);
+    else if (p.path) state.pendingImagePaths.set(id, p.path);
   }
   state.pendingImageAdds = [];
   state.pendingImageRemoves = [];
@@ -2043,6 +2305,7 @@ function deleteLote(): void {
     for (const img of lote.imagenes) {
       if (img.id < 0) {
         state.pendingImageFiles.delete(img.id);
+        state.pendingImagePaths.delete(img.id);
         if (img.path.startsWith("blob:")) URL.revokeObjectURL(img.path);
       }
     }
@@ -2060,10 +2323,13 @@ function deleteLote(): void {
 
 function resetPendingImages(): void {
   for (const p of state.pendingImageAdds) {
-    URL.revokeObjectURL(p.url);
+    if (p.url.startsWith("blob:")) URL.revokeObjectURL(p.url);
   }
   state.pendingImageAdds = [];
   state.pendingImageRemoves = [];
+  // No se limpian las rutas ya aplicadas (pendingImagePaths): igual que
+  // pendingImageFiles, deben sobrevivir al cambio de lote para poder
+  // adjuntarse al guardar el borrador.
 }
 
 async function uploadImage(loteId: number, file: File): Promise<LoteImagenItem> {
@@ -2082,6 +2348,26 @@ async function uploadImage(loteId: number, file: File): Promise<LoteImagenItem> 
     throw new Error(result.error ?? "Error al subir la imagen");
   }
   return result.data.added;
+}
+
+async function attachLoteImage(loteId: number, path: string): Promise<LoteImagenItem> {
+  const response = await fetch(`/api/admin/lotes/${loteId}/imagenes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ paths: [path] }),
+  });
+  const result = (await response.json()) as {
+    ok: boolean;
+    data?: { added: LoteImagenItem[]; imagenes: LoteImagenItem[] };
+    error?: string;
+  };
+  const added =
+    result.data?.added?.[0] ??
+    result.data?.imagenes?.find((img) => img.path === path);
+  if (!result.ok || !added) {
+    throw new Error(result.error ?? "Error al adjuntar la imagen");
+  }
+  return added;
 }
 
 async function guardarBorrador(): Promise<boolean> {
@@ -2125,8 +2411,12 @@ async function guardarBorrador(): Promise<boolean> {
         for (const img of lote.imagenes) {
           if (img.id < 0) {
             const file = state.pendingImageFiles.get(img.id);
+            const path = state.pendingImagePaths.get(img.id);
             if (file) {
               const added = await uploadImage(realId, file);
+              imgIdMap.set(img.id, added);
+            } else if (path) {
+              const added = await attachLoteImage(realId, path);
               imgIdMap.set(img.id, added);
             }
           }
@@ -2168,8 +2458,12 @@ async function guardarBorrador(): Promise<boolean> {
       for (const img of lote.imagenes) {
         if (img.id < 0) {
           const file = state.pendingImageFiles.get(img.id);
+          const path = state.pendingImagePaths.get(img.id);
           if (file) {
             const added = await uploadImage(lote.id, file);
+            imgIdMap.set(img.id, added);
+          } else if (path) {
+            const added = await attachLoteImage(lote.id, path);
             imgIdMap.set(img.id, added);
           }
         }
@@ -2179,6 +2473,7 @@ async function guardarBorrador(): Promise<boolean> {
     remapDocumentIds(loteIdMap, imgIdMap);
     state.synced = cloneLotes(state.lotes);
     state.pendingImageFiles.clear();
+    state.pendingImagePaths.clear();
     state.clipboard = null;
     state.hasUnpublished = true;
     render();
@@ -2574,6 +2869,7 @@ function loadDocument(
   state.pendingNewLote = null;
   state.currentPolygon = [];
   state.pendingImageFiles.clear();
+  state.pendingImagePaths.clear();
   resetPendingImages();
   clearFormDraft();
   state.clipboard = null;

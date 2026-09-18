@@ -78,6 +78,7 @@ const planCornerRadius = plan
                   width={plan.anchoPx}
                   height={plan.altoPx}
                   preserveAspectRatio="xMidYMid meet"
+                  opacity={(plan.opacidad ?? 80) / 100}
                   clip-path={planCornerRadius > 0 ? "url(#plan-clip)" : undefined}
                 />
                 <g id="lots-layer" />
@@ -443,7 +444,8 @@ const planCornerRadius = plan
       filter: drop-shadow(0 0 6px var(--c-vendido-glow));
     }
     :global(.lote-polygon.dimmed) {
-      opacity: 0.4;
+      opacity: 0.5;
+      filter: saturate(0.5);
       pointer-events: none;
     }
 
@@ -518,6 +520,10 @@ const planCornerRadius = plan
         transform 0.2s ease,
         opacity 0.2s ease;
     }
+    #lot-modal {
+      width: 100%;
+      max-height: 100%;
+    }
     .modal-backdrop.open .modal {
       transform: none;
       opacity: 1;
@@ -556,32 +562,6 @@ const planCornerRadius = plan
       height: 100%;
       display: block;
     }
-    :global(.gallery-caption) {
-      position: absolute;
-      left: 1rem;
-      top: 1rem;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.5rem 0.9rem;
-      background: var(--c-overlay-strong);
-      color: var(--c-white);
-      border-radius: 8px;
-      font-size: 0.85rem;
-      backdrop-filter: blur(6px);
-      -webkit-backdrop-filter: blur(6px);
-      pointer-events: none;
-    }
-    :global(.gallery-caption-lote) {
-      font-weight: 700;
-    }
-    :global(.gallery-caption-divider) {
-      color: var(--c-line);
-    }
-    :global(.gallery-caption-modelo) {
-      color: var(--c-line);
-    }
-
     :global(.lot-gallery) {
       width: 100%;
       height: 100%;
@@ -598,9 +578,9 @@ const planCornerRadius = plan
       justify-content: center;
     }
     :global(.lot-gallery-img) {
-      max-width: 100%;
-      max-height: 100%;
-      object-fit: contain;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
       display: block;
     }
     :global(.lot-gallery-counter) {
@@ -677,7 +657,7 @@ const planCornerRadius = plan
       min-height: 0;
     }
     :global(.modal-info .info-header) {
-      padding: 1.4rem 1.5rem 1.25rem;
+      padding: 1.4rem 1.5rem 0.75rem;
       border-bottom: 1px solid var(--c-line);
     }
     :global(.modal-info .info-title-row) {
@@ -730,6 +710,23 @@ const planCornerRadius = plan
     :global(.modal-info .status-vendido) {
       background: var(--c-vendido-bg);
       color: var(--c-vendido-fg);
+    }
+    :global(#lot-modal .status-badge) {
+      margin-bottom: 0.5rem;
+    }
+    :global(#lot-modal .info-title),
+    :global(#lot-modal .info-model-name) {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      line-height: 1.25;
+      color: var(--c-text);
+    }
+    :global(#lot-modal .info-model-name.muted) {
+      font-size: 1rem;
+      font-weight: 500;
+      color: var(--c-text-muted);
     }
 
     :global(.modal-info .info-body) {
@@ -810,6 +807,15 @@ const planCornerRadius = plan
     }
     :global(.punto-marker) {
       cursor: pointer;
+      transform-box: fill-box;
+      transform-origin: center;
+      transition:
+        transform 0.15s ease,
+        filter 0.15s ease;
+    }
+    :global(.punto-marker:hover) {
+      transform: scale(1.15);
+      filter: drop-shadow(0 0 6px var(--c-accent));
     }
     :global(.modal-info .poi-info-text) {
       margin: 0;
@@ -937,6 +943,18 @@ const planCornerRadius = plan
       .select {
         width: 100%;
         min-width: 0;
+      }
+      #lot-modal-backdrop {
+        padding: 5vw;
+      }
+      .logo-float {
+        top: 5vw;
+        left: 5vw;
+        max-width: 160px;
+      }
+      .zoom-controls {
+        top: 5vw;
+        right: 5vw;
       }
     }
   </style>

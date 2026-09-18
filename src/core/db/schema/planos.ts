@@ -8,6 +8,7 @@ export const planos = pgTable("planos", {
   imagenPath: text("imagen_path").notNull(),
   anchoPx: integer("ancho_px").notNull(),
   altoPx: integer("alto_px").notNull(),
+  opacidad: integer("opacidad").notNull().default(80),
   createdAt: bigint("created_at", { mode: "number" })
     .notNull()
     .$defaultFn(() => Date.now()),

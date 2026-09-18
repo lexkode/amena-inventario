@@ -410,22 +410,6 @@ function renderLotZoom(lote: LoteConModelo, plan: Plano): void {
   svgEl.appendChild(label);
 
   lotModalGallery.appendChild(svgEl);
-
-  const caption = document.createElement("div");
-  caption.className = "gallery-caption";
-  const capLote = document.createElement("span");
-  capLote.className = "gallery-caption-lote";
-  capLote.textContent = lote.numeroLote;
-  const capDivider = document.createElement("span");
-  capDivider.className = "gallery-caption-divider";
-  capDivider.textContent = "·";
-  const capModelo = document.createElement("span");
-  capModelo.className = "gallery-caption-modelo";
-  capModelo.textContent = lote.modelo?.nombre ?? "Lote disponible";
-  caption.appendChild(capLote);
-  caption.appendChild(capDivider);
-  caption.appendChild(capModelo);
-  lotModalGallery.appendChild(caption);
 }
 
 function renderImageGallery(
@@ -468,22 +452,6 @@ function renderImageGallery(
   viewer.appendChild(prev);
   viewer.appendChild(next);
   gallery.appendChild(viewer);
-
-  const caption = document.createElement("div");
-  caption.className = "gallery-caption";
-  const capLote = document.createElement("span");
-  capLote.className = "gallery-caption-lote";
-  capLote.textContent = lote.numeroLote;
-  const capDivider = document.createElement("span");
-  capDivider.className = "gallery-caption-divider";
-  capDivider.textContent = "·";
-  const capModelo = document.createElement("span");
-  capModelo.className = "gallery-caption-modelo";
-  capModelo.textContent = lote.modelo?.nombre ?? "Lote disponible";
-  caption.appendChild(capLote);
-  caption.appendChild(capDivider);
-  caption.appendChild(capModelo);
-  viewer.appendChild(caption);
 
   const thumbs = document.createElement("div");
   thumbs.className = "lot-gallery-thumbs";
@@ -530,15 +498,13 @@ function renderLotInfo(lote: LoteConModelo): void {
 
   lotModalInfo.innerHTML = `
     <div class="info-header">
-      <div class="info-title-row">
-        <h2 class="info-title" id="lot-modal-title">Lote ${escapeHtml(lote.numeroLote)}</h2>
-        <span class="status-badge status-${lote.estado}">${ESTADO_LABEL[lote.estado]}</span>
-      </div>
-      ${modelo
-        ? `
-        <p class="info-model-name">${escapeHtml(modelo.nombre)}</p>
-        <p class="info-model-price">${formatUSD(modelo.precioBase)}</p>`
-        : `<p class="info-model-name muted">Sin modelo de casa asignado</p>`}
+      <span class="status-badge status-${lote.estado}">${ESTADO_LABEL[lote.estado]}</span>
+      <h2 class="info-title" id="lot-modal-title">Lote ${escapeHtml(lote.numeroLote)}${
+        modelo
+          ? ` <span class="info-model-name">${escapeHtml(modelo.nombre)}</span>`
+          : ` <span class="info-model-name muted">Sin modelo de casa asignado</span>`
+      }</h2>
+      ${modelo ? `<p class="info-model-price">${formatUSD(modelo.precioBase)}</p>` : ""}
     </div>
     <div class="info-body">
       <dl class="lot-specs">
@@ -567,7 +533,6 @@ function renderLotInfo(lote: LoteConModelo): void {
     </div>
     <div class="info-footer">
       <button type="button" class="info-cta" id="lot-cta-consultar">Consultar por este Lote</button>
-      <p class="info-cta-note">Te contactaremos a la brevedad.</p>
     </div>
   `;
 

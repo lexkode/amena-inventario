@@ -114,6 +114,52 @@ export async function saveJsonBackup(
   return `${publicBaseUrl}/${key}`;
 }
 
+const IMAGE_EXT = /\.(png|jpe?g|webp|gif|svg)$/i;
+
+export type UploadObject = {
+  url: string;
+  key: string;
+  createdAt: number;
+  size: number;
+};
+
+/** Lista las imágenes subidas a R2 (excluye backups/), más recientes primero. */
+export async function listUploads(): Promise<UploadObject[]> {
+  const { client, bucket, publicBaseUrl } = getStorage();
+  const out: UploadObject[] = [];
+  let token: string | undefined;
+  let pages = 0;
+
+  do {
+    const res = await client.send(
+      new ListObjectsV2Command({ Bucket: bucket, ContinuationToken: token, MaxKeys: 1000 }),
+    );
+    for (const o of res.Contents ?? []) {
+      if (!o.Key || o.Key.startsWith("backups/") || !IMAGE_EXT.test(o.Key)) continue;
+      out.push({
+        url: `${publicBaseUrl}/${o.Key}`,
+        key: o.Key,
+        createdAt: o.LastModified ? o.LastModified.getTime() : 0,
+        size: o.Size ?? 0,
+      });
+    }
+    token = res.IsTruncated ? res.NextContinuationToken : undefined;
+    pages += 1;
+  } while (token && pages < 20);
+
+  return out.sort((a, b) => b.createdAt - a.createdAt);
+}
+
+/** Indica si una URL corresponde a un archivo gestionado en el bucket R2. */
+export function isManagedUploadUrl(url: string): boolean {
+  try {
+    const { publicBaseUrl } = getStorage();
+    return url.startsWith(`${publicBaseUrl}/`);
+  } catch {
+    return false;
+  }
+}
+
 export type BackupObject = { url: string; createdAt: number };
 
 /** Lista los respaldos JSON guardados en R2 (prefijo backups/). */

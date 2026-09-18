@@ -67,6 +67,7 @@ export const POST: APIRoute = formApi(async ({ request }) => {
       imagenPath,
       anchoPx: input.anchoPx,
       altoPx: input.altoPx,
+      opacidad: input.opacidad,
     });
   } catch (err) {
     return redirect(

@@ -36,18 +36,18 @@
   --c-float-border: rgba(39, 82, 102, 0.5);
 
   /* --- Lot states (used on both sides) --- */
-  --c-disponible: #16a34a;
-  --c-reservado: #dc832f;
-  --c-vendido: #dc2626;
+  --c-disponible: #23a157;
+  --c-reservado: #d3873d;
+  --c-vendido: #d33c3c;
   --c-disponible-bg: #dcfce7;
   --c-disponible-fg: #166534;
   --c-reservado-bg: #fef9c3;
   --c-reservado-fg: #854d0e;
   --c-vendido-bg: #fee2e2;
   --c-vendido-fg: #991b1b;
-  --c-disponible-glow: rgba(34, 197, 94, 0.75);
-  --c-reservado-glow: rgba(234, 179, 8, 0.55);
-  --c-vendido-glow: rgba(239, 68, 68, 0.55);
+  --c-disponible-glow: rgba(41, 178, 96, 0.72);
+  --c-reservado-glow: rgba(215, 167, 33, 0.55);
+  --c-vendido-glow: rgba(220, 75, 75, 0.52);
 
   /* --- Admin: danger / status alerts --- */
   --c-danger: #b91c1c;

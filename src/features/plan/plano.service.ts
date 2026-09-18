@@ -17,6 +17,7 @@ export type UpsertPlanoInput = {
   imagenPath: string;
   anchoPx: number;
   altoPx: number;
+  opacidad: number;
 };
 
 export async function upsertPlano(input: UpsertPlanoInput): Promise<Plano> {
@@ -29,6 +30,7 @@ export async function upsertPlano(input: UpsertPlanoInput): Promise<Plano> {
         imagenPath: input.imagenPath,
         anchoPx: input.anchoPx,
         altoPx: input.altoPx,
+        opacidad: input.opacidad,
       })
       .where(eq(planos.id, current.id))
       .returning();
@@ -41,6 +43,7 @@ export async function upsertPlano(input: UpsertPlanoInput): Promise<Plano> {
       imagenPath: input.imagenPath,
       anchoPx: input.anchoPx,
       altoPx: input.altoPx,
+      opacidad: input.opacidad,
     })
     .returning();
   if (!created) throw new Error("No se pudo recuperar el plano recién creado");

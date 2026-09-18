@@ -24,7 +24,7 @@ export function createLotPolygon(
 
   const g = document.createElementNS(SVG_NS, "g");
   g.setAttribute("data-lote-id", String(lote.id));
-  g.classList.add("lote-polygon");
+  g.classList.add("lote-polygon", `lote-${lote.estado}`);
   if (opts.selected) g.classList.add("selected");
   if (opts.dimmed) g.classList.add("dimmed");
 

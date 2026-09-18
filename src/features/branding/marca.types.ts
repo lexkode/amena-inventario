@@ -24,18 +24,19 @@ export const BRAND_TOKENS: BrandToken[] = [
   { key: "c-line", label: "Bordes", group: "Superficies", default: "#c0cfcc" },
   { key: "c-white", label: "Blanco", group: "Superficies", default: "#ffffff" },
 
-  { key: "c-danger", label: "Peligro", group: "Acentos", default: "#b91c1c" },
-  { key: "c-success", label: "Éxito", group: "Acentos", default: "#16a34a" },
+  { key: "c-danger", label: "Peligro", group: "Alertas", default: "#b91c1c" },
+  { key: "c-success", label: "Éxito", group: "Alertas", default: "#16a34a" },
 
-  { key: "c-disponible", label: "Disponible", group: "Estados de lotes", default: "#16a34a" },
-  { key: "c-reservado", label: "Reservado", group: "Estados de lotes", default: "#dc832f" },
-  { key: "c-vendido", label: "Vendido", group: "Estados de lotes", default: "#dc2626" },
-  { key: "c-disponible-bg", label: "Disponible (fondo)", group: "Estados de lotes", default: "#dcfce7" },
-  { key: "c-disponible-fg", label: "Disponible (texto)", group: "Estados de lotes", default: "#166534" },
-  { key: "c-reservado-bg", label: "Reservado (fondo)", group: "Estados de lotes", default: "#fef9c3" },
-  { key: "c-reservado-fg", label: "Reservado (texto)", group: "Estados de lotes", default: "#854d0e" },
-  { key: "c-vendido-bg", label: "Vendido (fondo)", group: "Estados de lotes", default: "#fee2e2" },
-  { key: "c-vendido-fg", label: "Vendido (texto)", group: "Estados de lotes", default: "#991b1b" },
+  { key: "c-disponible", label: "Disponible", group: "Estados de lotes", default: "#23a157" },
+  { key: "c-reservado", label: "Reservado", group: "Estados de lotes", default: "#d3873d" },
+  { key: "c-vendido", label: "Vendido", group: "Estados de lotes", default: "#d33c3c" },
+
+  { key: "c-disponible-bg", label: "Disponible (fondo)", group: "Tags de estados", default: "#dcfce7" },
+  { key: "c-disponible-fg", label: "Disponible (texto)", group: "Tags de estados", default: "#166534" },
+  { key: "c-reservado-bg", label: "Reservado (fondo)", group: "Tags de estados", default: "#fef9c3" },
+  { key: "c-reservado-fg", label: "Reservado (texto)", group: "Tags de estados", default: "#854d0e" },
+  { key: "c-vendido-bg", label: "Vendido (fondo)", group: "Tags de estados", default: "#fee2e2" },
+  { key: "c-vendido-fg", label: "Vendido (texto)", group: "Tags de estados", default: "#991b1b" },
 ];
 
 export const HEX_COLOR_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;

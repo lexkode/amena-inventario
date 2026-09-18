@@ -103,8 +103,7 @@ const logos = [
         Fuente usada en el sitio público y en el admin. Las fuentes de la lista se cargan desde Google Fonts.
       </p>
       <div class="font-field">
-        <label for="tipografia">Fuente</label>
-        <select id="tipografia" name="tipografia">
+        <select id="tipografia" name="tipografia" aria-label="Fuente">
           {BRAND_FONTS.map((font) => (
             <option value={font.value} selected={font.value === (marca.tipografia ?? "")}>
               {font.label}

@@ -50,6 +50,13 @@
       "when": 1789618560668,
       "tag": "0006_cute_post",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789719155180,
+      "tag": "0007_greedy_liz_osborn",
+      "breakpoints": true
     }
   ]
 }

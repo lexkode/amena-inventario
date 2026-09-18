@@ -1,0 +1,1 @@
+ALTER TABLE "planos" ADD COLUMN "opacidad" integer DEFAULT 80 NOT NULL;
