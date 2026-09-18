@@ -745,6 +745,18 @@ function setupEventListeners(): void {
     setFilterModeloId(value ? Number(value) : null);
   });
 
+  const filterBar = document.getElementById("filter-bar");
+  const filterToggle = document.getElementById("filter-toggle");
+  filterToggle?.addEventListener("click", () => {
+    const collapsed = filterBar?.classList.toggle("collapsed") ?? false;
+    svg.classList.toggle("filters-hidden", collapsed);
+    const label = collapsed ? "Mostrar filtros" : "Ocultar filtros";
+    filterToggle.setAttribute("aria-expanded", String(!collapsed));
+    filterToggle.setAttribute("aria-label", label);
+    const labelEl = filterToggle.querySelector<HTMLElement>(".filter-toggle-label");
+    if (labelEl) labelEl.textContent = label;
+  });
+
   document.getElementById("zoom-in")?.addEventListener("click", () => zoomBy(0.8));
   document.getElementById("zoom-out")?.addEventListener("click", () => zoomBy(1.25));
   document.getElementById("zoom-fit")?.addEventListener("click", () => fitView());

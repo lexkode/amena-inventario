@@ -104,47 +104,72 @@ const planCornerRadius = plan
                 <g id="lots-layer" />
                 <g id="puntos-layer" />
               </svg>
-              <div class="filter-bar">
-                <div class="filter-group">
-                  <span class="filter-label">Estado</span>
-                  <div
-                    class="pills"
-                    role="tablist"
-                    aria-label="Filtrar por estado"
+              <div class="filter-bar" id="filter-bar">
+                <button
+                  type="button"
+                  class="filter-toggle"
+                  id="filter-toggle"
+                  aria-expanded="true"
+                  aria-label="Ocultar filtros"
+                >
+                  <span class="filter-toggle-label">Ocultar filtros</span>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
                   >
-                    <button data-status="all" class="pill active" type="button">
-                      Todos <span class="pill-count">{counts.all}</span>
-                    </button>
-                    <button
-                      data-status="disponible"
-                      class="pill pill-disponible"
-                      type="button"
-                    >
-                      Disponibles <span class="pill-count">{counts.disponible}</span>
-                    </button>
-                    <button
-                      data-status="reservado"
-                      class="pill pill-reservado"
-                      type="button"
-                    >
-                      Reservados <span class="pill-count">{counts.reservado}</span>
-                    </button>
-                    <button
-                      data-status="vendido"
-                      class="pill pill-vendido"
-                      type="button"
-                    >
-                      Vendidos <span class="pill-count">{counts.vendido}</span>
-                    </button>
+                    <path d="m6 9 6 6 6-6"></path>
+                  </svg>
+                </button>
+                <div class="filter-panel">
+                  <div class="filter-panel-inner">
+                    <div class="filter-group">
+                      <span class="filter-label">Estado</span>
+                      <div
+                        class="pills"
+                        role="tablist"
+                        aria-label="Filtrar por estado"
+                      >
+                        <button data-status="all" class="pill active" type="button">
+                          Todos <span class="pill-count">{counts.all}</span>
+                        </button>
+                        <button
+                          data-status="disponible"
+                          class="pill pill-disponible"
+                          type="button"
+                        >
+                          Disponibles <span class="pill-count">{counts.disponible}</span>
+                        </button>
+                        <button
+                          data-status="reservado"
+                          class="pill pill-reservado"
+                          type="button"
+                        >
+                          Reservados <span class="pill-count">{counts.reservado}</span>
+                        </button>
+                        <button
+                          data-status="vendido"
+                          class="pill pill-vendido"
+                          type="button"
+                        >
+                          Vendidos <span class="pill-count">{counts.vendido}</span>
+                        </button>
+                      </div>
+                    </div>
+                    <div class="filter-group">
+                      <label for="modelo-filter" class="filter-label">
+                        Modelo de casa
+                      </label>
+                      <select id="modelo-filter" class="select">
+                        <option value="">Todos los modelos</option>
+                      </select>
+                    </div>
                   </div>
-                </div>
-                <div class="filter-group">
-                  <label for="modelo-filter" class="filter-label">
-                    Modelo de casa
-                  </label>
-                  <select id="modelo-filter" class="select">
-                    <option value="">Todos los modelos</option>
-                  </select>
                 </div>
               </div>
               <div
@@ -345,16 +370,77 @@ const planCornerRadius = plan
       z-index: 10;
       width: 90%;
       max-width: 800px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 1.25rem 1.75rem;
-      align-items: flex-end;
-      justify-content: space-between;
       background: var(--c-white);
       border: 1px solid var(--c-line);
       border-radius: 14px;
       padding: 1rem 1.25rem;
       box-shadow: var(--c-shadow-soft);
+      transition:
+        padding 0.3s ease,
+        border-color 0.3s ease,
+        background-color 0.3s ease,
+        box-shadow 0.3s ease;
+    }
+    .filter-panel {
+      display: grid;
+      grid-template-rows: 1fr;
+      transition: grid-template-rows 0.3s ease;
+    }
+    .filter-panel-inner {
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.25rem 1.75rem;
+      align-items: flex-end;
+      justify-content: space-between;
+    }
+    .filter-toggle {
+      position: absolute;
+      bottom: calc(100% - 1px);
+      right: 1.25rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.3rem 0.85rem;
+      border: 1px solid var(--c-line);
+      border-bottom: 0;
+      border-radius: 8px 8px 0 0;
+      background: var(--c-white);
+      color: var(--c-text);
+      font-family: inherit;
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition:
+        border-radius 0.3s ease,
+        border-bottom-color 0.3s ease,
+        color 0.15s ease;
+    }
+    .filter-toggle:hover {
+      color: var(--c-accent);
+    }
+    .filter-toggle svg {
+      width: 0.8rem;
+      height: 0.8rem;
+      transition: transform 0.3s ease;
+    }
+    .filter-bar.collapsed {
+      padding-top: 0;
+      padding-bottom: 0;
+      border-color: transparent;
+      background: transparent;
+      box-shadow: none;
+    }
+    .filter-bar.collapsed .filter-panel {
+      grid-template-rows: 0fr;
+    }
+    .filter-bar.collapsed .filter-toggle {
+      border-radius: 8px;
+      border-bottom: 1px solid var(--c-line);
+    }
+    .filter-bar.collapsed .filter-toggle svg {
+      transform: rotate(180deg);
     }
     .filter-group {
       display: flex;
@@ -450,6 +536,10 @@ const planCornerRadius = plan
       touch-action: none;
       overflow: visible;
       padding: 2rem 2rem 8rem;
+      transition: padding 0.3s ease;
+    }
+    #canvas.filters-hidden {
+      padding: 2rem;
     }
     #canvas:active {
       cursor: grabbing;
@@ -1011,7 +1101,7 @@ const planCornerRadius = plan
       }
     }
     @media (max-width: 640px) {
-      .filter-bar {
+      .filter-panel-inner {
         flex-direction: column;
         align-items: stretch;
       }
@@ -1037,6 +1127,9 @@ const planCornerRadius = plan
       }
       #canvas {
         padding: 3.5rem 1.5rem 13rem;
+      }
+      #canvas.filters-hidden {
+        padding: 3.5rem 1.5rem 3.5rem;
       }
       #zoom-out,
       #zoom-in {
