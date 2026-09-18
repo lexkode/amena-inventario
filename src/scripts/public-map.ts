@@ -822,6 +822,22 @@ function handleTouchEnd(): void {
 
 // ============ Init ============
 
+const PAGE_LOADER_MIN_MS = 300;
+const pageLoaderShownAt = performance.now();
+let pageLoaderHidden = false;
+
+function hidePageLoader(): void {
+  if (pageLoaderHidden) return;
+  pageLoaderHidden = true;
+  const loader = document.getElementById("page-loader");
+  if (!loader) return;
+  const elapsed = performance.now() - pageLoaderShownAt;
+  window.setTimeout(
+    () => loader.classList.add("is-hidden"),
+    Math.max(0, PAGE_LOADER_MIN_MS - elapsed),
+  );
+}
+
 export function initPublicMap(): void {
   const dataEl = document.getElementById("map-data");
   if (!dataEl) return;
@@ -862,4 +878,10 @@ export function initPublicMap(): void {
   populateModeloFilter();
   setupEventListeners();
   render();
+
+  const planImg = document.getElementById("plan-image");
+  planImg?.addEventListener("load", hidePageLoader, { once: true });
+  planImg?.addEventListener("error", hidePageLoader, { once: true });
+  window.addEventListener("load", hidePageLoader, { once: true });
+  window.setTimeout(hidePageLoader, 8000);
 }
