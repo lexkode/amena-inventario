@@ -26,7 +26,12 @@ export function applyViewTransform(
   svg.setAttribute("viewBox", `${x} ${y} ${w} ${h}`);
   if (zoomDisplay) {
     const zoom = initialWidth / w;
-    zoomDisplay.textContent = `${Math.round(zoom * 100)}%`;
+    const text = `${Math.round(zoom * 100)}%`;
+    if (zoomDisplay instanceof HTMLInputElement) {
+      zoomDisplay.value = text;
+    } else {
+      zoomDisplay.textContent = text;
+    }
   }
 }
 

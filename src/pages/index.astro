@@ -160,9 +160,16 @@ const planCornerRadius = plan
                 >
                   −
                 </button>
-                <span id="zoom-display" class="zoom-display">
-                  100%
-                </span>
+                <input
+                  id="zoom-display"
+                  class="zoom-display"
+                  type="text"
+                  inputmode="numeric"
+                  autocomplete="off"
+                  spellcheck="false"
+                  value="100%"
+                  aria-label="Nivel de zoom"
+                />
                 <button
                   id="zoom-in"
                   class="zoom-btn"
@@ -498,13 +505,28 @@ const planCornerRadius = plan
       padding: 0 0.6rem;
       font-size: 0.8rem;
     }
-    .zoom-display {
+    .zoom-controls .zoom-display {
       color: var(--c-line);
       font-size: 0.78rem;
+      height: 2.25rem;
+      box-sizing: border-box;
       padding: 0 0.4rem;
-      min-width: 3.4rem;
+      width: 3.4rem;
       text-align: center;
       font-variant-numeric: tabular-nums;
+      font-family: inherit;
+      background: transparent;
+      border: 0;
+      border-radius: 6px;
+      box-shadow: none;
+      cursor: text;
+    }
+    .zoom-controls .zoom-display:focus {
+      outline: none;
+      color: var(--c-white);
+      background: rgba(0, 0, 0, 0.18);
+      border-color: transparent;
+      box-shadow: none;
     }
 
     /* ===== Modals (centered) ===== */
@@ -1011,6 +1033,10 @@ const planCornerRadius = plan
       .zoom-controls {
         top: 5vw;
         right: 5vw;
+      }
+      #zoom-out,
+      #zoom-in {
+        display: none;
       }
     }
   </style>

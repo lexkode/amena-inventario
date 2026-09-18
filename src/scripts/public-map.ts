@@ -6,7 +6,6 @@ import type { PuntoInteres } from "@features/points/punto.types";
 import type { Plano } from "@db/schema";
 import {
   applyViewTransform as applySvgView,
-  fitView as makeFitView,
   panTo as panView,
   zoomAtPoint as zoomViewAt,
   zoomBy as zoomViewBy,
@@ -83,7 +82,7 @@ let puntoModal!: HTMLElement;
 let puntoModalBackdrop!: HTMLElement;
 let puntoModalGallery!: HTMLElement;
 let puntoModalInfo!: HTMLElement;
-let zoomDisplay!: HTMLElement;
+let zoomDisplay!: HTMLInputElement;
 let modeloFilter!: HTMLSelectElement;
 
 let planAncho = 1;
@@ -704,9 +703,47 @@ function zoomBy(factor: number): void {
   renderViewTransform();
 }
 
+function setZoomPercent(percent: number): void {
+  const currentZoom = state.initialView.w / state.view.w;
+  const targetZoom = Math.max(percent / 100, 1);
+  const rect = svg.getBoundingClientRect();
+  zoomAtPoint(
+    currentZoom / targetZoom,
+    rect.left + rect.width / 2,
+    rect.top + rect.height / 2,
+  );
+}
+
+function applyZoomDisplay(): void {
+  const raw = zoomDisplay.value.replace("%", "").trim();
+  const percent = Number.parseFloat(raw);
+  if (Number.isFinite(percent) && percent > 0) {
+    setZoomPercent(percent);
+  } else {
+    renderViewTransform();
+  }
+}
+
 function fitView(): void {
-  state.view = makeFitView(state.initialView);
+  state.view = makeInitialView(state.initialView);
   renderViewTransform();
+}
+
+const MOBILE_MAX_WIDTH = 1024;
+const MOBILE_INITIAL_ZOOM = 1.5;
+
+function makeInitialView(initial: { w: number; h: number }): {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+} {
+  if (!window.matchMedia(`(max-width: ${MOBILE_MAX_WIDTH}px)`).matches) {
+    return { x: 0, y: 0, ...initial };
+  }
+  const w = initial.w / MOBILE_INITIAL_ZOOM;
+  const h = initial.h / MOBILE_INITIAL_ZOOM;
+  return { x: (initial.w - w) / 2, y: (initial.h - h) / 2, w, h };
 }
 
 // ============ Event handlers ============
@@ -727,6 +764,19 @@ function setupEventListeners(): void {
   document.getElementById("zoom-in")?.addEventListener("click", () => zoomBy(0.8));
   document.getElementById("zoom-out")?.addEventListener("click", () => zoomBy(1.25));
   document.getElementById("zoom-fit")?.addEventListener("click", () => fitView());
+
+  zoomDisplay.addEventListener("focus", () => zoomDisplay.select());
+  zoomDisplay.addEventListener("blur", applyZoomDisplay);
+  zoomDisplay.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      zoomDisplay.blur();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      renderViewTransform();
+      zoomDisplay.blur();
+    }
+  });
 
 	document.getElementById("lot-modal-close")?.addEventListener("click", closeLotModal);
 	lotModalBackdrop.addEventListener("click", (e) => {
@@ -903,11 +953,11 @@ export function initPublicMap(): void {
   contactModal = document.getElementById("contact-modal") as HTMLElement;
   contactModalBackdrop = document.getElementById("contact-modal-backdrop") as HTMLElement;
   contactHeader = document.getElementById("contact-header") as HTMLElement;
-  zoomDisplay = document.getElementById("zoom-display") as HTMLElement;
+  zoomDisplay = document.getElementById("zoom-display") as HTMLInputElement;
   modeloFilter = document.getElementById("modelo-filter") as HTMLSelectElement;
 
   state.initialView = { w: initialData.plan.anchoPx, h: initialData.plan.altoPx };
-  state.view = { x: 0, y: 0, ...state.initialView };
+  state.view = makeInitialView(state.initialView);
   planAncho = initialData.plan.anchoPx;
   planAlto = initialData.plan.altoPx;
   state.lotes = initialData.lotes;
