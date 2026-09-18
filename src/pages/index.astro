@@ -24,6 +24,10 @@ const counts = {
 };
 
 const initialData = { plan, lotes, puntos, modelos, counts };
+
+const planCornerRadius = plan
+  ? Math.round(Math.min(plan.anchoPx, plan.altoPx) * 0.015)
+  : 0;
 ---
 
 <PublicLayout title="Residencial Amena · Lotes disponibles en Comalapa" brand={marca}>
@@ -52,6 +56,20 @@ const initialData = { plan, lotes, puntos, modelos, counts };
                 viewBox={`0 0 ${plan.anchoPx} ${plan.altoPx}`}
                 preserveAspectRatio="xMidYMid meet"
               >
+                {planCornerRadius > 0 && (
+                  <defs>
+                    <clipPath id="plan-clip">
+                      <rect
+                        x="0"
+                        y="0"
+                        width={plan.anchoPx}
+                        height={plan.altoPx}
+                        rx={planCornerRadius}
+                        ry={planCornerRadius}
+                      />
+                    </clipPath>
+                  </defs>
+                )}
                 <image
                   id="plan-image"
                   href={plan.imagenPath}
@@ -60,6 +78,7 @@ const initialData = { plan, lotes, puntos, modelos, counts };
                   width={plan.anchoPx}
                   height={plan.altoPx}
                   preserveAspectRatio="xMidYMid meet"
+                  clip-path={planCornerRadius > 0 ? "url(#plan-clip)" : undefined}
                 />
                 <g id="lots-layer" />
                 <g id="puntos-layer" />
@@ -431,7 +450,7 @@ const initialData = { plan, lotes, puntos, modelos, counts };
     .zoom-controls {
       position: absolute;
       right: 1rem;
-      bottom: 1rem;
+      top: 1rem;
       display: inline-flex;
       align-items: center;
       background: var(--c-bg-dark);
