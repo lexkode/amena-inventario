@@ -209,26 +209,19 @@ const planCornerRadius = plan
                 role="group"
                 aria-label="Controles de zoom"
               >
-                <input
-                  id="zoom-display"
-                  class="zoom-display"
-                  type="text"
-                  inputmode="numeric"
-                  autocomplete="off"
-                  spellcheck="false"
-                  value="100%"
-                  aria-label="Nivel de zoom"
-                />
-                <input
-                  id="zoom-range"
-                  class="zoom-range"
-                  type="range"
-                  min="1"
-                  max="200"
-                  step="1"
-                  value="100"
-                  aria-label="Ajustar zoom"
-                />
+                <div class="zoom-range-wrap">
+                  <input
+                    id="zoom-range"
+                    class="zoom-range"
+                    type="range"
+                    min="1"
+                    max="200"
+                    step="1"
+                    value="100"
+                    aria-label="Ajustar zoom"
+                  />
+                  <span id="zoom-display" class="zoom-display">100%</span>
+                </div>
                 <button id="zoom-fit" class="zoom-btn zoom-fit" type="button">
                   Fit
                 </button>
@@ -551,7 +544,9 @@ const planCornerRadius = plan
       background: var(--c-bg-light);
     }
     .pill-count {
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       margin-left: 0.4rem;
       min-width: 1.5rem;
       padding: 0.05rem 0.45rem;
@@ -560,8 +555,7 @@ const planCornerRadius = plan
       font-size: 0.72rem;
       font-weight: 700;
       font-variant-numeric: tabular-nums;
-      text-align: center;
-      line-height: 1.3;
+      line-height: 1;
     }
     .pill.active .pill-count {
       background: rgba(255, 255, 255, 0.22);
@@ -662,9 +656,10 @@ const planCornerRadius = plan
       flex-direction: column;
       align-items: center;
       gap: 0.3rem;
-      background: var(--c-bg-dark);
+      background: var(--c-white);
       border-radius: 10px;
-      padding: 0.4rem 0.3rem;
+      padding: 0;
+      box-shadow: var(--c-shadow-soft);
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);
     }
@@ -680,30 +675,58 @@ const planCornerRadius = plan
     }
     .zoom-fit {
       width: auto;
-      padding: 0;
-      background: rgba(255, 255, 255, 0.08);
-      transition: background 0.15s ease;
+      padding: 1px 3px 6px;
+      height: auto;
+      background: transparent;
+      color: var(--c-text);
     }
-    .zoom-fit:hover {
-      background: var(--c-accent);
+    .zoom-range-wrap {
+      position: relative;
+      width: 0.9rem;
+      height: var(--zoom-range-h);
+      padding: 0 0.25rem 0.4rem;
+      margin-top: 8px;
+      --zoom-range-h: 5rem;
+      --zoom-thumb-w: 2rem;
+      --zoom-thumb-h: 1.1rem;
+      --zoom-progress: 0%;
+      --zoom-pos: 0;
+      --zoom-fill: var(--c-bg-dark);
+      --zoom-track: rgba(36, 72, 88, 0.15);
+    }
+    .zoom-range-wrap:hover {
+      --zoom-fill: var(--c-text-muted);
+    }
+    .zoom-range-wrap::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 0;
+      transform: translateX(-50%);
+      z-index: 0;
+      width: 0.35rem;
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(
+        to top,
+        var(--zoom-fill) 0 var(--zoom-progress),
+        var(--zoom-track) var(--zoom-progress) 100%
+      );
     }
     .zoom-range {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
       writing-mode: vertical-lr;
       direction: rtl;
-      width: 1rem;
-      height: 5rem;
+      width: 100%;
+      height: 100%;
       margin: 0;
       -webkit-appearance: none;
       appearance: none;
       background: transparent;
       cursor: pointer;
       -webkit-tap-highlight-color: transparent;
-      --zoom-progress: 0%;
-      --zoom-fill: var(--c-line);
-      --zoom-track: rgba(255, 255, 255, 0.18);
-    }
-    .zoom-range:hover {
-      --zoom-fill: var(--c-white);
     }
     .zoom-range:focus,
     .zoom-range:focus-visible {
@@ -712,73 +735,76 @@ const planCornerRadius = plan
       box-shadow: none;
     }
     .zoom-range::-webkit-slider-runnable-track {
-      width: 0.35rem;
+      width: 100%;
       height: 100%;
       border: 0;
-      border-radius: 999px;
-      background: linear-gradient(
-        to top,
-        var(--zoom-fill) 0 var(--zoom-progress),
-        var(--zoom-track) var(--zoom-progress) 100%
-      );
+      background: transparent;
     }
     .zoom-range::-webkit-slider-thumb {
       -webkit-appearance: none;
-      width: 0.9rem;
-      height: 0.9rem;
-      margin-left: -0.275rem;
+      width: var(--zoom-thumb-w);
+      height: var(--zoom-thumb-h);
+      margin-left: calc((0.9rem - var(--zoom-thumb-w)) / 2);
       border: 0;
-      border-radius: 50%;
-      background: var(--c-white);
-      transition: background 0.15s ease;
+      border-radius: 999px;
+      background: #50707e;
+      transition:
+        background 0.15s ease,
+        width 0.2s ease,
+        margin-left 0.2s ease;
     }
-    .zoom-range:hover::-webkit-slider-thumb {
-      background: var(--c-line);
+    .zoom-range-wrap:hover .zoom-range::-webkit-slider-thumb {
+      background: #43606d;
     }
     .zoom-range::-moz-range-track {
-      width: 0.35rem;
-      background: var(--zoom-track);
+      width: 100%;
+      height: 100%;
       border: 0;
-      border-radius: 999px;
+      background: transparent;
     }
     .zoom-range::-moz-range-progress {
-      background: var(--zoom-fill);
-      border: 0;
-      border-radius: 999px;
-    }
-    .zoom-range::-moz-range-thumb {
-      width: 0.9rem;
-      height: 0.9rem;
-      border: 0;
-      border-radius: 50%;
-      background: var(--c-white);
-      transition: background 0.15s ease;
-    }
-    .zoom-range:hover::-moz-range-thumb {
-      background: var(--c-line);
-    }
-    .zoom-controls .zoom-display {
-      color: var(--c-line);
-      font-size: 0.6rem;
-      height: 1.4rem;
-      box-sizing: border-box;
-      padding: 0;
-      width: 4.8ch;
-      text-align: center;
-      font-variant-numeric: tabular-nums;
-      font-family: inherit;
       background: transparent;
       border: 0;
-      border-radius: 6px;
-      box-shadow: none;
-      cursor: text;
     }
-    .zoom-controls .zoom-display:focus {
-      outline: none;
+    .zoom-range::-moz-range-thumb {
+      width: var(--zoom-thumb-w);
+      height: var(--zoom-thumb-h);
+      margin-left: calc((0.9rem - var(--zoom-thumb-w)) / 2);
+      border: 0;
+      border-radius: 999px;
+      background: #50707e;
+      transition:
+        background 0.15s ease,
+        width 0.2s ease,
+        margin-left 0.2s ease;
+    }
+    .zoom-range-wrap:hover .zoom-range::-moz-range-thumb {
+      background: #43606d;
+    }
+    .zoom-controls .zoom-display {
+      position: absolute;
+      left: 50%;
+      bottom: calc(var(--zoom-pos) * (var(--zoom-range-h) - var(--zoom-thumb-h)));
+      transform: translateX(-50%);
+      z-index: 2;
+      width: var(--zoom-thumb-w);
+      height: var(--zoom-thumb-h);
+      box-sizing: border-box;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.72rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      font-family: inherit;
       color: var(--c-white);
-      background: rgba(0, 0, 0, 0.18);
-      border-color: transparent;
-      box-shadow: none;
+      background: transparent;
+      border: 0;
+      border-radius: 999px;
+      pointer-events: none;
+      transition: width 0.2s ease;
     }
 
     /* ===== Modals (centered) ===== */
@@ -1285,6 +1311,9 @@ const planCornerRadius = plan
       .zoom-controls {
         top: 5vw;
         right: 5vw;
+      }
+      .zoom-range-wrap {
+        --zoom-range-h: 3.5rem;
       }
       #canvas {
         padding: 3.5rem 1.5rem 13rem;
