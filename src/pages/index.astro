@@ -128,6 +128,7 @@ const planCornerRadius = plan
                 </button>
                 <div class="filter-panel">
                   <div class="filter-panel-inner">
+                    <div class="filter-groups">
                     <div class="filter-group">
                       <span class="filter-label">Estado</span>
                       <div
@@ -168,6 +169,37 @@ const planCornerRadius = plan
                       <select id="modelo-filter" class="select">
                         <option value="">Todos los modelos</option>
                       </select>
+                    </div>
+                    </div>
+                    <div
+                      class="filter-reset-slot collapsed"
+                      id="filter-reset-slot"
+                    >
+                      <div class="filter-reset-clip">
+                        <button
+                          type="button"
+                          id="filter-reset"
+                          class="filter-reset"
+                          disabled
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path
+                              d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"
+                            ></path>
+                            <path d="M3 3v5h5"></path>
+                          </svg>
+                          Restablecer
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -389,11 +421,66 @@ const planCornerRadius = plan
     .filter-panel-inner {
       min-height: 0;
       overflow: hidden;
+    }
+    .filter-groups {
       display: flex;
       flex-wrap: wrap;
       gap: 1.25rem 1.75rem;
       align-items: flex-end;
-      justify-content: space-between;
+      justify-content: flex-start;
+    }
+    .filter-group:last-of-type {
+      margin-left: auto;
+    }
+    .pill:focus-visible,
+    .filter-reset:focus-visible {
+      outline-offset: -2px;
+    }
+    .filter-reset-slot {
+      display: grid;
+      grid-template-rows: 1fr;
+      margin-top: 0.75rem;
+      opacity: 1;
+      transition:
+        grid-template-rows 0.3s ease,
+        margin-top 0.3s ease,
+        opacity 0.3s ease;
+    }
+    .filter-reset-slot.collapsed {
+      grid-template-rows: 0fr;
+      margin-top: 0;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .filter-reset-clip {
+      min-height: 0;
+      overflow: hidden;
+    }
+    .filter-reset {
+      justify-self: start;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--c-text);
+      font-family: inherit;
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: color 0.15s ease;
+    }
+    .filter-reset svg {
+      width: 0.8rem;
+      height: 0.8rem;
+      flex-shrink: 0;
+    }
+    .filter-reset:hover:not(:disabled) {
+      color: var(--c-accent);
+    }
+    .filter-reset:disabled {
+      cursor: default;
     }
     .filter-toggle {
       position: absolute;
@@ -518,7 +605,9 @@ const planCornerRadius = plan
     }
     .select:focus {
       outline: 2px solid var(--c-focus);
+      outline-offset: -2px;
       border-color: transparent;
+      box-shadow: none;
     }
 
     /* ===== Canvas ===== */
@@ -537,6 +626,9 @@ const planCornerRadius = plan
       overflow: visible;
       padding: 2rem 2rem 8rem;
       transition: padding 0.3s ease;
+    }
+    #canvas.has-active-filters {
+      padding-bottom: 10rem;
     }
     #canvas.filters-hidden {
       padding: 2rem;
@@ -1101,7 +1193,7 @@ const planCornerRadius = plan
       }
     }
     @media (max-width: 640px) {
-      .filter-panel-inner {
+      .filter-groups {
         flex-direction: column;
         align-items: stretch;
       }
@@ -1127,6 +1219,9 @@ const planCornerRadius = plan
       }
       #canvas {
         padding: 3.5rem 1.5rem 13rem;
+      }
+      #canvas.has-active-filters {
+        padding-bottom: 15rem;
       }
       #canvas.filters-hidden {
         padding: 3.5rem 1.5rem 3.5rem;

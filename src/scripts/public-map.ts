@@ -85,6 +85,8 @@ let puntoModalGallery!: HTMLElement;
 let puntoModalInfo!: HTMLElement;
 let zoomDisplay!: HTMLInputElement;
 let modeloFilter!: HTMLSelectElement;
+let filterResetBtn!: HTMLButtonElement;
+let filterResetSlot!: HTMLElement;
 
 let planAncho = 1;
 let planAlto = 1;
@@ -326,6 +328,13 @@ function renderFilterUI(): void {
   if (modeloFilter) {
     modeloFilter.value = state.filter.modeloId === null ? "" : String(state.filter.modeloId);
   }
+  const hasActiveFilters =
+    state.filter.status !== "all" || state.filter.modeloId !== null;
+  if (filterResetBtn) filterResetBtn.disabled = !hasActiveFilters;
+  if (filterResetSlot) {
+    filterResetSlot.classList.toggle("collapsed", !hasActiveFilters);
+  }
+  svg.classList.toggle("has-active-filters", hasActiveFilters);
   renderPillCounts();
 }
 
@@ -633,6 +642,12 @@ function setFilterModeloId(id: number | null): void {
   render();
 }
 
+function resetFilters(): void {
+  state.filter.status = "all";
+  state.filter.modeloId = null;
+  render();
+}
+
 function openLotModal(id: number): void {
   state.lotModalLoteId = id;
   state.contactModalLoteId = null;
@@ -744,6 +759,8 @@ function setupEventListeners(): void {
     const value = modeloFilter.value;
     setFilterModeloId(value ? Number(value) : null);
   });
+
+  filterResetBtn?.addEventListener("click", resetFilters);
 
   const filterBar = document.getElementById("filter-bar");
   const filterToggle = document.getElementById("filter-toggle");
@@ -951,6 +968,8 @@ export function initPublicMap(): void {
   contactHeader = document.getElementById("contact-header") as HTMLElement;
   zoomDisplay = document.getElementById("zoom-display") as HTMLInputElement;
   modeloFilter = document.getElementById("modelo-filter") as HTMLSelectElement;
+  filterResetBtn = document.getElementById("filter-reset") as HTMLButtonElement;
+  filterResetSlot = document.getElementById("filter-reset-slot") as HTMLElement;
 
   state.initialView = { w: initialData.plan.anchoPx, h: initialData.plan.altoPx };
   state.view = makeFitView(state.initialView);
