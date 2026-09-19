@@ -209,14 +209,6 @@ const planCornerRadius = plan
                 role="group"
                 aria-label="Controles de zoom"
               >
-                <button
-                  id="zoom-out"
-                  class="zoom-btn"
-                  type="button"
-                  aria-label="Reducir"
-                >
-                  −
-                </button>
                 <input
                   id="zoom-display"
                   class="zoom-display"
@@ -227,14 +219,16 @@ const planCornerRadius = plan
                   value="100%"
                   aria-label="Nivel de zoom"
                 />
-                <button
-                  id="zoom-in"
-                  class="zoom-btn"
-                  type="button"
-                  aria-label="Aumentar"
-                >
-                  +
-                </button>
+                <input
+                  id="zoom-range"
+                  class="zoom-range"
+                  type="range"
+                  min="1"
+                  max="200"
+                  step="1"
+                  value="100"
+                  aria-label="Ajustar zoom"
+                />
                 <button id="zoom-fit" class="zoom-btn zoom-fit" type="button">
                   Fit
                 </button>
@@ -665,36 +659,111 @@ const planCornerRadius = plan
       right: 1rem;
       top: 1rem;
       display: inline-flex;
+      flex-direction: column;
       align-items: center;
+      gap: 0.3rem;
       background: var(--c-bg-dark);
       border-radius: 10px;
-      padding: 0.25rem;
+      padding: 0.4rem 0.3rem;
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);
     }
     .zoom-btn {
-      border-width: 0px;
+      border-width: 0;
       border-radius: 6px;
       color: var(--c-white);
-      font-size: 14px;
+      font-size: 0.72rem;
       font-weight: 600;
-      padding: 6px;
-      width: 2.25rem;
-      height: 2.25rem;
+      padding: 0;
+      height: 1.4rem;
       cursor: pointer;
     }
     .zoom-fit {
       width: auto;
-      padding: 0 0.6rem;
-      font-size: 0.8rem;
+      padding: 0;
+      background: rgba(255, 255, 255, 0.08);
+      transition: background 0.15s ease;
+    }
+    .zoom-fit:hover {
+      background: var(--c-accent);
+    }
+    .zoom-range {
+      writing-mode: vertical-lr;
+      direction: rtl;
+      width: 1rem;
+      height: 5rem;
+      margin: 0;
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      --zoom-progress: 0%;
+      --zoom-fill: var(--c-line);
+      --zoom-track: rgba(255, 255, 255, 0.18);
+    }
+    .zoom-range:hover {
+      --zoom-fill: var(--c-white);
+    }
+    .zoom-range:focus,
+    .zoom-range:focus-visible {
+      outline: none;
+      border-color: transparent;
+      box-shadow: none;
+    }
+    .zoom-range::-webkit-slider-runnable-track {
+      width: 0.35rem;
+      height: 100%;
+      border: 0;
+      border-radius: 999px;
+      background: linear-gradient(
+        to top,
+        var(--zoom-fill) 0 var(--zoom-progress),
+        var(--zoom-track) var(--zoom-progress) 100%
+      );
+    }
+    .zoom-range::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 0.9rem;
+      height: 0.9rem;
+      margin-left: -0.275rem;
+      border: 0;
+      border-radius: 50%;
+      background: var(--c-white);
+      transition: background 0.15s ease;
+    }
+    .zoom-range:hover::-webkit-slider-thumb {
+      background: var(--c-line);
+    }
+    .zoom-range::-moz-range-track {
+      width: 0.35rem;
+      background: var(--zoom-track);
+      border: 0;
+      border-radius: 999px;
+    }
+    .zoom-range::-moz-range-progress {
+      background: var(--zoom-fill);
+      border: 0;
+      border-radius: 999px;
+    }
+    .zoom-range::-moz-range-thumb {
+      width: 0.9rem;
+      height: 0.9rem;
+      border: 0;
+      border-radius: 50%;
+      background: var(--c-white);
+      transition: background 0.15s ease;
+    }
+    .zoom-range:hover::-moz-range-thumb {
+      background: var(--c-line);
     }
     .zoom-controls .zoom-display {
       color: var(--c-line);
-      font-size: 0.78rem;
-      height: 2.25rem;
+      font-size: 0.6rem;
+      height: 1.4rem;
       box-sizing: border-box;
-      padding: 0 0.4rem;
-      width: 3.4rem;
+      padding: 0;
+      width: 4.8ch;
       text-align: center;
       font-variant-numeric: tabular-nums;
       font-family: inherit;
@@ -917,7 +986,7 @@ const planCornerRadius = plan
       background-clip: padding-box;
     }
     :global(.modal-info .info-scroll::-webkit-scrollbar-thumb:hover) {
-      background: var(--c-accent);
+      background: var(--c-line);
     }
     :global(.modal-info .info-header) {
       padding: 1.4rem 1.5rem 0;
@@ -1225,10 +1294,6 @@ const planCornerRadius = plan
       }
       #canvas.filters-hidden {
         padding: 3.5rem 1.5rem 3.5rem;
-      }
-      #zoom-out,
-      #zoom-in {
-        display: none;
       }
     }
   </style>

@@ -9,7 +9,6 @@ import {
   fitView as makeFitView,
   panTo as panView,
   zoomAtPoint as zoomViewAt,
-  zoomBy as zoomViewBy,
 } from "@shared/map/viewport";
 import { escapeHtml } from "@shared/map/svg-utils";
 import { createLotLabel, createLotPolygon } from "@shared/map/lot-renderer";
@@ -84,12 +83,36 @@ let puntoModalBackdrop!: HTMLElement;
 let puntoModalGallery!: HTMLElement;
 let puntoModalInfo!: HTMLElement;
 let zoomDisplay!: HTMLInputElement;
+let zoomRange!: HTMLInputElement;
 let modeloFilter!: HTMLSelectElement;
 let filterResetBtn!: HTMLButtonElement;
 let filterResetSlot!: HTMLElement;
 
 let planAncho = 1;
 let planAlto = 1;
+
+const MAX_ZOOM = 2;
+
+function getCanvasContentSize(): { w: number; h: number } {
+  const rect = svg.getBoundingClientRect();
+  const cs = getComputedStyle(svg);
+  const w =
+    rect.width - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+  const h =
+    rect.height - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0);
+  return { w: Math.max(w, 1), h: Math.max(h, 1) };
+}
+
+function getScale(): number {
+  const ctm = svg.getScreenCTM();
+  if (ctm && ctm.a) return ctm.a;
+  return state.initialView.w / state.view.w;
+}
+
+function fitZoom(): number {
+  const size = getCanvasContentSize();
+  return Math.min(size.w / (planAncho || 1), size.h / (planAlto || 1));
+}
 
 let touchStart: { x: number; y: number } | null = null;
 let touchMoved = false;
@@ -126,7 +149,24 @@ function getLoteBBox(lote: LoteConModelo): { minX: number; minY: number; maxX: n
 // ============ Render: lots layer (main canvas) ============
 
 function renderViewTransform(): void {
-  applySvgView(svg, state.view, state.initialView.w, zoomDisplay);
+  applySvgView(svg, state.view, state.initialView.w);
+  const zoomPct = getScale() * 100;
+  if (zoomDisplay) zoomDisplay.value = `${Math.round(zoomPct)}%`;
+  updateZoomRange(zoomPct);
+}
+
+function updateZoomRange(zoomPct: number): void {
+  if (!zoomRange) return;
+  const maxPct = MAX_ZOOM * 100;
+  const minPct = Math.min(Math.max(1, Math.floor(fitZoom() * 100)), maxPct);
+  zoomRange.min = String(minPct);
+  zoomRange.max = String(maxPct);
+  const clamped = Math.min(Math.max(Math.round(zoomPct), minPct), maxPct);
+  zoomRange.value = String(clamped);
+  if (maxPct > minPct) {
+    const progress = ((clamped - minPct) / (maxPct - minPct)) * 100;
+    zoomRange.style.setProperty("--zoom-progress", `${progress}%`);
+  }
 }
 
 function renderLotsLayer(): void {
@@ -628,6 +668,7 @@ function render(): void {
   renderLotModal();
   renderPuntoModal();
   renderContactModal();
+  window.setTimeout(renderViewTransform, 320);
 }
 
 // ============ Actions ============
@@ -703,9 +744,11 @@ function panTo(clientX: number, clientY: number): void {
 }
 
 function zoomAtPoint(factor: number, clientX: number, clientY: number): void {
+  const minFactor = getScale() / MAX_ZOOM;
+  const safeFactor = Math.max(factor, minFactor);
   state.view = zoomViewAt(
     state.view,
-    factor,
+    safeFactor,
     clientX,
     clientY,
     state.initialView,
@@ -714,17 +757,12 @@ function zoomAtPoint(factor: number, clientX: number, clientY: number): void {
   renderViewTransform();
 }
 
-function zoomBy(factor: number): void {
-  state.view = zoomViewBy(state.view, factor, state.initialView, svg);
-  renderViewTransform();
-}
-
 function setZoomPercent(percent: number): void {
-  const currentZoom = state.initialView.w / state.view.w;
-  const targetZoom = Math.max(percent / 100, 1);
+  const target = Math.min(Math.max(percent / 100, fitZoom()), MAX_ZOOM);
+  const current = getScale();
   const rect = svg.getBoundingClientRect();
   zoomAtPoint(
-    currentZoom / targetZoom,
+    current / target,
     rect.left + rect.width / 2,
     rect.top + rect.height / 2,
   );
@@ -772,11 +810,12 @@ function setupEventListeners(): void {
     filterToggle.setAttribute("aria-label", label);
     const labelEl = filterToggle.querySelector<HTMLElement>(".filter-toggle-label");
     if (labelEl) labelEl.textContent = label;
+    window.setTimeout(renderViewTransform, 320);
   });
 
-  document.getElementById("zoom-in")?.addEventListener("click", () => zoomBy(0.8));
-  document.getElementById("zoom-out")?.addEventListener("click", () => zoomBy(1.25));
   document.getElementById("zoom-fit")?.addEventListener("click", () => fitView());
+  zoomRange?.addEventListener("input", () => setZoomPercent(Number(zoomRange.value)));
+  window.addEventListener("resize", () => renderViewTransform());
 
   zoomDisplay.addEventListener("focus", () => zoomDisplay.select());
   zoomDisplay.addEventListener("blur", applyZoomDisplay);
@@ -967,6 +1006,7 @@ export function initPublicMap(): void {
   contactModalBackdrop = document.getElementById("contact-modal-backdrop") as HTMLElement;
   contactHeader = document.getElementById("contact-header") as HTMLElement;
   zoomDisplay = document.getElementById("zoom-display") as HTMLInputElement;
+  zoomRange = document.getElementById("zoom-range") as HTMLInputElement;
   modeloFilter = document.getElementById("modelo-filter") as HTMLSelectElement;
   filterResetBtn = document.getElementById("filter-reset") as HTMLButtonElement;
   filterResetSlot = document.getElementById("filter-reset-slot") as HTMLElement;
