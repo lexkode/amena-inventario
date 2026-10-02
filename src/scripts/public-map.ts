@@ -83,7 +83,6 @@ let puntoModalBackdrop!: HTMLElement;
 let puntoModalGallery!: HTMLElement;
 let puntoModalInfo!: HTMLElement;
 let zoomDisplay!: HTMLElement;
-let zoomRange!: HTMLInputElement;
 let modeloFilter!: HTMLSelectElement;
 let filterResetBtn!: HTMLButtonElement;
 let filterResetSlot!: HTMLElement;
@@ -152,29 +151,6 @@ function renderViewTransform(): void {
   applySvgView(svg, state.view, state.initialView.w);
   const zoomPct = getScale() * 100;
   if (zoomDisplay) zoomDisplay.textContent = `${Math.round(zoomPct)}%`;
-  updateZoomRange(zoomPct);
-}
-
-function updateZoomRange(zoomPct: number): void {
-  if (!zoomRange) return;
-  const wrap = zoomRange.parentElement;
-  const maxPct = MAX_ZOOM * 100;
-  const minPct = Math.min(Math.max(1, Math.floor(fitZoom() * 100)), maxPct);
-  zoomRange.min = String(minPct);
-  zoomRange.max = String(maxPct);
-  const clamped = Math.min(Math.max(Math.round(zoomPct), minPct), maxPct);
-  zoomRange.value = String(clamped);
-  if (wrap) {
-    wrap.style.setProperty(
-      "--zoom-thumb-w",
-      String(clamped).length >= 3 ? "2.4rem" : "2rem",
-    );
-    if (maxPct > minPct) {
-      const ratio = (clamped - minPct) / (maxPct - minPct);
-      wrap.style.setProperty("--zoom-progress", `${ratio * 100}%`);
-      wrap.style.setProperty("--zoom-pos", String(ratio));
-    }
-  }
 }
 
 function renderLotsLayer(): void {
@@ -812,7 +788,8 @@ function setupEventListeners(): void {
   });
 
   document.getElementById("zoom-fit")?.addEventListener("click", () => fitView());
-  zoomRange?.addEventListener("input", () => setZoomPercent(Number(zoomRange.value)));
+  document.getElementById("zoom-in")?.addEventListener("click", () => setZoomPercent(getScale() * 125));
+  document.getElementById("zoom-out")?.addEventListener("click", () => setZoomPercent(getScale() * 80));
   window.addEventListener("resize", () => renderViewTransform());
 
 	document.getElementById("lot-modal-close")?.addEventListener("click", closeLotModal);
@@ -991,7 +968,6 @@ export function initPublicMap(): void {
   contactModalBackdrop = document.getElementById("contact-modal-backdrop") as HTMLElement;
   contactHeader = document.getElementById("contact-header") as HTMLElement;
   zoomDisplay = document.getElementById("zoom-display") as HTMLElement;
-  zoomRange = document.getElementById("zoom-range") as HTMLInputElement;
   modeloFilter = document.getElementById("modelo-filter") as HTMLSelectElement;
   filterResetBtn = document.getElementById("filter-reset") as HTMLButtonElement;
   filterResetSlot = document.getElementById("filter-reset-slot") as HTMLElement;
