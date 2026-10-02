@@ -210,7 +210,10 @@ function renderPuntosLayer(): void {
   }
 }
 
-function setupGalleryImage(viewer: HTMLElement, img: HTMLImageElement): (path: string) => void {
+function setupGalleryImage(
+  viewer: HTMLElement,
+  img: HTMLImageElement,
+): (path: string, direction?: -1 | 1) => void {
   const placeholder = document.createElement("div");
   placeholder.className = "gallery-image-placeholder";
   placeholder.setAttribute("role", "status");
@@ -242,24 +245,63 @@ function setupGalleryImage(viewer: HTMLElement, img: HTMLImageElement): (path: s
   viewer.appendChild(placeholder);
 
   let request = 0;
-  return (path: string): void => {
+  let incoming: HTMLImageElement | null = null;
+  return (path: string, direction: -1 | 1 = 1): void => {
     const currentRequest = ++request;
-    viewer.classList.remove("image-ready", "image-error");
+    incoming?.getAnimations().forEach((animation) => animation.cancel());
+    incoming?.remove();
+    incoming = null;
+    const hasCurrentImage = img.hasAttribute("src");
+    if (!hasCurrentImage) viewer.classList.remove("image-ready", "image-error");
     viewer.setAttribute("aria-busy", "true");
-    message.textContent = "Cargando imagen";
+    message.textContent = hasCurrentImage ? "" : "Cargando imagen";
     const pending = new Image();
     pending.src = path;
     pending.decode().then(() => {
       if (currentRequest !== request) return;
-      img.src = path;
-      viewer.classList.add("image-ready");
-      viewer.setAttribute("aria-busy", "false");
-      message.textContent = "";
+      if (!hasCurrentImage) {
+        img.src = path;
+        viewer.classList.add("image-ready");
+        viewer.setAttribute("aria-busy", "false");
+        message.textContent = "";
+        return;
+      }
+
+      const nextImage = document.createElement("img");
+      nextImage.className = "lot-gallery-img lot-gallery-incoming";
+      nextImage.src = path;
+      nextImage.alt = "";
+      nextImage.setAttribute("aria-hidden", "true");
+      incoming = nextImage;
+      viewer.appendChild(nextImage);
+
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const distance = direction * (reducedMotion ? 60 : 100);
+      const animation = nextImage.animate(
+        [
+          { transform: `translateX(${distance}%)`, opacity: 0 },
+          { transform: "translateX(0)", opacity: 1 },
+        ],
+        {
+          duration: reducedMotion ? 240 : 360,
+          easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+          fill: "both",
+        },
+      );
+      void animation.finished.then(() => {
+        if (currentRequest !== request || incoming !== nextImage) return;
+        img.src = path;
+        nextImage.remove();
+        incoming = null;
+        viewer.setAttribute("aria-busy", "false");
+      }).catch(() => undefined);
     }).catch(() => {
       if (currentRequest !== request) return;
-      viewer.classList.add("image-error");
+      if (!hasCurrentImage) {
+        viewer.classList.add("image-error");
+        message.textContent = "Imagen no disponible";
+      }
       viewer.setAttribute("aria-busy", "false");
-      message.textContent = "Imagen no disponible";
     });
   };
 }
@@ -312,26 +354,29 @@ function renderPuntoGallery(punto: PuntoInteres): void {
 
   viewer.appendChild(img);
   viewer.appendChild(counter);
-  viewer.appendChild(prev);
-  viewer.appendChild(next);
+  if (punto.imagenes.length > 1) {
+    viewer.append(prev, next);
+  }
   gallery.appendChild(viewer);
 
-  const update = (): void => {
-    loadImage(punto.imagenes[current].path);
+  const update = (direction: -1 | 1 = 1): void => {
+    loadImage(punto.imagenes[current].path, direction);
     counter.textContent = `${current + 1} / ${punto.imagenes.length}`;
     thumbs.querySelectorAll<HTMLElement>(".lot-gallery-thumb").forEach((t, i) => {
       t.classList.toggle("active", i === current);
     });
   };
 
-  prev.addEventListener("click", () => {
-    current = (current - 1 + punto.imagenes.length) % punto.imagenes.length;
-    update();
-  });
-  next.addEventListener("click", () => {
-    current = (current + 1) % punto.imagenes.length;
-    update();
-  });
+  if (punto.imagenes.length > 1) {
+    prev.addEventListener("click", () => {
+      current = (current - 1 + punto.imagenes.length) % punto.imagenes.length;
+      update(-1);
+    });
+    next.addEventListener("click", () => {
+      current = (current + 1) % punto.imagenes.length;
+      update(1);
+    });
+  }
 
   const thumbs = document.createElement("div");
   thumbs.className = "lot-gallery-thumbs";
@@ -345,8 +390,10 @@ function renderPuntoGallery(punto: PuntoInteres): void {
     thumbImg.alt = "";
     thumb.appendChild(thumbImg);
     thumb.addEventListener("click", () => {
+      if (current === i) return;
+      const direction = i < current ? -1 : 1;
       current = i;
-      update();
+      update(direction);
     });
     thumbs.appendChild(thumb);
   });
@@ -545,8 +592,9 @@ function renderImageGallery(
 
   viewer.appendChild(img);
   viewer.appendChild(counter);
-  viewer.appendChild(prev);
-  viewer.appendChild(next);
+  if (images.length > 1) {
+    viewer.append(prev, next);
+  }
   gallery.appendChild(viewer);
 
   const thumbs = document.createElement("div");
@@ -561,8 +609,10 @@ function renderImageGallery(
     thumbImg.alt = "";
     thumb.appendChild(thumbImg);
     thumb.addEventListener("click", () => {
+      if (current === i) return;
+      const direction = i < current ? -1 : 1;
       current = i;
-      update();
+      update(direction);
     });
     thumbs.appendChild(thumb);
   });
@@ -570,22 +620,24 @@ function renderImageGallery(
 
   lotModalGallery.appendChild(gallery);
 
-  function update(): void {
-    loadImage(images[current].path);
+  function update(direction: -1 | 1 = 1): void {
+    loadImage(images[current].path, direction);
     counter.textContent = `${current + 1} / ${images.length}`;
     thumbs.querySelectorAll<HTMLElement>(".lot-gallery-thumb").forEach((t, i) => {
       t.classList.toggle("active", i === current);
     });
   }
 
-  prev.addEventListener("click", () => {
-    current = (current - 1 + images.length) % images.length;
-    update();
-  });
-  next.addEventListener("click", () => {
-    current = (current + 1) % images.length;
-    update();
-  });
+  if (images.length > 1) {
+    prev.addEventListener("click", () => {
+      current = (current - 1 + images.length) % images.length;
+      update(-1);
+    });
+    next.addEventListener("click", () => {
+      current = (current + 1) % images.length;
+      update(1);
+    });
+  }
 }
 
 function renderLotInfo(lote: LoteConModelo): void {

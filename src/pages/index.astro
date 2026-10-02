@@ -819,6 +819,11 @@ const planCornerRadius = plan
     :global(.image-ready .lot-gallery-img) {
       opacity: 1;
     }
+    :global(.lot-gallery-incoming) {
+      z-index: 1;
+      will-change: transform, opacity;
+      pointer-events: none;
+    }
     :global(.gallery-image-placeholder) {
       position: absolute;
       inset: 0;
