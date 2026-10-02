@@ -794,6 +794,9 @@ const planCornerRadius = plan
       overflow: hidden;
       min-height: 0;
     }
+    .modal-gallery.has-images {
+      min-height: clamp(280px, 65vh, 640px);
+    }
     :global(.gallery-svg) {
       width: 100%;
       height: 100%;
@@ -815,10 +818,64 @@ const planCornerRadius = plan
       justify-content: center;
     }
     :global(.lot-gallery-img) {
+      position: absolute;
+      inset: 0;
       width: 100%;
       height: 100%;
       object-fit: cover;
       display: block;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+    :global(.image-ready .lot-gallery-img) {
+      opacity: 1;
+    }
+    :global(.gallery-image-placeholder) {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(255, 255, 255, 0.65);
+      pointer-events: none;
+    }
+    :global(.image-ready .gallery-image-placeholder) {
+      visibility: hidden;
+    }
+    :global(.gallery-image-spinner) {
+      width: 52px;
+      height: 52px;
+      flex-shrink: 0;
+    }
+    :global(.gallery-image-spinner line) {
+      stroke: #fff;
+      stroke-width: 1.5px;
+      stroke-linecap: round;
+    }
+    :global(.gallery-image-message) {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+    :global(.image-error .gallery-image-spinner) {
+      display: none;
+    }
+    :global(.image-error .gallery-image-message) {
+      position: static;
+      width: auto;
+      height: auto;
+      clip-path: none;
+      font-size: 0.8rem;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      :global(.gallery-image-spinner line) {
+        opacity: 0.5;
+      }
+      :global(.lot-gallery-img) {
+        transition: none;
+      }
     }
     :global(.lot-gallery-counter) {
       position: absolute;
@@ -1184,6 +1241,10 @@ const planCornerRadius = plan
       .modal-grid {
         grid-template-columns: 1fr;
         grid-template-rows: minmax(220px, 45vh) auto;
+      }
+      .modal-gallery.has-images {
+        min-height: 0;
+        height: 100%;
       }
       .modal-info {
         border-left: 0;

@@ -209,8 +209,63 @@ function renderPuntosLayer(): void {
   }
 }
 
+function setupGalleryImage(viewer: HTMLElement, img: HTMLImageElement): (path: string) => void {
+  const placeholder = document.createElement("div");
+  placeholder.className = "gallery-image-placeholder";
+  placeholder.setAttribute("role", "status");
+  const spinner = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  spinner.classList.add("gallery-image-spinner");
+  spinner.setAttribute("viewBox", "0 0 26 26");
+  spinner.setAttribute("aria-hidden", "true");
+  for (let i = 0; i < 12; i++) {
+    const bar = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    bar.setAttribute("x1", "13");
+    bar.setAttribute("y1", "3");
+    bar.setAttribute("x2", "13");
+    bar.setAttribute("y2", "7");
+    bar.setAttribute("transform", `rotate(${i * 30} 13 13)`);
+    bar.setAttribute("opacity", "0.1");
+    const pulse = document.createElementNS("http://www.w3.org/2000/svg", "animate");
+    pulse.setAttribute("attributeName", "opacity");
+    pulse.setAttribute("values", "1;0.7;0.4;0.22;0.13;0.1;0.1;1");
+    pulse.setAttribute("keyTimes", "0;0.08;0.22;0.38;0.55;0.7;0.92;1");
+    pulse.setAttribute("dur", "1.2s");
+    pulse.setAttribute("begin", `${i * 0.1 - 1.2}s`);
+    pulse.setAttribute("repeatCount", "indefinite");
+    bar.appendChild(pulse);
+    spinner.appendChild(bar);
+  }
+  const message = document.createElement("span");
+  message.className = "gallery-image-message";
+  placeholder.append(spinner, message);
+  viewer.appendChild(placeholder);
+
+  let request = 0;
+  return (path: string): void => {
+    const currentRequest = ++request;
+    viewer.classList.remove("image-ready", "image-error");
+    viewer.setAttribute("aria-busy", "true");
+    message.textContent = "Cargando imagen";
+    const pending = new Image();
+    pending.src = path;
+    pending.decode().then(() => {
+      if (currentRequest !== request) return;
+      img.src = path;
+      viewer.classList.add("image-ready");
+      viewer.setAttribute("aria-busy", "false");
+      message.textContent = "";
+    }).catch(() => {
+      if (currentRequest !== request) return;
+      viewer.classList.add("image-error");
+      viewer.setAttribute("aria-busy", "false");
+      message.textContent = "Imagen no disponible";
+    });
+  };
+}
+
 function renderPuntoGallery(punto: PuntoInteres): void {
   while (puntoModalGallery.firstChild) puntoModalGallery.removeChild(puntoModalGallery.firstChild);
+  puntoModalGallery.classList.toggle("has-images", punto.imagenes.length > 0);
 
   if (punto.imagenes.length === 0) {
     const galleryEmpty = document.createElement("div");
@@ -232,8 +287,9 @@ function renderPuntoGallery(punto: PuntoInteres): void {
 
   const img = document.createElement("img");
   img.className = "lot-gallery-img";
-  img.src = punto.imagenes[0].path;
   img.alt = punto.nombre;
+  const loadImage = setupGalleryImage(viewer, img);
+  loadImage(punto.imagenes[0].path);
 
   const counter = document.createElement("div");
   counter.className = "lot-gallery-counter";
@@ -260,7 +316,7 @@ function renderPuntoGallery(punto: PuntoInteres): void {
   gallery.appendChild(viewer);
 
   const update = (): void => {
-    img.src = punto.imagenes[current].path;
+    loadImage(punto.imagenes[current].path);
     counter.textContent = `${current + 1} / ${punto.imagenes.length}`;
     thumbs.querySelectorAll<HTMLElement>(".lot-gallery-thumb").forEach((t, i) => {
       t.classList.toggle("active", i === current);
@@ -386,6 +442,7 @@ function renderLotGallery(lote: LoteConModelo, plan: Plano): void {
   while (lotModalGallery.firstChild) lotModalGallery.removeChild(lotModalGallery.firstChild);
 
   const images = lote.imagenes;
+  lotModalGallery.classList.toggle("has-images", images.length > 0);
   if (images.length > 0) {
     renderImageGallery(lote, images);
     return;
@@ -463,8 +520,9 @@ function renderImageGallery(
 
   const img = document.createElement("img");
   img.className = "lot-gallery-img";
-  img.src = images[0].path;
   img.alt = `Imagen del lote ${lote.numeroLote}`;
+  const loadImage = setupGalleryImage(viewer, img);
+  loadImage(images[0].path);
 
   const counter = document.createElement("div");
   counter.className = "lot-gallery-counter";
@@ -512,7 +570,7 @@ function renderImageGallery(
   lotModalGallery.appendChild(gallery);
 
   function update(): void {
-    img.src = images[current].path;
+    loadImage(images[current].path);
     counter.textContent = `${current + 1} / ${images.length}`;
     thumbs.querySelectorAll<HTMLElement>(".lot-gallery-thumb").forEach((t, i) => {
       t.classList.toggle("active", i === current);
