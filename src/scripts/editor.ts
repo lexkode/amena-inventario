@@ -25,6 +25,7 @@ import { SVG_NS, escapeHtml } from "@shared/map/svg-utils";
 import { createLotLabel, createLotPolygon, LOT_BORDER_WIDTH } from "@shared/map/lot-renderer";
 import { ESTADO_FILL, ESTADO_STROKE } from "@shared/map/lot-colors";
 import { puntoMarkerRadius } from "@shared/map/punto-marker";
+import { removePopup, setPopupOpen } from "@shared/ui/popup";
 
 type Mode = "lotes" | "draw" | "punto";
 
@@ -1560,13 +1561,16 @@ function showModal(opts: {
         </div>
       </div>`;
     document.body.appendChild(overlay);
+    void setPopupOpen(overlay, true);
     activeModal = overlay;
     (document.activeElement as HTMLElement | null)?.blur();
 
     const cleanup = (value: string): void => {
-      overlay.remove();
-      activeModal = null;
-      resolve(value);
+      if (overlay.inert) return;
+      void removePopup(overlay).then(() => {
+        activeModal = null;
+        resolve(value);
+      });
     };
     opts.buttons.forEach((b) => {
       overlay
@@ -1642,6 +1646,7 @@ function openImagePicker(opts: {
         </div>
       </div>`;
     document.body.appendChild(overlay);
+    void setPopupOpen(overlay, true);
     activeModal = overlay;
     (document.activeElement as HTMLElement | null)?.blur();
 
@@ -1653,10 +1658,12 @@ function openImagePicker(opts: {
     let items: UploadImage[] = [];
 
     const cleanup = (value: string[]): void => {
+      if (overlay.inert) return;
       if (alertTimer !== undefined) window.clearTimeout(alertTimer);
-      overlay.remove();
-      activeModal = null;
-      resolve(value);
+      void removePopup(overlay).then(() => {
+        activeModal = null;
+        resolve(value);
+      });
     };
 
     const updateCount = (): void => {
@@ -1736,9 +1743,10 @@ function openImagePicker(opts: {
             </div>
           </div>`;
         overlay.appendChild(dialog);
+        void setPopupOpen(dialog, true);
         const done = (value: boolean): void => {
-          dialog.remove();
-          resolve(value);
+          if (dialog.inert) return;
+          void removePopup(dialog).then(() => resolve(value));
         };
         dialog
           .querySelector("[data-del-cancel]")
@@ -2781,13 +2789,16 @@ function showPublicacionesModal(): Promise<RestoreTarget | null> {
         </div>
       </div>`;
     document.body.appendChild(overlay);
+    void setPopupOpen(overlay, true);
     activeModal = overlay;
     (document.activeElement as HTMLElement | null)?.blur();
 
     const cleanup = (value: RestoreTarget | null): void => {
-      overlay.remove();
-      activeModal = null;
-      resolve(value);
+      if (overlay.inert) return;
+      void removePopup(overlay).then(() => {
+        activeModal = null;
+        resolve(value);
+      });
     };
     overlay.querySelector("[data-close]")?.addEventListener("click", () => cleanup(null));
     overlay.addEventListener("click", (e) => {

@@ -14,6 +14,7 @@ import { escapeHtml } from "@shared/map/svg-utils";
 import { createLotLabel, createLotPolygon } from "@shared/map/lot-renderer";
 import { ESTADO_FILL, ESTADO_LABEL, ESTADO_STROKE } from "@shared/map/lot-colors";
 import { puntoMarkerRadius } from "@shared/map/punto-marker";
+import { setPopupOpen } from "@shared/ui/popup";
 
 type FilterStatus = "all" | LoteEstado;
 
@@ -372,7 +373,7 @@ function renderPuntoInfo(punto: PuntoInteres): void {
 
 function renderPuntoModal(): void {
   const open = state.puntoModalId !== null;
-  puntoModalBackdrop.classList.toggle("open", open);
+  void setPopupOpen(puntoModalBackdrop, open);
   puntoModalBackdrop.setAttribute("aria-hidden", open ? "false" : "true");
   puntoModal.setAttribute("aria-hidden", open ? "false" : "true");
 
@@ -641,7 +642,7 @@ function renderLotInfo(lote: LoteConModelo): void {
 
 function renderLotModal(): void {
   const open = state.lotModalLoteId !== null;
-  lotModalBackdrop.classList.toggle("open", open);
+  void setPopupOpen(lotModalBackdrop, open);
   lotModalBackdrop.setAttribute("aria-hidden", open ? "false" : "true");
   lotModal.setAttribute("aria-hidden", open ? "false" : "true");
 
@@ -671,12 +672,11 @@ function renderLotModal(): void {
 
 function renderContactModal(): void {
   const open = state.contactModalLoteId !== null;
-  contactModalBackdrop.classList.toggle("open", open);
+  void setPopupOpen(contactModalBackdrop, open);
   contactModalBackdrop.setAttribute("aria-hidden", open ? "false" : "true");
   contactModal.setAttribute("aria-hidden", open ? "false" : "true");
 
   if (!open || state.contactModalLoteId === null) {
-    contactHeader.innerHTML = "";
     return;
   }
 
