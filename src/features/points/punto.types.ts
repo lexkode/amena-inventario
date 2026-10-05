@@ -2,8 +2,19 @@ import { z } from "zod";
 import type { PuntoInteresRow } from "@core/db/schema";
 
 export const MAX_IMAGENES_POR_PUNTO = 8;
+export const PUNTO_ICONO_TAMANO_DEFAULT = 100;
+export const PUNTO_ICONO_TAMANO_MIN = 25;
+export const PUNTO_ICONO_TAMANO_MAX = 300;
 
-export const puntoCreateSchema = z.object({
+const iconoPathSchema = z.url({ protocol: /^https$/, error: "El icono debe usar una URL HTTPS" }).nullable();
+const tamanoIconoSchema = z.coerce.number().int().min(PUNTO_ICONO_TAMANO_MIN).max(PUNTO_ICONO_TAMANO_MAX);
+
+export const puntoIconoSchema = z.object({
+  iconoPath: iconoPathSchema.default(null),
+  tamanoIcono: tamanoIconoSchema.default(PUNTO_ICONO_TAMANO_DEFAULT),
+});
+
+export const puntoCreateSchema = puntoIconoSchema.extend({
   nombre: z
     .string()
     .trim()
@@ -20,6 +31,8 @@ export const puntoUpdateSchema = z.object({
   informacion: z.string().trim().max(2000).optional(),
   x: z.coerce.number().optional(),
   y: z.coerce.number().optional(),
+  iconoPath: iconoPathSchema.optional(),
+  tamanoIcono: tamanoIconoSchema.optional(),
 });
 export type UpdatePuntoInput = z.infer<typeof puntoUpdateSchema>;
 
@@ -35,6 +48,8 @@ export function puntoComparable(punto: PuntoInteres): string {
     informacion: punto.informacion,
     x: punto.x,
     y: punto.y,
+    iconoPath: punto.iconoPath ?? null,
+    tamanoIcono: punto.tamanoIcono ?? PUNTO_ICONO_TAMANO_DEFAULT,
     imagenes: punto.imagenes.map((i) => i.path),
   });
 }

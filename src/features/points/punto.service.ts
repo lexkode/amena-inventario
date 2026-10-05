@@ -11,6 +11,7 @@ import {
   type PuntoImagenItem,
   type PuntoInteres,
   type UpdatePuntoInput,
+  puntoIconoSchema,
 } from "./punto.types";
 
 export type { PuntoInteres, PuntoImagenItem, CreatePuntoInput, UpdatePuntoInput } from "./punto.types";
@@ -70,6 +71,8 @@ export async function createPunto(input: CreatePuntoInput): Promise<PuntoInteres
       informacion: input.informacion ?? "",
       x: input.x,
       y: input.y,
+      iconoPath: input.iconoPath,
+      tamanoIcono: input.tamanoIcono,
     })
     .returning({ id: puntosInteres.id });
   if (!row) throw new Error("No se pudo recuperar el punto de interés recién creado");
@@ -92,6 +95,8 @@ export async function updatePunto(
   if (input.informacion !== undefined) updates.informacion = input.informacion;
   if (input.x !== undefined) updates.x = input.x;
   if (input.y !== undefined) updates.y = input.y;
+  if (input.iconoPath !== undefined) updates.iconoPath = input.iconoPath;
+  if (input.tamanoIcono !== undefined) updates.tamanoIcono = input.tamanoIcono;
 
   if (Object.keys(updates).length > 0) {
     const updated = await db
@@ -156,7 +161,7 @@ export type PublicacionPuntosResumen = {
 function parseSnapshot(json: string): PuntoInteres[] {
   try {
     const parsed = JSON.parse(json) as PuntoInteres[];
-    return Array.isArray(parsed) ? parsed : [];
+    return Array.isArray(parsed) ? parsed.map((punto) => ({ ...punto, ...puntoIconoSchema.parse(punto) })) : [];
   } catch {
     return [];
   }

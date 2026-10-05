@@ -60,6 +60,22 @@ También se valida en la API para impedir que se guarde geometría fuera del
 edificio. La comprobación contempla perímetros cóncavos, no solo sus vértices.
 El perímetro debe tener área y no cruzarse a sí mismo.
 
+## Copiar edificios
+
+Dentro del edificio, **Copiar edificio** guarda una copia de todas sus plantas,
+perímetros, imágenes y apartamentos (incluidos modelos, estados, números y galerías).
+También funciona **Ctrl+C / Cmd+C** cuando no hay un apartamento seleccionado.
+Con un apartamento seleccionado, el atajo sigue copiando solo esa vivienda.
+
+Pulsa **Pegar edificio** o **Ctrl+V / Cmd+V** y haz clic en el plano general
+para colocar la copia. El contorno de previsualización sigue al cursor; **Esc**
+o **Cancelar** sale sin crear nada. Se asigna el siguiente identificador libre
+del mismo tipo y nomenclatura, con un nombre de copia si el original tenía uno.
+Todas las geometrías se trasladan juntas y las imágenes de R2 se reutilizan.
+
+Cada pegado es un paso del historial y puede deshacerse o rehacerse. Los cambios
+persisten al **Guardar borrador** y aparecen en el mapa público al **Publicar**.
+
 ## Datos y numeración
 
 El formulario del edificio define su nomenclatura, tipo de identificador y

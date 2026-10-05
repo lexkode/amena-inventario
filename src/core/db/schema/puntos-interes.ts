@@ -5,7 +5,9 @@ import {
   integer,
   doublePrecision,
   text,
+  check,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 export const puntosInteres = pgTable("puntos_interes", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
@@ -15,6 +17,8 @@ export const puntosInteres = pgTable("puntos_interes", {
     .$defaultFn(() => ""),
   x: doublePrecision("x").notNull(),
   y: doublePrecision("y").notNull(),
+  iconoPath: text("icono_path"),
+  tamanoIcono: integer("tamano_icono").notNull().default(100),
   createdAt: bigint("created_at", { mode: "number" })
     .notNull()
     .$defaultFn(() => Date.now()),
@@ -22,7 +26,9 @@ export const puntosInteres = pgTable("puntos_interes", {
     .notNull()
     .$defaultFn(() => Date.now())
     .$onUpdateFn(() => Date.now()),
-});
+}, (table) => [
+  check("puntos_interes_tamano_icono_check", sql`${table.tamanoIcono} BETWEEN 25 AND 300`),
+]);
 
 export const puntoInteresImagenes = pgTable("punto_interes_imagenes", {
   id: bigserial("id", { mode: "number" }).primaryKey(),

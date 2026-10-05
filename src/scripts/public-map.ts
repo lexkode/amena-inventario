@@ -18,7 +18,7 @@ import {
 import { escapeHtml, SVG_NS } from "@shared/map/svg-utils";
 import { createLotLabel, createLotPolygon } from "@shared/map/lot-renderer";
 import { ESTADO_FILL, ESTADO_LABEL, ESTADO_STROKE } from "@shared/map/lot-colors";
-import { puntoMarkerRadius } from "@shared/map/punto-marker";
+import { createPuntoMarker } from "@shared/map/punto-marker";
 import { setPopupOpen } from "@shared/ui/popup";
 
 type FilterStatus = "all" | LoteEstado;
@@ -534,27 +534,9 @@ function closeBuilding(): void {
 function renderPuntosLayer(): void {
   while (puntosLayer.firstChild) puntosLayer.removeChild(puntosLayer.firstChild);
 
-  const r = puntoMarkerRadius(planAncho, planAlto);
   for (const punto of state.puntos) {
-    const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
-    group.setAttribute("class", "punto-marker");
+    const group = createPuntoMarker(punto, planAncho, planAlto);
     if (state.torre) group.style.pointerEvents = "none";
-
-    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    circle.setAttribute("cx", String(punto.x));
-    circle.setAttribute("cy", String(punto.y));
-    circle.setAttribute("r", String(r));
-    circle.setAttribute("fill", "var(--c-accent)");
-    circle.setAttribute("stroke", "#ffffff");
-    circle.setAttribute("stroke-width", String(r * 0.22));
-    group.appendChild(circle);
-
-    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    dot.setAttribute("cx", String(punto.x));
-    dot.setAttribute("cy", String(punto.y));
-    dot.setAttribute("r", String(r * 0.3));
-    dot.setAttribute("fill", "#ffffff");
-    group.appendChild(dot);
 
     group.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -894,7 +876,6 @@ function renderLotZoom(lote: LoteConModelo, plan: Plano): void {
   polygon.setAttribute("stroke", ESTADO_STROKE[lote.estado]);
   const strokeW = Math.max(Math.min(bbox.w, bbox.h) / 25, 6);
   polygon.setAttribute("stroke-width", String(strokeW));
-  polygon.style.filter = `drop-shadow(0 0 ${Math.max(bbox.w / 12, 24)}px ${ESTADO_STROKE[lote.estado]})`;
   svgEl.appendChild(polygon);
 
   const label = createLotLabel(lote, {

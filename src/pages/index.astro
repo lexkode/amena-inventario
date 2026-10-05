@@ -416,9 +416,9 @@ const planCornerRadius = plan
     }
     .filter-groups {
       display: flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       gap: 1.25rem 1.75rem;
-      align-items: flex-end;
+      align-items: flex-start;
       justify-content: flex-start;
     }
     .filter-group:last-of-type {
@@ -663,15 +663,6 @@ const planCornerRadius = plan
       transition:
         filter 0.15s,
         opacity 0.15s;
-    }
-    :global(.lote-polygon.lote-disponible):hover {
-      filter: drop-shadow(0 0 6px var(--c-disponible-glow));
-    }
-    :global(.lote-polygon.lote-reservado):hover {
-      filter: drop-shadow(0 0 6px var(--c-reservado-glow));
-    }
-    :global(.lote-polygon.lote-vendido):hover {
-      filter: drop-shadow(0 0 6px var(--c-vendido-glow));
     }
     :global(.lote-polygon.dimmed) {
       opacity: 0.5;
@@ -1180,13 +1171,10 @@ const planCornerRadius = plan
       cursor: pointer;
       transform-box: fill-box;
       transform-origin: center;
-      transition:
-        transform 0.15s ease,
-        filter 0.15s ease;
+      transition: transform 0.15s ease;
     }
     :global(.punto-marker:hover) {
       transform: scale(1.15);
-      filter: drop-shadow(0 0 6px var(--c-accent));
     }
     :global(.modal-info .poi-info-text) {
       margin: 0;

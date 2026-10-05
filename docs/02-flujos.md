@@ -140,6 +140,21 @@ Administrador autenticado.
 4. El servidor elimina el registro.
 5. La casa desaparece del editor.
 
+## Personalizar un punto de interés
+
+1. Selecciona el punto en el editor (también puede configurarse al crearlo).
+2. En **Icono en el mapa**, sube una imagen a R2 o elige una de la biblioteca.
+3. Ajusta **Tamaño del icono (%)** entre 25% y 300%; 100% mantiene el tamaño
+   original. El mapa previsualiza los cambios sin modificar la galería del popup.
+4. **Restablecer tamaño** vuelve a 100%. Quitar la imagen recupera el marcador
+   circular predeterminado, sin borrar el archivo de R2.
+5. Guarda los cambios del punto y el borrador. **Publicar** los hace visibles
+   en el sitio público. Icono y tamaño también se conservan en el historial.
+
+Las publicaciones anteriores sin estos campos mantienen el marcador original.
+La migración `0018_punto_icono_tamano.sql` añade los campos con valores
+predeterminados compatibles; debe aplicarse antes de desplegar esta versión.
+
 ## Cerrar sesión
 
 ### Actor

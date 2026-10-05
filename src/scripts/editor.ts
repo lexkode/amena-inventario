@@ -12,9 +12,14 @@ import { claveGrupo, nombreGrupo, grupoViviendasSchema, NOMENCLATURAS_GRUPO, typ
 import { NOMENCLATURAS_TORRE, torreSchema, mismaUbicacion, validarUbicacion } from "@features/lots/altura.types";
 import { torreCreateSchema, validarCambioTorre, nombreEdificio, perimetroNivel, perimetrosEdificio, type Torre, type TorreInput } from "@features/lots/torre.types";
 import { createBuildingImage } from "@shared/map/building-renderer";
+import { buildingCopyOffset, duplicateBuilding, type BuildingCopy } from "@shared/map/building-copy";
 import { puntoDentroPoligono, segmentoDentroPoligono, poligonoDentroPoligono, poligonoSimple } from "@core/geometry/perimeter";
 import {
   MAX_IMAGENES_POR_PUNTO,
+  PUNTO_ICONO_TAMANO_DEFAULT,
+  PUNTO_ICONO_TAMANO_MIN,
+  PUNTO_ICONO_TAMANO_MAX,
+  puntoIconoSchema,
   type PuntoImagenItem,
   type PuntoInteres,
 } from "@features/points/punto.types";
@@ -29,7 +34,7 @@ import {
 import { SVG_NS, escapeHtml } from "@shared/map/svg-utils";
 import { createLotLabel, createLotPolygon, LOT_BORDER_WIDTH } from "@shared/map/lot-renderer";
 import { ESTADO_FILL, ESTADO_STROKE } from "@shared/map/lot-colors";
-import { puntoMarkerRadius } from "@shared/map/punto-marker";
+import { createPuntoMarker } from "@shared/map/punto-marker";
 import { removePopup, setPopupOpen } from "@shared/ui/popup";
 
 type Mode = "lotes" | "draw" | "punto";
@@ -139,9 +144,11 @@ type State = {
   formDirty: boolean;
   draft: LoteDraft | null;
   puntoDirty: boolean;
-  puntoDraft: { nombre: string; informacion: string } | null;
+  puntoDraft: { nombre: string; informacion: string; iconoPath: string | null; tamanoIcono: number } | null;
   editSnapshot: LoteSnapshot | null;
   clipboard: LoteClipboard | null;
+  buildingClipboard: (BuildingCopy & { files: Map<number, File> }) | null;
+  buildingPastePosition: Punto | null;
   history: HistoryEntry[];
   historyIndex: number;
   synced: LoteConModelo[];
@@ -220,6 +227,8 @@ const state: State = {
   puntoDraft: null,
   editSnapshot: null,
   clipboard: null,
+  buildingClipboard: null,
+  buildingPastePosition: null,
   history: [],
   historyIndex: -1,
   synced: [],
@@ -296,7 +305,9 @@ function puntoFieldsChanged(a: PuntoInteres, b: PuntoInteres): boolean {
     a.nombre !== b.nombre ||
     a.informacion !== b.informacion ||
     a.x !== b.x ||
-    a.y !== b.y
+    a.y !== b.y ||
+    (a.iconoPath ?? null) !== (b.iconoPath ?? null) ||
+    (a.tamanoIcono ?? PUNTO_ICONO_TAMANO_DEFAULT) !== (b.tamanoIcono ?? PUNTO_ICONO_TAMANO_DEFAULT)
   );
 }
 
@@ -451,6 +462,7 @@ function goToHistory(index: number): void {
   if (state.syncing) return;
   if (index < 0 || index >= state.history.length || index === state.historyIndex) return;
   state.historyIndex = index;
+  state.buildingPastePosition = null;
   const entry = state.history[index];
   state.mode = "lotes";
   state.torres = structuredClone(entry.torres);
@@ -509,7 +521,9 @@ function renderViewTransform(): void {
 }
 
 function updateCursor(): void {
-  if (state.isPanning) {
+  if (state.buildingPastePosition) {
+    svg.style.cursor = "crosshair";
+  } else if (state.isPanning) {
     svg.style.cursor = "grabbing";
   } else if (state.mode === "lotes") {
     svg.style.cursor = "grab";
@@ -658,29 +672,13 @@ function renderPuntosLayer(): void {
   puntosLayer.style.pointerEvents = state.torre ? "none" : "";
   while (puntosLayer.firstChild) puntosLayer.removeChild(puntosLayer.firstChild);
 
-  const r = puntoMarkerRadius(state.initialView.w, state.initialView.h);
-
   for (const punto of state.puntos) {
     const isSelected = punto.id === state.selectedPuntoId;
-    const group = document.createElementNS(SVG_NS, "g");
-    group.setAttribute("class", "punto-marker");
+    const preview = isSelected && state.puntoDraft ? { ...punto, ...state.puntoDraft } : punto;
+    const group = createPuntoMarker(preview, state.initialView.w, state.initialView.h, {
+      fill: isSelected ? "#dc832f" : "#244858",
+    });
     group.setAttribute("data-punto-id", String(punto.id));
-
-    const circle = document.createElementNS(SVG_NS, "circle");
-    circle.setAttribute("cx", String(punto.x));
-    circle.setAttribute("cy", String(punto.y));
-    circle.setAttribute("r", String(r));
-    circle.setAttribute("fill", isSelected ? "#dc832f" : "#244858");
-    circle.setAttribute("stroke", "#ffffff");
-    circle.setAttribute("stroke-width", String(r * 0.22));
-    group.appendChild(circle);
-
-    const dot = document.createElementNS(SVG_NS, "circle");
-    dot.setAttribute("cx", String(punto.x));
-    dot.setAttribute("cy", String(punto.y));
-    dot.setAttribute("r", String(r * 0.3));
-    dot.setAttribute("fill", "#ffffff");
-    group.appendChild(dot);
 
     if (state.mode !== "draw") {
       group.style.cursor = isSelected ? "grab" : "pointer";
@@ -717,25 +715,9 @@ function renderPuntosLayer(): void {
 
   if (state.nuevoPuntoPos !== null) {
     const { x, y } = state.nuevoPuntoPos;
-    const group = document.createElementNS(SVG_NS, "g");
-    group.setAttribute("class", "punto-marker punto-marker-pending");
+    const group = createPuntoMarker({ x, y, ...state.puntoDraft }, state.initialView.w, state.initialView.h, { fill: "#dc832f" });
+    group.classList.add("punto-marker-pending");
     group.style.pointerEvents = "none";
-
-    const circle = document.createElementNS(SVG_NS, "circle");
-    circle.setAttribute("cx", String(x));
-    circle.setAttribute("cy", String(y));
-    circle.setAttribute("r", String(r));
-    circle.setAttribute("fill", "#dc832f");
-    circle.setAttribute("stroke", "#ffffff");
-    circle.setAttribute("stroke-width", String(r * 0.22));
-    group.appendChild(circle);
-
-    const dot = document.createElementNS(SVG_NS, "circle");
-    dot.setAttribute("cx", String(x));
-    dot.setAttribute("cy", String(y));
-    dot.setAttribute("r", String(r * 0.3));
-    dot.setAttribute("fill", "#ffffff");
-    group.appendChild(dot);
 
     puntosLayer.appendChild(group);
   }
@@ -755,6 +737,21 @@ function createVertexMarker(x: number, y: number): SVGRectElement {
 
 function renderOverlayLayer(): void {
   while (overlayLayer.firstChild) overlayLayer.removeChild(overlayLayer.firstChild);
+  if (state.buildingPastePosition && state.buildingClipboard) {
+    const torre = state.buildingClipboard.torre;
+    const offset = buildingCopyOffset(torre, state.buildingPastePosition);
+    for (const points of [torre.poligono, ...Object.values(torre.perimetrosNivel)]) {
+      const polygon = document.createElementNS(SVG_NS, "polygon");
+      polygon.setAttribute("points", points.map((p) => `${p.x + offset.x},${p.y + offset.y}`).join(" "));
+      polygon.setAttribute("fill", "rgba(220,131,47,0.15)");
+      polygon.setAttribute("stroke", "var(--c-accent)");
+      polygon.setAttribute("stroke-width", "2");
+      polygon.setAttribute("stroke-dasharray", "6 4");
+      polygon.setAttribute("pointer-events", "none");
+      overlayLayer.appendChild(polygon);
+    }
+    return;
+  }
   if (state.editingTorre && state.torre && drawingFloorPerimeter === null) {
     poligonoEnEdicion().forEach((p, i) => {
       const handle = createVertexMarker(p.x, p.y);
@@ -852,6 +849,11 @@ function renderOverlayLayer(): void {
 }
 
 function renderSidePanel(): void {
+  if (state.buildingPastePosition && state.buildingClipboard) {
+    sidePanel.innerHTML = `<h2>Pegar edificio</h2><p>Haz clic en el mapa para ubicar la copia de ${escapeHtml(nombreEdificio(state.buildingClipboard.torre))}, con sus ${state.buildingClipboard.apartamentos.length} apartamentos y todas sus plantas.</p><p>Se conservan modelos, estados e imágenes. Se asignará un identificador nuevo.</p><button type="button" id="cancel-building-paste" class="btn-secondary">Cancelar (Esc)</button>`;
+    document.getElementById("cancel-building-paste")?.addEventListener("click", () => { state.buildingPastePosition = null; render(); });
+    return;
+  }
   if (drawingFloorPerimeter !== null) {
     sidePanel.innerHTML = `<h2>Perímetro de ${escapeHtml(state.torre!.nombreNivel)} ${drawingFloorPerimeter}</h2>
       <p>Dibuja el nuevo perímetro. El contorno transparente del edificio sirve de referencia.</p>
@@ -987,6 +989,8 @@ function renderLoteList(): void {
       if (state.torre) return;
       state.selectedPuntoId = Number(btn.dataset.puntoId);
       state.selectedLoteId = null;
+      state.puntoDraft = null;
+      state.puntoDirty = false;
       render();
     });
   });
@@ -1002,6 +1006,8 @@ function renderPuntoForm(punto: PuntoInteres | null, pos: Punto | null): void {
   const draft = state.puntoDraft;
   const nombre = draft ? draft.nombre : (punto?.nombre ?? "");
   const informacion = draft ? draft.informacion : (punto?.informacion ?? "");
+  const iconoPath = draft ? draft.iconoPath : (punto?.iconoPath ?? null);
+  const tamanoIcono = draft ? draft.tamanoIcono : (punto?.tamanoIcono ?? PUNTO_ICONO_TAMANO_DEFAULT);
   const imagenes = punto?.imagenes ?? [];
   const atLimit = imagenes.length >= MAX_IMAGENES_POR_PUNTO;
   const canEditImages = punto !== null;
@@ -1052,6 +1058,20 @@ function renderPuntoForm(punto: PuntoInteres | null, pos: Punto | null): void {
           <label for="punto-info">Información</label>
           <textarea id="punto-info" rows="7" maxlength="2000" placeholder="Descripción que verá el visitante en el popup">${escapeHtml(informacion)}</textarea>
         </div>
+        <div class="field">
+          <label>Icono en el mapa</label>
+          <div class="lote-imgs">
+            ${iconoPath ? `<div class="lote-img"><img src="${escapeHtml(iconoPath)}" alt="Icono del punto" style="object-fit:contain" /><button type="button" id="punto-icon-remove" class="img-remove" aria-label="Usar icono predeterminado">&times;</button></div>` : ""}
+            <button type="button" id="punto-icon-pick" class="btn-secondary">${iconoPath ? "Cambiar icono" : "Subir o elegir icono"}</button>
+          </div>
+          <small class="hint">Sin imagen se usa el marcador predeterminado. El icono es independiente de la galería.</small>
+        </div>
+        <div class="field">
+          <label for="punto-icon-size">Tamaño del icono (%)</label>
+          <input id="punto-icon-size" type="number" min="${PUNTO_ICONO_TAMANO_MIN}" max="${PUNTO_ICONO_TAMANO_MAX}" step="1" required value="${tamanoIcono}" />
+          <small class="hint">100% conserva el tamaño actual. Entre ${PUNTO_ICONO_TAMANO_MIN}% y ${PUNTO_ICONO_TAMANO_MAX}%.</small>
+          <button type="button" id="punto-icon-reset" class="btn-secondary">Restablecer tamaño</button>
+        </div>
         ${imagenesHtml}
       </div>
       <div class="form-actions">
@@ -1078,12 +1098,36 @@ function renderPuntoForm(punto: PuntoInteres | null, pos: Punto | null): void {
         (document.getElementById("punto-nombre") as HTMLInputElement | null)?.value ?? "",
       informacion:
         (document.getElementById("punto-info") as HTMLTextAreaElement | null)?.value ?? "",
+      iconoPath: state.puntoDraft ? state.puntoDraft.iconoPath : iconoPath,
+      tamanoIcono: (document.getElementById("punto-icon-size") as HTMLInputElement).valueAsNumber,
     };
     const btn = document.getElementById("punto-save-btn") as HTMLButtonElement | null;
     if (btn) btn.disabled = false;
+    renderPuntosLayer();
+    updateDirtyIndicator();
   };
   document.getElementById("punto-nombre")?.addEventListener("input", markPuntoDirty);
   document.getElementById("punto-info")?.addEventListener("input", markPuntoDirty);
+  document.getElementById("punto-icon-size")?.addEventListener("input", markPuntoDirty);
+  document.getElementById("punto-icon-reset")?.addEventListener("click", () => {
+    (document.getElementById("punto-icon-size") as HTMLInputElement).value = String(PUNTO_ICONO_TAMANO_DEFAULT);
+    markPuntoDirty();
+  });
+  document.getElementById("punto-icon-pick")?.addEventListener("click", () => {
+    void openImagePicker({ limit: 1, existing: [] }).then((paths) => {
+      if (!paths.length || (punto ? state.selectedPuntoId !== punto.id : state.nuevoPuntoPos !== pos)) return;
+      markPuntoDirty();
+      state.puntoDraft!.iconoPath = paths[0];
+      renderPuntosLayer();
+      renderPuntoForm(punto, pos);
+    });
+  });
+  document.getElementById("punto-icon-remove")?.addEventListener("click", () => {
+    markPuntoDirty();
+    state.puntoDraft!.iconoPath = null;
+    renderPuntosLayer();
+    renderPuntoForm(punto, pos);
+  });
 
   const close = (): void => {
     state.nuevoPuntoPos = null;
@@ -1105,15 +1149,23 @@ function renderPuntoForm(punto: PuntoInteres | null, pos: Punto | null): void {
   }
 }
 
-function savePunto(punto: PuntoInteres | null, pos: Punto | null): void {
+function savePunto(punto: PuntoInteres | null, pos: Punto | null): boolean {
   clearFormError();
   const nombreEl = document.getElementById("punto-nombre") as HTMLInputElement | null;
   const infoEl = document.getElementById("punto-info") as HTMLTextAreaElement | null;
   const nombre = nombreEl?.value.trim() ?? "";
   const informacion = infoEl?.value.trim() ?? "";
+  const icono = puntoIconoSchema.safeParse({
+    iconoPath: state.puntoDraft ? state.puntoDraft.iconoPath : (punto?.iconoPath ?? null),
+    tamanoIcono: (document.getElementById("punto-icon-size") as HTMLInputElement).valueAsNumber,
+  });
+  if (!icono.success) {
+    showFormError(`El tamaño del icono debe ser un entero entre ${PUNTO_ICONO_TAMANO_MIN}% y ${PUNTO_ICONO_TAMANO_MAX}% y su imagen debe usar HTTPS.`);
+    return false;
+  }
   if (!nombre) {
     showFormError("El nombre es obligatorio");
-    return;
+    return false;
   }
 
   if (punto === null) {
@@ -1121,6 +1173,7 @@ function savePunto(punto: PuntoInteres | null, pos: Punto | null): void {
       id: genTempId(),
       nombre,
       informacion,
+      ...icono.data,
       x: pos?.x ?? 0,
       y: pos?.y ?? 0,
       imagenes: [],
@@ -1136,19 +1189,22 @@ function savePunto(punto: PuntoInteres | null, pos: Punto | null): void {
     commitHistory(`Crear punto ${nombre}`);
     render();
     showFormSuccess("Punto creado. No olvides publicar.");
-    return;
+    return true;
   }
 
   const target = state.puntos.find((p) => p.id === punto.id);
   if (target) {
     target.nombre = nombre;
     target.informacion = informacion;
+    target.iconoPath = icono.data.iconoPath;
+    target.tamanoIcono = icono.data.tamanoIcono;
   }
   state.puntoDraft = null;
   state.puntoDirty = false;
   commitHistory(`Editar punto ${nombre}`);
   render();
   showFormSuccess("Cambios aplicados. No olvides publicar.");
+  return true;
 }
 
 function deletePunto(id: number): void {
@@ -1845,6 +1901,11 @@ function renderModeButtons(): void {
   if (contextLabel && state.torre) contextLabel.textContent = `${state.editingTorre ? "Editando" : "Apartamentos de"} ${nombreEdificio(state.torre)} · ${state.torre.nombreNivel} ${state.nivelActivo}`;
   const edit = document.getElementById("edit-tower") as HTMLButtonElement | null;
   if (edit) edit.disabled = state.editingTorre || state.syncing;
+  const copy = document.getElementById("copy-tower") as HTMLButtonElement | null;
+  if (copy) {
+    copy.disabled = state.syncing;
+    copy.textContent = "Copiar edificio";
+  }
   const levels = document.getElementById("tower-levels");
   if (levels) {
     levels.hidden = !state.torre;
@@ -2053,8 +2114,76 @@ function copyLote(): void {
   const lote = state.lotes.find((l) => l.id === state.selectedLoteId);
   if (!lote) return;
   state.clipboard = captureSnapshot(lote);
+  state.buildingClipboard = null;
   renderPasteButton();
   showFormSuccess("Vivienda copiada. Pega con Ctrl+V o el botón Pegar.");
+}
+
+async function copyBuilding(): Promise<void> {
+  const id = state.torre?.id;
+  if (id === undefined || state.syncing || !(await confirmDiscard())) return;
+  const torre = state.torres.find((t) => t.id === id);
+  if (!torre) return;
+  const apartamentos = state.lotes.filter((l) => l.torreId === id);
+  const files = new Map<number, File>();
+  for (const lote of apartamentos) for (const image of lote.imagenes) {
+    const file = state.pendingImageFiles.get(image.id);
+    if (file) files.set(image.id, file);
+  }
+  state.buildingClipboard = { ...structuredClone({ torre, apartamentos }), files };
+  state.clipboard = null;
+  renderPasteButton();
+  const button = document.getElementById("copy-tower");
+  if (button) button.textContent = "Edificio copiado";
+}
+
+async function beginBuildingPaste(): Promise<void> {
+  if (!state.buildingClipboard || state.syncing || !(await confirmDiscard())) return;
+  clearTorreEdit();
+  clearFormDraft();
+  resetPendingImages();
+  state.torre = null;
+  state.nivelActivo = 1;
+  state.selectedLoteId = null;
+  state.selectedPuntoId = null;
+  state.selectedVertex = null;
+  state.editSnapshot = null;
+  state.pendingNewLote = null;
+  state.pendingNuevaTorre = null;
+  state.nuevoPuntoPos = null;
+  state.currentPolygon = [];
+  state.dibujandoTorre = false;
+  state.isPanning = false;
+  state.mode = "lotes";
+  state.buildingPastePosition = { x: state.view.x + state.view.w / 2, y: state.view.y + state.view.h / 2 };
+  render();
+}
+
+function placeBuildingCopy(center: Punto): void {
+  const clip = state.buildingClipboard;
+  if (!clip || state.syncing) return;
+  const grupo = siguienteGrupoTorre(clip.torre.grupo);
+  let name: string | null = null;
+  if (clip.torre.nombrePersonalizado) {
+    let suffix = " copia", index = 2;
+    do {
+      name = clip.torre.nombrePersonalizado.slice(0, 100 - suffix.length) + suffix;
+      suffix = ` copia ${index++}`;
+    } while (state.torres.some((t) => nombreEdificio(t) === name));
+  }
+  const copy = duplicateBuilding(clip, grupo, name, center, genTempId);
+  for (const lote of copy.apartamentos) for (const image of lote.imagenes) {
+    const file = clip.files.get(copy.imageSources.get(image.id)!);
+    if (file) state.pendingImageFiles.set(image.id, file);
+    else state.pendingImagePaths.set(image.id, image.path);
+  }
+  state.torres.push(copy.torre);
+  state.lotes.push(...copy.apartamentos);
+  state.buildingPastePosition = null;
+  state.torre = copy.torre;
+  state.nivelActivo = 1;
+  commitHistory(`Pegar ${nombreEdificio(copy.torre)} con ${copy.apartamentos.length} apartamentos`);
+  render();
 }
 
 function numeroEnUso(modeloId: number | null, numeroLote: string, grupo: GrupoViviendas | null, tipoVivienda: NewLote["tipoVivienda"], nivel: number | null): boolean {
@@ -2077,6 +2206,8 @@ function nextNumeroLote(base: string, modeloId: number | null, grupo: GrupoVivie
 }
 
 async function pasteLote(): Promise<void> {
+  if (state.syncing) return;
+  if (state.buildingClipboard) { await beginBuildingPaste(); return; }
   const clip = state.clipboard;
   if (!clip) return;
   if (state.torre && (clip.tipoVivienda !== "apartamento" || claveGrupo(clip.grupo) !== claveGrupo(state.torre.grupo))) return;
@@ -2124,9 +2255,13 @@ async function pasteLote(): Promise<void> {
 function renderPasteButton(): void {
   const group = document.getElementById("paste-group");
   const clip = state.clipboard;
-  if (group) group.hidden = !clip || (state.torre ? clip.tipoVivienda !== "apartamento" || claveGrupo(clip.grupo) !== claveGrupo(state.torre.grupo) : clip.tipoVivienda !== "casa");
+  if (group) group.hidden = !state.buildingClipboard && (!clip || (state.torre ? clip.tipoVivienda !== "apartamento" || claveGrupo(clip.grupo) !== claveGrupo(state.torre.grupo) : clip.tipoVivienda !== "casa"));
   const button = document.getElementById("paste-lote");
-  if (button) button.textContent = state.torre ? "Pegar apartamento" : "Pegar casa";
+  if (button) {
+    button.textContent = state.buildingClipboard ? "Pegar edificio" : state.torre ? "Pegar apartamento" : "Pegar casa";
+    button.setAttribute("title", `${button.textContent} (Ctrl+V)`);
+    if (button instanceof HTMLButtonElement) button.disabled = state.syncing || state.buildingPastePosition !== null;
+  }
 }
 
 function render(): void {
@@ -2148,6 +2283,7 @@ function render(): void {
 function hasUnsavedChanges(): boolean {
   return (
     state.torreFormDirty ||
+    state.puntoDirty ||
     state.pendingNuevaTorre !== null ||
     state.formDirty ||
     state.pendingImageAdds.length > 0 ||
@@ -2563,6 +2699,7 @@ function currentEditingLabel(): string | null {
 }
 
 async function setMode(mode: Mode): Promise<void> {
+  state.buildingPastePosition = null;
   if (state.torre && mode === "punto") return;
   if (mode === state.mode) return;
   if (!(await confirmDiscard())) return;
@@ -2693,8 +2830,7 @@ function activarContextoLote(lote: LoteConModelo): void {
   state.nivelActivo = lote.nivel ?? 1;
 }
 
-function siguienteGrupoTorre(): GrupoViviendas {
-  const defaults = initialData.alturaDefaults;
+function siguienteGrupoTorre(defaults: Pick<GrupoViviendas, "nombre" | "tipoIdentificador"> = initialData.alturaDefaults): GrupoViviendas {
   const letras = "ABCDEFGHIJKLMNÑOPQRSTUVWXYZ";
   const letra = (n: number): string => n < letras.length ? letras[n] : letra(Math.floor(n / letras.length) - 1) + letras[n % letras.length];
   let index = 0;
@@ -2711,6 +2847,7 @@ async function crearApartamento(): Promise<void> {
   closeAllDropdowns();
   if (!(await confirmDiscard())) return;
   clearTorreEdit();
+  state.buildingPastePosition = null;
   state.mode = "draw";
   state.dibujandoTorre = state.torre === null;
   state.currentPolygon = [];
@@ -2880,6 +3017,11 @@ function handleSvgMouseDown(e: MouseEvent): void {
 }
 
 function handleDocumentMouseMove(e: MouseEvent): void {
+  if (state.buildingPastePosition && !state.isPanning) {
+    state.buildingPastePosition = svgToPoint(svg, e.clientX, e.clientY);
+    renderOverlayLayer();
+    return;
+  }
   if (state.isPanning) {
     panTo(e.clientX, e.clientY);
   } else if (state.draggingTorreVertex !== null && state.torre) {
@@ -3044,16 +3186,24 @@ function handleKeyDown(e: KeyboardEvent): void {
       redo();
       return;
     }
-    if (key === "c" && state.mode === "lotes" && state.selectedLoteId !== null) {
+    if (key === "c" && state.mode === "lotes" && (state.selectedLoteId !== null || state.torre !== null)) {
       e.preventDefault();
-      copyLote();
+      if (state.selectedLoteId !== null) copyLote();
+      else void copyBuilding();
       return;
     }
-    if (key === "v" && state.clipboard !== null) {
+    if (key === "v" && (state.clipboard !== null || state.buildingClipboard !== null)) {
       e.preventDefault();
       void pasteLote();
       return;
     }
+  }
+
+  if (state.buildingPastePosition && e.key === "Escape") {
+    e.preventDefault();
+    state.buildingPastePosition = null;
+    render();
+    return;
   }
 
   if (state.editingTorre && state.torre) {
@@ -3291,6 +3441,7 @@ function modeloById(id: number | null): LoteConModelo["modelo"] {
 }
 
 function saveLote(): boolean {
+  if (state.puntoDirty) return savePunto(state.puntos.find((p) => p.id === state.selectedPuntoId) ?? null, state.nuevoPuntoPos);
   if (state.pendingNuevaTorre || state.editingTorre) return saveTorre();
   clearFormError();
   const data = getFormData();
@@ -3629,6 +3780,8 @@ async function guardarBorrador(): Promise<boolean> {
           body: JSON.stringify({
             nombre: punto.nombre,
             informacion: punto.informacion,
+            iconoPath: punto.iconoPath ?? null,
+            tamanoIcono: punto.tamanoIcono ?? PUNTO_ICONO_TAMANO_DEFAULT,
             x: punto.x,
             y: punto.y,
           }),
@@ -3644,6 +3797,8 @@ async function guardarBorrador(): Promise<boolean> {
           body: JSON.stringify({
             nombre: punto.nombre,
             informacion: punto.informacion,
+            iconoPath: punto.iconoPath ?? null,
+            tamanoIcono: punto.tamanoIcono ?? PUNTO_ICONO_TAMANO_DEFAULT,
             x: punto.x,
             y: punto.y,
           }),
@@ -3670,6 +3825,8 @@ async function guardarBorrador(): Promise<boolean> {
     state.pendingImageFiles.clear();
     state.pendingImagePaths.clear();
     state.clipboard = null;
+    state.buildingClipboard = null;
+    state.buildingPastePosition = null;
     state.hasUnpublished = true;
     render();
     renderHistoryControls();
@@ -4082,6 +4239,8 @@ function loadDocument(
   resetPendingImages();
   clearFormDraft();
   state.clipboard = null;
+  state.buildingClipboard = null;
+  state.buildingPastePosition = null;
   commitHistory("Estado inicial");
   render();
 }
@@ -4195,6 +4354,7 @@ export function initEditor(): void {
   document.getElementById("create-apartamento")?.addEventListener("click", () => { void crearApartamento(); });
   document.getElementById("exit-tower")?.addEventListener("click", () => { void salirTorre(); });
   document.getElementById("edit-tower")?.addEventListener("click", () => { void editarEdificio(); });
+  document.getElementById("copy-tower")?.addEventListener("click", () => { void copyBuilding(); });
   document.getElementById("create-punto")?.addEventListener("click", () => {
     closeAllDropdowns();
     if (state.mode === "punto") {
@@ -4233,6 +4393,13 @@ export function initEditor(): void {
     });
   });
 
+  svg.addEventListener("mousedown", (e) => {
+    if (!state.buildingPastePosition) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (e.button === 0 && !e.shiftKey) placeBuildingCopy(svgToPoint(svg, e.clientX, e.clientY));
+    else handleSvgMouseDown(e);
+  }, { capture: true });
   svg.addEventListener("mousedown", handleSvgMouseDown);
   svg.addEventListener("wheel", handleWheel, { passive: false });
   svg.addEventListener("contextmenu", (e) => e.preventDefault());

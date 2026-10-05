@@ -52,6 +52,9 @@ export async function getUploadUsage(url: string): Promise<UploadUsage> {
       .limit(1)
   )[0];
   if (punto) labels.push(`el punto de interés "${punto.nombre}"`);
+  const icono = (await db.select({ nombre: puntosInteres.nombre }).from(puntosInteres)
+    .where(eq(puntosInteres.iconoPath, url)).limit(1))[0];
+  if (icono) labels.push(`el icono del punto de interés "${icono.nombre}"`);
 
   const marcaRow = (await db.select().from(marca).limit(1))[0];
   if (marcaRow) {

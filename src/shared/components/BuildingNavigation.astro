@@ -20,6 +20,7 @@ const { editor = false } = Astro.props;
     </div>
   )}
   {editor && <button type="button" id="edit-tower" class="btn-secondary">Editar edificio</button>}
+  {editor && <button type="button" id="copy-tower" class="btn-secondary" title="Copiar edificio completo (Ctrl+C)">Copiar edificio</button>}
   {editor && <button type="button" id="exit-tower" class="btn-secondary">Salir del edificio</button>}
 </div>
 {!editor && <button type="button" id="exit-tower" class="modal-close building-close" aria-label="Cerrar edificio" hidden>×</button>}

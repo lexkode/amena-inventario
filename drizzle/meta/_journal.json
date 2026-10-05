@@ -127,6 +127,13 @@
       "when": 1791207792431,
       "tag": "0017_naive_drax",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791213117712,
+      "tag": "0018_punto_icono_tamano",
+      "breakpoints": true
     }
   ]
 }
