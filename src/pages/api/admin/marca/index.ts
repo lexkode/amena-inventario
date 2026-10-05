@@ -5,6 +5,7 @@ import {
   normalizeTipografia,
 } from "@features/branding/marca.service";
 import { BRAND_TOKENS, HEX_COLOR_RE } from "@features/branding/marca.types";
+import { nombreGrupoSchema, tipoIdentificadorSchema } from "@features/lots/grupo.types";
 import { formApi } from "@core/http/api";
 import { redirect } from "@core/http/json";
 import { ALLOWED_MIME, MAX_FILE_SIZE, saveUpload } from "@core/storage";
@@ -24,6 +25,13 @@ export const POST: APIRoute = formApi(async ({ request }) => {
   const accion = String(form.get("accion") ?? "guardar");
   const current = await getMarca();
   const tipografia = normalizeTipografia(form.get("tipografia"));
+  const nombre = form.get("nomenclaturaGrupo") === "personalizado"
+    ? form.get("nombreGrupoPersonalizado") : form.get("nomenclaturaGrupo");
+  const nombreResult = nombreGrupoSchema.safeParse(nombre ?? current.nombreGrupo);
+  const tipoResult = tipoIdentificadorSchema.safeParse(form.get("tipoIdentificadorGrupo") ?? current.tipoIdentificadorGrupo);
+  if (!nombreResult.success || !tipoResult.success) return fail("Nomenclatura o tipo de identificador inválido");
+  const nombreGrupo = nombreResult.data;
+  const tipoIdentificadorGrupo = tipoResult.data;
 
   const colores: Record<string, string> = {};
   for (const token of BRAND_TOKENS) {
@@ -46,6 +54,8 @@ export const POST: APIRoute = formApi(async ({ request }) => {
         logoAdminPath: null,
         logoAdminColapsadoPath: null,
         tipografia,
+        nombreGrupo,
+        tipoIdentificadorGrupo,
       });
     } catch (err) {
       return fail(err instanceof Error ? err.message : String(err));
@@ -78,6 +88,8 @@ export const POST: APIRoute = formApi(async ({ request }) => {
       logoAdminPath,
       logoAdminColapsadoPath,
       tipografia,
+      nombreGrupo,
+      tipoIdentificadorGrupo,
     });
   } catch (err) {
     return fail(err instanceof Error ? err.message : String(err));

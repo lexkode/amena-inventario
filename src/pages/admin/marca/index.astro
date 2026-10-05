@@ -2,6 +2,7 @@
 import AdminLayout from "@shared/layouts/AdminLayout.astro";
 import { getMarca, coloresEfectivos } from "@features/branding/marca.service";
 import { BRAND_FONTS, BRAND_TOKENS } from "@features/branding/marca.types";
+import { NOMENCLATURAS_GRUPO } from "@features/lots/grupo.types";
 import logo from "@assets/logo-AMENA.webp";
 import logoColapsado from "@assets/logo-AMENA-colapsado.webp";
 
@@ -61,6 +62,30 @@ const logos = [
   )}
 
   <form method="POST" action="/api/admin/marca" enctype="multipart/form-data" class="marca-form">
+    <section class="card">
+      <h2 class="card-title">Grupos de Vivienda Unifamiliar</h2>
+      <p class="muted intro">Valores predeterminados para grupos nuevos. No cambia los grupos existentes ni las publicaciones anteriores.</p>
+      <div class="color-grid">
+        <div class="font-field">
+          <label for="nomenclaturaGrupo">Nomenclatura</label>
+          <select id="nomenclaturaGrupo" name="nomenclaturaGrupo">
+            {NOMENCLATURAS_GRUPO.map((nombre) => <option value={nombre} selected={marca.nombreGrupo === nombre}>{nombre}</option>)}
+            <option value="personalizado" selected={!NOMENCLATURAS_GRUPO.some((nombre) => nombre === marca.nombreGrupo)}>Nombre personalizado</option>
+          </select>
+        </div>
+        <div class="font-field" id="nombre-grupo-personalizado">
+          <label for="nombreGrupoPersonalizado">Nombre personalizado</label>
+          <input id="nombreGrupoPersonalizado" name="nombreGrupoPersonalizado" maxlength="64" value={marca.nombreGrupo} />
+        </div>
+        <div class="font-field">
+          <label for="tipoIdentificadorGrupo">Identificador</label>
+          <select id="tipoIdentificadorGrupo" name="tipoIdentificadorGrupo">
+            <option value="alfabetico" selected={marca.tipoIdentificadorGrupo === "alfabetico"}>Alfabético (A, B, C…)</option>
+            <option value="numerico" selected={marca.tipoIdentificadorGrupo === "numerico"}>Numérico (1, 2, 3…)</option>
+          </select>
+        </div>
+      </div>
+    </section>
     <section class="card">
       <h2 class="card-title">Colores</h2>
       <p class="muted intro">
@@ -146,6 +171,13 @@ const logos = [
 </AdminLayout>
 
 <script>
+  const nomenclatura = document.querySelector<HTMLSelectElement>("#nomenclaturaGrupo");
+  const personalizado = document.querySelector<HTMLElement>("#nombre-grupo-personalizado");
+  function syncNombreGrupo() {
+    if (personalizado) personalizado.hidden = nomenclatura?.value !== "personalizado";
+  }
+  nomenclatura?.addEventListener("change", syncNombreGrupo);
+  syncNombreGrupo();
   document.querySelectorAll<HTMLInputElement>("[data-color-sync]").forEach((picker) => {
     const text = picker.parentElement?.querySelector<HTMLInputElement>('input[type="text"]');
     if (!text) return;
@@ -248,6 +280,9 @@ const logos = [
     display: flex;
     flex-direction: column;
     max-width: 320px;
+  }
+  .font-field[hidden] {
+    display: none;
   }
   .font-field label {
     font-size: 0.8rem;

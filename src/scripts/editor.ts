@@ -8,6 +8,7 @@ import {
   type LoteImagenItem,
 } from "@features/lots/lote.types";
 import type { ModeloConCaracteristicas } from "@features/catalog/modelo.types";
+import { claveGrupo, nombreGrupo, grupoViviendasSchema, NOMENCLATURAS_GRUPO, type GrupoViviendas } from "@features/lots/grupo.types";
 import {
   MAX_IMAGENES_POR_PUNTO,
   type PuntoImagenItem,
@@ -36,6 +37,7 @@ const STANDARD_SELECTED_STROKE = "#dc832f";
 const STANDARD_DASH = "6,4";
 
 type NewLote = {
+  grupo: GrupoViviendas | null;
   numeroLote: string;
   estado: LoteEstado;
   poligono: Punto[];
@@ -45,6 +47,10 @@ type NewLote = {
 };
 
 type LoteDraft = {
+  grupoSeleccion: string;
+  grupoNombre: string;
+  grupoTipo: string;
+  grupoIdentificador: string;
   numeroLote: string;
   estado: LoteEstado;
   modeloId: string;
@@ -53,6 +59,7 @@ type LoteDraft = {
 };
 
 type LoteSnapshot = {
+  grupo: GrupoViviendas | null;
   polygon: Punto[];
   numeroLote: string;
   estado: LoteEstado;
@@ -117,6 +124,7 @@ type State = {
 };
 
 type InitialData = {
+  grupoDefaults: Pick<GrupoViviendas, "nombre" | "tipoIdentificador">;
   plan: {
     id: number;
     nombre: string;
@@ -232,12 +240,13 @@ function puntoFieldsChanged(a: PuntoInteres, b: PuntoInteres): boolean {
 
 function loteFieldsChanged(a: LoteConModelo, b: LoteConModelo): boolean {
   return (
-    JSON.stringify([a.numeroLote, a.estado, a.poligono, a.modeloId, a.terrenoM2, a.dimensionesLote]) !==
-    JSON.stringify([b.numeroLote, b.estado, b.poligono, b.modeloId, b.terrenoM2, b.dimensionesLote])
+    JSON.stringify([a.grupo, a.numeroLote, a.estado, a.poligono, a.modeloId, a.terrenoM2, a.dimensionesLote]) !==
+    JSON.stringify([b.grupo, b.numeroLote, b.estado, b.poligono, b.modeloId, b.terrenoM2, b.dimensionesLote])
   );
 }
 
 function loteBody(lote: LoteConModelo): {
+  grupo: GrupoViviendas | null;
   numeroLote: string;
   estado: LoteEstado;
   poligono: Punto[];
@@ -246,6 +255,7 @@ function loteBody(lote: LoteConModelo): {
   dimensionesLote: string | null;
 } {
   return {
+    grupo: lote.grupo,
     numeroLote: lote.numeroLote,
     estado: lote.estado,
     poligono: lote.poligono,
@@ -701,46 +711,32 @@ function renderSidePanel(): void {
 
 function renderLoteList(): void {
   const grupos = new Map<string, LoteConModelo[]>();
-  const sinModelo: LoteConModelo[] = [];
   for (const lote of state.lotes) {
-    if (lote.modeloId === null || !lote.modelo) {
-      sinModelo.push(lote);
-    } else {
-      const nombre = lote.modelo.nombre;
-      const arr = grupos.get(nombre) ?? [];
-      arr.push(lote);
-      grupos.set(nombre, arr);
-    }
+    const clave = claveGrupo(lote.grupo);
+    const arr = grupos.get(clave) ?? [];
+    arr.push(lote);
+    grupos.set(clave, arr);
   }
 
-  let html = `<h2 style="margin-top:0">Lotes</h2>`;
-  const seen = new Set<string>();
+  let html = `<h2 style="margin-top:0">Vivienda Unifamiliar</h2>`;
 
   const renderGrupo = (nombre: string, arr: LoteConModelo[]): void => {
-    seen.add(nombre);
     html += `<details class="lote-acc">`;
     html += `<summary class="lote-grupo">${escapeHtml(nombre)}<svg class="lote-chev" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></summary>`;
     html += `<ul class="lote-list">`;
-    for (const lote of arr) {
-      html += `<li><button type="button" class="lote-row" data-lote-id="${lote.id}">${escapeHtml(lote.numeroLote)}</button></li>`;
+    for (const lote of arr.sort((a, b) => a.numeroLote.localeCompare(b.numeroLote, "es", { numeric: true }))) {
+      html += `<li><button type="button" class="lote-row" data-lote-id="${lote.id}">Casa ${escapeHtml(lote.numeroLote)} · ${escapeHtml(lote.modelo?.nombre ?? "Sin modelo")}</button></li>`;
     }
     html += `</ul>`;
     html += `</details>`;
   };
 
-  for (const modelo of state.modelos) {
-    const arr = grupos.get(modelo.nombre);
-    if (arr) renderGrupo(modelo.nombre, arr);
-  }
-  for (const [nombre, arr] of grupos) {
-    if (!seen.has(nombre)) renderGrupo(nombre, arr);
-  }
-  if (sinModelo.length > 0) {
-    renderGrupo("Sin modelo", sinModelo);
+  for (const [, arr] of [...grupos].sort((a, b) => nombreGrupo(a[1][0].grupo).localeCompare(nombreGrupo(b[1][0].grupo), "es", { numeric: true }))) {
+    renderGrupo(nombreGrupo(arr[0].grupo), arr);
   }
 
   if (state.lotes.length === 0) {
-    html += `<p class="lote-vacio">No hay lotes todavía. Usa el modo Dibujar para crear uno.</p>`;
+    html += `<p class="lote-vacio">No hay viviendas todavía. Usa Nuevo lote para dibujar una.</p>`;
   }
 
   sidePanel.innerHTML = `<div class="lote-scroll">${html}</div>`;
@@ -1036,9 +1032,14 @@ async function deletePuntoImage(puntoId: number, imagenId: number): Promise<void
 }
 
 function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
-  const id = isNew ? null : (lote as LoteConModelo).id;
-
   const draft = state.draft;
+  const grupoSeleccion = draft?.grupoSeleccion ?? claveGrupo(lote.grupo);
+  const grupoNombre = draft?.grupoNombre ?? lote.grupo?.nombre ?? initialData.grupoDefaults.nombre;
+  const grupoTipo = draft?.grupoTipo ?? lote.grupo?.tipoIdentificador ?? initialData.grupoDefaults.tipoIdentificador;
+  const grupoIdentificador = draft?.grupoIdentificador ?? lote.grupo?.identificador ?? "";
+  const gruposExistentes = new Map(state.lotes.filter((l) => l.grupo).map((l) => [claveGrupo(l.grupo), l.grupo!]));
+  const gruposOptions = [...gruposExistentes].sort((a, b) => nombreGrupo(a[1]).localeCompare(nombreGrupo(b[1]), "es", { numeric: true })).map(([clave, grupo]) =>
+    `<option value="${escapeHtml(clave)}" ${clave === grupoSeleccion ? "selected" : ""}>${escapeHtml(nombreGrupo(grupo))}</option>`).join("");
   const numeroLote = draft ? draft.numeroLote : isNew ? "" : (lote as LoteConModelo).numeroLote;
   const estado = draft ? draft.estado : lote.estado;
   const modeloId = draft
@@ -1062,10 +1063,10 @@ function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
       ? (state.modelos.find((m) => String(m.id) === modeloId)?.nombre ?? null)
       : null;
   const title = isNew
-    ? "Nuevo lote"
+    ? "Nueva vivienda"
     : titleModel
-      ? `${titleModel} ${numeroLote}`
-      : `Lote ${numeroLote}`;
+      ? `Casa ${numeroLote} · ${titleModel}`
+      : `Casa ${numeroLote} · Sin modelo`;
 
   const modelosOptions = state.modelos
     .filter((m) => m.tipo === "casa")
@@ -1133,7 +1134,35 @@ function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
       </div>
       <div class="form-fields">
         <div class="field">
-          <label for="numeroLote">Número de lote</label>
+          <label for="grupoSeleccion">Grupo de viviendas</label>
+          <select id="grupoSeleccion">
+            <option value="" ${grupoSeleccion === "" ? "selected" : ""}>Sin grupo</option>
+            ${gruposOptions}
+            <option value="nuevo" ${grupoSeleccion === "nuevo" ? "selected" : ""}>Crear / asignar otro grupo…</option>
+          </select>
+        </div>
+        <div id="grupo-nuevo" ${grupoSeleccion === "nuevo" ? "" : "hidden"}>
+          <div class="field">
+            <label for="grupoNombre">Nomenclatura del grupo</label>
+            <input id="grupoNombre" list="nomenclaturas-grupo" maxlength="64" value="${escapeHtml(grupoNombre)}" placeholder="Polígono o nombre personalizado" />
+            <datalist id="nomenclaturas-grupo">${NOMENCLATURAS_GRUPO.map((nombre) => `<option value="${nombre}"></option>`).join("")}</datalist>
+          </div>
+          <div class="field">
+            <label for="grupoTipo">Tipo de identificador</label>
+            <select id="grupoTipo">
+              <option value="alfabetico" ${grupoTipo === "alfabetico" ? "selected" : ""}>Alfabético (A, B, C…)</option>
+              <option value="numerico" ${grupoTipo === "numerico" ? "selected" : ""}>Numérico (1, 2, 3…)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="grupoIdentificador">Identificador del grupo</label>
+            <input id="grupoIdentificador" maxlength="16" list="letras-grupo" value="${escapeHtml(grupoIdentificador)}" placeholder="${grupoTipo === "alfabetico" ? "A" : "1"}" />
+            <datalist id="letras-grupo">${"ABCDEFGHIJKLMNÑOPQRSTUVWXYZ".split("").map((letra) => `<option value="${letra}"></option>`).join("")}</datalist>
+            <datalist id="numeros-grupo">${Array.from({ length: 20 }, (_, i) => `<option value="${i + 1}"></option>`).join("")}</datalist>
+          </div>
+        </div>
+        <div class="field">
+          <label for="numeroLote">Número de casa</label>
           <input id="numeroLote" type="number" min="0" step="1" required value="${escapeHtml(numeroLote)}" />
         </div>
         <div class="field">
@@ -1202,8 +1231,20 @@ function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
   const modeloSelect = document.getElementById("modeloId") as HTMLSelectElement | null;
   const terrenoInput = document.getElementById("terrenoM2") as HTMLInputElement | null;
   const dimensionesInput = document.getElementById("dimensionesLote") as HTMLInputElement | null;
+  const grupoSelect = document.getElementById("grupoSeleccion") as HTMLSelectElement;
+  const grupoTipoEl = document.getElementById("grupoTipo") as HTMLSelectElement;
+  const grupoIdEl = document.getElementById("grupoIdentificador") as HTMLInputElement;
+  const syncGrupoInputs = () => {
+    document.getElementById("grupo-nuevo")!.hidden = grupoSelect.value !== "nuevo";
+    grupoIdEl.setAttribute("list", grupoTipoEl.value === "alfabetico" ? "letras-grupo" : "numeros-grupo");
+    grupoIdEl.inputMode = grupoTipoEl.value === "numerico" ? "numeric" : "text";
+    grupoIdEl.placeholder = grupoTipoEl.value === "numerico" ? "1" : "A";
+  };
+  grupoSelect.addEventListener("change", syncGrupoInputs);
+  grupoTipoEl.addEventListener("change", syncGrupoInputs);
+  syncGrupoInputs();
 
-  [numeroLoteEl, estadoEl, modeloSelect, terrenoInput, dimensionesInput].forEach((el) => {
+  [numeroLoteEl, estadoEl, modeloSelect, terrenoInput, dimensionesInput, grupoSelect, grupoTipoEl, grupoIdEl, document.getElementById("grupoNombre")].forEach((el) => {
     el?.addEventListener("input", markFormDirty);
     el?.addEventListener("change", markFormDirty);
   });
@@ -1229,6 +1270,10 @@ function markFormDirty(): void {
   const btn = document.getElementById("save-lote-btn") as HTMLButtonElement | null;
   if (btn) btn.disabled = false;
   state.draft = {
+    grupoSeleccion: (document.getElementById("grupoSeleccion") as HTMLSelectElement | null)?.value ?? "",
+    grupoNombre: (document.getElementById("grupoNombre") as HTMLInputElement | null)?.value ?? "",
+    grupoTipo: (document.getElementById("grupoTipo") as HTMLSelectElement | null)?.value ?? "alfabetico",
+    grupoIdentificador: (document.getElementById("grupoIdentificador") as HTMLInputElement | null)?.value ?? "",
     numeroLote:
       (document.getElementById("numeroLote") as HTMLInputElement | null)?.value ?? "",
     estado:
@@ -1435,6 +1480,7 @@ function focusLotForm(): void {
 
 function captureSnapshot(lote: LoteConModelo): LoteSnapshot {
   return {
+    grupo: structuredClone(lote.grupo),
     polygon: lote.poligono.map((p) => ({ ...p })),
     numeroLote: lote.numeroLote,
     estado: lote.estado,
@@ -1452,22 +1498,22 @@ function copyLote(): void {
   showFormSuccess("Lote copiado. Pega con Ctrl+V o el botón Pegar lote.");
 }
 
-function numeroEnUso(modeloId: number | null, numeroLote: string): boolean {
+function numeroEnUso(modeloId: number | null, numeroLote: string, grupo: GrupoViviendas | null): boolean {
   return state.lotes.some(
-    (l) => (l.modeloId ?? null) === modeloId && l.numeroLote === numeroLote,
+    (l) => claveGrupo(l.grupo) === claveGrupo(grupo) && (grupo !== null || (l.modeloId ?? null) === modeloId) && l.numeroLote === numeroLote,
   );
 }
 
-function nextNumeroLote(base: string, modeloId: number | null): string {
+function nextNumeroLote(base: string, modeloId: number | null, grupo: GrupoViviendas | null): string {
   const parsed = Number.parseInt(base, 10);
   if (Number.isNaN(parsed)) {
     let candidate = `${base} copia`;
     let i = 2;
-    while (numeroEnUso(modeloId, candidate)) candidate = `${base} copia ${i++}`;
+    while (numeroEnUso(modeloId, candidate, grupo)) candidate = `${base} copia ${i++}`;
     return candidate;
   }
   let n = parsed + 1;
-  while (numeroEnUso(modeloId, String(n))) n++;
+  while (numeroEnUso(modeloId, String(n), grupo)) n++;
   return String(n);
 }
 
@@ -1476,8 +1522,9 @@ async function pasteLote(): Promise<void> {
   if (!clip) return;
   if (!(await confirmDiscard())) return;
 
-  const numero = nextNumeroLote(clip.numeroLote, clip.modeloId);
+  const numero = nextNumeroLote(clip.numeroLote, clip.modeloId, clip.grupo);
   const lote: LoteConModelo = {
+    grupo: structuredClone(clip.grupo),
     id: genTempId(),
     numeroLote: numero,
     estado: clip.estado,
@@ -1500,7 +1547,7 @@ async function pasteLote(): Promise<void> {
   resetPendingImages();
   clearFormDraft();
   state.editSnapshot = captureSnapshot(lote);
-  commitHistory(`Pegar lote ${numero}`);
+  commitHistory(`Pegar casa ${numero} · ${nombreGrupo(lote.grupo)}`);
   render();
   showFormSuccess("Lote pegado. No olvides publicar.");
 }
@@ -1856,6 +1903,7 @@ function discardChanges(): void {
     const lote = state.lotes.find((l) => l.id === state.selectedLoteId);
     if (lote) {
       lote.numeroLote = state.editSnapshot.numeroLote;
+      lote.grupo = structuredClone(state.editSnapshot.grupo);
       lote.estado = state.editSnapshot.estado;
       lote.modeloId = state.editSnapshot.modeloId;
       lote.modelo =
@@ -1961,6 +2009,7 @@ async function selectLote(id: number | null): Promise<void> {
 function closePolygon(): void {
   if (state.currentPolygon.length < 3) return;
   state.pendingNewLote = {
+    grupo: null,
     numeroLote: "",
     estado: "disponible",
     poligono: [...state.currentPolygon],
@@ -2303,6 +2352,7 @@ function handleKeyDown(e: KeyboardEvent): void {
 // ============ API actions ============
 
 function getFormData(): {
+  grupo: GrupoViviendas | null;
   numeroLote: string;
   estado: LoteEstado;
   modeloId: number | null;
@@ -2331,8 +2381,25 @@ function getFormData(): {
     return null;
   }
   const dimensionesLote = dimEl.value.trim() || null;
+  const seleccion = (document.getElementById("grupoSeleccion") as HTMLSelectElement).value;
+  let grupo: GrupoViviendas | null = null;
+  if (seleccion === "nuevo") {
+    const result = grupoViviendasSchema.safeParse({
+      nombre: (document.getElementById("grupoNombre") as HTMLInputElement).value,
+      tipoIdentificador: (document.getElementById("grupoTipo") as HTMLSelectElement).value,
+      identificador: (document.getElementById("grupoIdentificador") as HTMLInputElement).value,
+    });
+    if (!result.success) {
+      showFormError(result.error.issues[0]?.message ?? "Grupo inválido");
+      return null;
+    }
+    grupo = result.data;
+  } else if (seleccion) {
+    grupo = structuredClone(state.lotes.find((l) => claveGrupo(l.grupo) === seleccion)?.grupo ?? null);
+    if (!grupo) { showFormError("El grupo seleccionado ya no existe"); return null; }
+  }
 
-  return { numeroLote, estado, modeloId, terrenoM2, dimensionesLote };
+  return { numeroLote, estado, modeloId, terrenoM2, dimensionesLote, grupo };
 }
 
 function showFormError(msg: string): void {
@@ -2425,16 +2492,18 @@ function saveLote(): boolean {
   const duplicate = state.lotes.find(
     (l) =>
       l.id !== state.selectedLoteId &&
-      (l.modeloId ?? null) === modeloId &&
+      claveGrupo(l.grupo) === claveGrupo(data.grupo) &&
+      (data.grupo !== null || (l.modeloId ?? null) === modeloId) &&
       l.numeroLote === data.numeroLote,
   );
   if (duplicate) {
-    showFormError(`El número de lote ${data.numeroLote} ya existe para este modelo`);
+    showFormError(`El número de casa ${data.numeroLote} ya existe en este grupo o modelo sin grupo`);
     return false;
   }
 
   if (isNew) {
     const lote: LoteConModelo = {
+      grupo: data.grupo,
       id: genTempId(),
       numeroLote: data.numeroLote,
       estado: data.estado,
@@ -2454,7 +2523,7 @@ function saveLote(): boolean {
     state.mode = "lotes";
     clearFormDraft();
     state.editSnapshot = captureSnapshot(lote);
-    commitHistory(`Crear lote ${lote.numeroLote}`);
+    commitHistory(`Crear casa ${lote.numeroLote} · ${nombreGrupo(lote.grupo)}`);
     render();
     showFormSuccess("Lote creado. No olvides publicar.");
     return true;
@@ -2463,6 +2532,7 @@ function saveLote(): boolean {
   if (!current) return false;
 
   current.numeroLote = data.numeroLote;
+  current.grupo = data.grupo;
   current.estado = data.estado;
   current.modeloId = modeloId;
   current.modelo = modeloById(modeloId);
@@ -2472,7 +2542,7 @@ function saveLote(): boolean {
   consumePendingImages(current);
   clearFormDraft();
   state.editSnapshot = captureSnapshot(current);
-  commitHistory(`Editar lote ${current.numeroLote}`);
+  commitHistory(`Editar casa ${current.numeroLote} · ${nombreGrupo(current.grupo)}`);
   render();
   showFormSuccess("Cambios aplicados. No olvides publicar.");
   return true;

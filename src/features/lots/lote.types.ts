@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Lote, Modelo } from "@db/schema";
 import type { Punto } from "@core/geometry";
+import { grupoViviendasSchema } from "./grupo.types";
 
 export { type Punto } from "@core/geometry";
 
@@ -37,6 +38,7 @@ const dimensionesOpcional = z.preprocess(
 );
 
 export const loteCreateSchema = z.object({
+  grupo: grupoViviendasSchema.nullable().optional(),
   numeroLote: z
     .string()
     .trim()
@@ -51,6 +53,7 @@ export const loteCreateSchema = z.object({
 export type CreateLoteInput = z.infer<typeof loteCreateSchema>;
 
 export const loteUpdateSchema = z.object({
+  grupo: grupoViviendasSchema.nullable().optional(),
   numeroLote: z
     .string()
     .trim()
@@ -68,6 +71,7 @@ export type UpdateLoteInput = z.infer<typeof loteUpdateSchema>;
 const backupImagenSchema = z.object({ path: z.string().min(1) });
 
 export const loteBackupItemSchema = z.object({
+  grupo: grupoViviendasSchema.nullable().default(null),
   numeroLote: z
     .string()
     .trim()

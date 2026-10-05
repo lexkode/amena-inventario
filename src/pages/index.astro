@@ -1033,19 +1033,22 @@ const planCornerRadius = plan
     :global(#lot-modal .status-badge) {
       margin-bottom: 0.5rem;
     }
-    :global(#lot-modal .info-title),
-    :global(#lot-modal .info-model-name) {
+    :global(#lot-modal .info-subtitle) {
+      margin: 0 0 0.35rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      line-height: 1.4;
+      text-transform: uppercase;
+      color: var(--c-text-muted);
+    }
+    :global(#lot-modal .info-title) {
       margin: 0;
-      font-size: 1.25rem;
-      font-weight: 700;
+      font-size: 1.75rem;
+      font-weight: 800;
       letter-spacing: -0.01em;
       line-height: 1.25;
       color: var(--c-text);
-    }
-    :global(#lot-modal .info-model-name.muted) {
-      font-size: 1rem;
-      font-weight: 500;
-      color: var(--c-text-muted);
     }
 
     :global(.modal-info .info-body) {

@@ -8,6 +8,7 @@ import {
 } from "@features/lots/lote.service";
 import { getModelos } from "@features/catalog/modelo.service";
 import { getPuntos } from "@features/points/punto.service";
+import { getMarca } from "@features/branding/marca.service";
 
 const user = Astro.locals.user;
 if (!user) {
@@ -23,7 +24,8 @@ const estadoPublicacion = plan
   ? await getEstadoPublicacion()
   : { tienePublicacion: false, pendiente: false };
 
-const initialData = { plan, lotes, modelos, puntos, estadoPublicacion };
+const marca = await getMarca();
+const initialData = { plan, lotes, modelos, puntos, estadoPublicacion, grupoDefaults: { nombre: marca.nombreGrupo, tipoIdentificador: marca.tipoIdentificadorGrupo } };
 ---
 
 <AdminLayout title="Editor de Plano" user={user}>

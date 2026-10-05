@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "lotes_grupo_numero_unique" ON "lotes" USING btree ("grupo","numero_lote") WHERE "lotes"."grupo" IS NOT NULL;

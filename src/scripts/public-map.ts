@@ -50,7 +50,8 @@ type State = {
 const usdFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
-  maximumFractionDigits: 0,
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
 });
 
 // ============ State ============
@@ -648,11 +649,8 @@ function renderLotInfo(lote: LoteConModelo): void {
     <div class="info-scroll">
     <div class="info-header">
       <span class="status-badge status-${lote.estado}">${ESTADO_LABEL[lote.estado]}</span>
-      <h2 class="info-title" id="lot-modal-title">Lote ${escapeHtml(lote.numeroLote)}${
-        modelo
-          ? ` <span class="info-model-name">${escapeHtml(modelo.nombre)}</span>`
-          : ` <span class="info-model-name muted">Sin modelo de casa asignado</span>`
-      }</h2>
+      <h2 class="info-title" id="lot-modal-title">${modelo ? escapeHtml(modelo.nombre) : "Vivienda sin modelo asignado"}</h2>
+      <p class="info-subtitle">Lote ${escapeHtml(lote.numeroLote)}${lote.grupo ? ` · ${escapeHtml(lote.grupo.nombre)} ${escapeHtml(lote.grupo.identificador)}` : ""}</p>
       ${modelo ? `<p class="info-model-price">${formatUSD(modelo.precioBase)}</p>` : ""}
     </div>
     <div class="info-body">
@@ -747,7 +745,7 @@ function renderContactModal(): void {
   contactHeader.innerHTML = `
     <p class="contact-header-eyebrow">Formulario de contacto</p>
     <h2 class="contact-header-title">
-      Consulta sobre <strong>${escapeHtml(lote.numeroLote)}</strong>${modeloPart}
+      Consulta sobre <strong>Casa ${escapeHtml(lote.numeroLote)}${lote.grupo ? ` · ${escapeHtml(lote.grupo.nombre)} ${escapeHtml(lote.grupo.identificador)}` : ""}</strong>${modeloPart}
     </h2>
   `;
 }

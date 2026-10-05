@@ -9,6 +9,8 @@ export const marca = pgTable("marca", {
   logoAdminPath: text("logo_admin_path"),
   logoAdminColapsadoPath: text("logo_admin_colapsado_path"),
   tipografia: text("tipografia"),
+  nombreGrupo: text("nombre_grupo").notNull().default("Polígono"),
+  tipoIdentificadorGrupo: text("tipo_identificador_grupo", { enum: ["numerico", "alfabetico"] }).notNull().default("alfabetico"),
   createdAt: bigint("created_at", { mode: "number" })
     .notNull()
     .$defaultFn(() => Date.now()),

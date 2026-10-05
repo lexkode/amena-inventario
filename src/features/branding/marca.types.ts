@@ -76,4 +76,6 @@ export type MarcaConfig = {
   logoAdminPath: string | null;
   logoAdminColapsadoPath: string | null;
   tipografia: string | null;
+  nombreGrupo: string;
+  tipoIdentificadorGrupo: "numerico" | "alfabetico";
 };

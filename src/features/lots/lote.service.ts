@@ -20,6 +20,7 @@ import {
   getPuntosPublicados,
 } from "@features/points/punto.service";
 import { loteBackupSchema } from "@features/lots/lote.types";
+import type { GrupoViviendas } from "@features/lots/grupo.types";
 import type {
   CreateLoteInput,
   LoteConModelo,
@@ -136,12 +137,15 @@ async function assertModeloExists(modeloId: number | null): Promise<string | nul
 async function numeroLoteEnUso(
   modeloId: number | null,
   numeroLote: string,
+  grupo: GrupoViviendas | null,
   excluirId?: number,
 ): Promise<boolean> {
   const conditions = [
     eq(lotes.numeroLote, numeroLote),
-    modeloId === null ? isNull(lotes.modeloId) : eq(lotes.modeloId, modeloId),
+    grupo === null ? isNull(lotes.grupo) : eq(lotes.grupo, grupo),
   ];
+  // Conserva la regla histórica para viviendas todavía sin grupo.
+  if (grupo === null) conditions.push(modeloId === null ? isNull(lotes.modeloId) : eq(lotes.modeloId, modeloId));
   if (excluirId !== undefined) {
     conditions.push(ne(lotes.id, excluirId));
   }
@@ -159,9 +163,9 @@ export async function createLote(input: CreateLoteInput): Promise<LoteConModelo>
   const modeloId = input.modeloId ?? null;
   const modeloError = await assertModeloExists(modeloId);
   if (modeloError) throw new Error(modeloError);
-  if (await numeroLoteEnUso(modeloId, input.numeroLote)) {
+  if (await numeroLoteEnUso(modeloId, input.numeroLote, input.grupo ?? null)) {
     throw new Error(
-      `El número de lote ${input.numeroLote} ya existe para este modelo`,
+      `El número de casa ${input.numeroLote} ya existe en este grupo o modelo sin grupo`,
     );
   }
 
@@ -169,6 +173,7 @@ export async function createLote(input: CreateLoteInput): Promise<LoteConModelo>
     .insert(lotes)
     .values({
       numeroLote: input.numeroLote,
+      grupo: input.grupo ?? null,
       estado: input.estado,
       poligonoJson: JSON.stringify(input.poligono),
       modeloId: input.modeloId ?? null,
@@ -200,13 +205,15 @@ export async function updateLote(
     input.modeloId !== undefined ? input.modeloId : current.modeloId;
   const effectiveNumero =
     input.numeroLote !== undefined ? input.numeroLote : current.numeroLote;
-  if (await numeroLoteEnUso(effectiveModeloId, effectiveNumero, id)) {
+  const effectiveGrupo = input.grupo !== undefined ? input.grupo : current.grupo;
+  if (await numeroLoteEnUso(effectiveModeloId, effectiveNumero, effectiveGrupo, id)) {
     throw new Error(
-      `El número de lote ${effectiveNumero} ya existe para este modelo`,
+      `El número de casa ${effectiveNumero} ya existe en este grupo o modelo sin grupo`,
     );
   }
 
   const updates: Partial<Lote> = {};
+  if (input.grupo !== undefined) updates.grupo = input.grupo;
   if (input.numeroLote !== undefined) updates.numeroLote = input.numeroLote;
   if (input.estado !== undefined) updates.estado = input.estado;
   if (input.poligono !== undefined) {
@@ -256,6 +263,7 @@ function comparableLotes(lotesList: LoteConModelo[]): string {
   return JSON.stringify(
     lotesList.map((l) => ({
       numeroLote: l.numeroLote,
+      grupo: l.grupo ?? null,
       estado: l.estado,
       poligono: l.poligono,
       modeloId: l.modeloId,
@@ -269,7 +277,7 @@ function comparableLotes(lotesList: LoteConModelo[]): string {
 function parsePublicacionSnapshot(json: string): LoteConModelo[] {
   try {
     const parsed = JSON.parse(json) as LoteConModelo[];
-    return Array.isArray(parsed) ? parsed : [];
+    return Array.isArray(parsed) ? parsed.map((l) => ({ ...l, grupo: l.grupo ?? null })) : [];
   } catch {
     return [];
   }
@@ -398,6 +406,7 @@ export async function asegurarPublicacionInicial(): Promise<void> {
 }
 
 type SnapshotLote = {
+  grupo?: GrupoViviendas | null;
   numeroLote: string;
   estado: LoteConModelo["estado"];
   poligono: LoteConModelo["poligono"];
@@ -421,6 +430,7 @@ async function reemplazarBorrador(snapshot: SnapshotLote[]): Promise<void> {
         .insert(lotes)
         .values({
           numeroLote: l.numeroLote,
+          grupo: l.grupo ?? null,
           estado: l.estado,
           poligonoJson: JSON.stringify(l.poligono),
           modeloId: l.modeloId,
@@ -461,7 +471,7 @@ export async function restaurarPublicacion(
       .limit(1)
   )[0];
   if (!row) return null;
-  await reemplazarBorrador(parsePublicacionSnapshot(row.snapshotJson));
+  await reemplazarBorrador(parse(JSON.parse(row.snapshotJson), loteBackupSchema));
   return resultadoRestauracion();
 }
 

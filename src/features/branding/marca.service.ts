@@ -9,6 +9,8 @@ const DEFAULT_CONFIG: MarcaConfig = {
   logoAdminPath: null,
   logoAdminColapsadoPath: null,
   tipografia: null,
+  nombreGrupo: "Polígono",
+  tipoIdentificadorGrupo: "alfabetico",
 };
 
 const TOKEN_KEYS = new Set(BRAND_TOKENS.map((t) => t.key));
@@ -45,6 +47,8 @@ export async function getMarca(): Promise<MarcaConfig> {
       logoAdminPath: row.logoAdminPath,
       logoAdminColapsadoPath: row.logoAdminColapsadoPath,
       tipografia: row.tipografia,
+      nombreGrupo: row.nombreGrupo,
+      tipoIdentificadorGrupo: row.tipoIdentificadorGrupo,
     };
   } catch {
     return { ...DEFAULT_CONFIG, colores: {} };
@@ -67,6 +71,8 @@ export async function upsertMarca(input: MarcaConfig): Promise<void> {
     logoAdminPath: input.logoAdminPath,
     logoAdminColapsadoPath: input.logoAdminColapsadoPath,
     tipografia: input.tipografia,
+    nombreGrupo: input.nombreGrupo,
+    tipoIdentificadorGrupo: input.tipoIdentificadorGrupo,
   };
 
   if (current) {
