@@ -31,12 +31,12 @@ async function handleUpdate(
   try {
     const data = await updateLote(id, input);
     if (!data) {
-      return json({ ok: false, error: "Lote no encontrado" }, 404);
+      return json({ ok: false, error: "Vivienda no encontrada" }, 404);
     }
     return json({ ok: true, data }, 200);
   } catch (err) {
     return json(
-      { ok: false, error: err instanceof Error ? err.message : "Error al actualizar el lote" },
+      { ok: false, error: err instanceof Error ? err.message : "Error al actualizar la vivienda" },
       400,
     );
   }
@@ -60,7 +60,7 @@ export const DELETE: APIRoute = jsonApi(async ({ params }) => {
 
   const current = await getLoteById(id);
   if (!current) {
-    return json({ ok: false, error: "Lote no encontrado" }, 404);
+    return json({ ok: false, error: "Vivienda no encontrada" }, 404);
   }
 
   const ok = await deleteLote(id);

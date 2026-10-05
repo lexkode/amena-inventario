@@ -1,0 +1,1 @@
+ALTER TABLE "lotes" ADD COLUMN "planta_arquitectonica_path" text;

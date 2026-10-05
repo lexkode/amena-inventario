@@ -35,7 +35,7 @@ src/
 │   │   └── modelo.service.ts      #   CRUD de modelos (casas y apartamentos)
 │   ├── lots/
 │   │   ├── lote.types.ts          #   Schemas zod (create/update) + LoteConModelo
-│   │   └── lote.service.ts        #   CRUD de lotes + polígonos
+│   │   └── lote.service.ts        #   CRUD de viviendas + polígonos
 │   └── plan/
 │       ├── plano.types.ts         #   Schema zod del plano base
 │       └── plano.service.ts       #   Obtener/actualizar el plano activo
@@ -58,12 +58,12 @@ src/
 │   └── map/                       #   Núcleo SVG compartido entre mapa público y editor
 │       ├── viewport.ts            #     Zoom/pan sobre el viewBox
 │       ├── svg-utils.ts           #     SVG_NS, escapeHtml
-│       ├── lot-renderer.ts        #     Crear polígono y etiqueta de un lote
+│       ├── lot-renderer.ts        #     Crear polígono y etiqueta de una vivienda
 │       └── lot-colors.ts          #     Colores por estado (disponible/reservado/vendido)
 │
 ├── scripts/                       # BUNDLES CLIENTE delgados (componen shared/map).
 │   ├── public-map.ts              #   Mapa público (filtros, modales)
-│   └── editor.ts                  #   Editor admin (dibujar/editar lotes)
+│   └── editor.ts                  #   Editor admin (dibujar/editar casas)
 │
 ├── middleware.ts                  # Autenticación de rutas /admin
 ├── styles/global.css              # Design tokens (fuente única de la paleta)

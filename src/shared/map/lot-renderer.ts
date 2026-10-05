@@ -1,7 +1,9 @@
 import type { LoteConModelo } from "@features/lots/lote.types";
+import { polygonLabelPoint } from "@core/geometry/label-position";
 import { SVG_NS } from "./svg-utils";
 
 export const LOT_BORDER_WIDTH = 3;
+export const LOT_LABEL_FONT_SIZE = 20;
 
 export type LotPolygonOptions = {
   selected?: boolean;
@@ -70,19 +72,18 @@ export function createLotLabel(
   lote: LoteConModelo,
   opts: { fontSize?: number; fontWeight?: string; strokeWidth?: number } = {},
 ): SVGTextElement | null {
-  if (lote.poligono.length === 0) return null;
-  const cx = lote.poligono.reduce((s, p) => s + p.x, 0) / lote.poligono.length;
-  const cy = lote.poligono.reduce((s, p) => s + p.y, 0) / lote.poligono.length;
+  const center = polygonLabelPoint(lote.poligono);
+  if (!center) return null;
   const text = document.createElementNS(SVG_NS, "text");
-  text.setAttribute("x", String(cx));
-  text.setAttribute("y", String(cy));
+  text.setAttribute("x", String(center.x));
+  text.setAttribute("y", String(center.y));
   text.setAttribute("text-anchor", "middle");
-  text.setAttribute("dominant-baseline", "middle");
+  text.setAttribute("dominant-baseline", "central");
   text.setAttribute("fill", "#fff");
   text.setAttribute("stroke", "#000");
   text.setAttribute("stroke-width", String(opts.strokeWidth ?? 0.6));
   text.setAttribute("paint-order", "stroke fill");
-  text.setAttribute("font-size", String(opts.fontSize ?? 20));
+  text.setAttribute("font-size", String(opts.fontSize ?? LOT_LABEL_FONT_SIZE));
   text.setAttribute("font-weight", opts.fontWeight ?? "700");
   text.setAttribute("pointer-events", "none");
   text.textContent = lote.numeroLote;

@@ -1,7 +1,8 @@
 ---
 import PublicLayout from "@shared/layouts/PublicLayout.astro";
 import { getPlanoActivo } from "@features/plan/plano.service";
-import { getLotesPublicados } from "@features/lots/lote.service";
+import { getLotesPublicados, getTorresPublicadas } from "@features/lots/lote.service";
+import BuildingNavigation from "@shared/components/BuildingNavigation.astro";
 import { getPuntosPublicados } from "@features/points/punto.service";
 import { getModelos } from "@features/catalog/modelo.service";
 import { getMarca } from "@features/branding/marca.service";
@@ -12,6 +13,7 @@ import logoColapsado from "@assets/logo-AMENA-colapsado.webp";
 const plan = await getPlanoActivo();
 const publicados = await getLotesPublicados();
 const lotes = publicados ?? [];
+const torres = await getTorresPublicadas();
 const puntos = (await getPuntosPublicados()) ?? [];
 const modelos = await getModelos();
 const marca = await getMarca();
@@ -25,14 +27,14 @@ const counts = {
   vendido: lotes.filter((l) => l.estado === "vendido").length,
 };
 
-const initialData = { plan, lotes, puntos, modelos, counts };
+const initialData = { plan, lotes, torres, puntos, modelos, counts, opacidadPlanosNivel: marca.opacidadPlanosNivel };
 
 const planCornerRadius = plan
   ? Math.round(Math.min(plan.anchoPx, plan.altoPx) * 0.015)
   : 0;
 ---
 
-<PublicLayout title="Residencial Amena · Lotes disponibles en Comalapa" brand={marca}>
+<PublicLayout title="Residencial Amena · Viviendas disponibles en Comalapa" brand={marca}>
   <section class="map-section">
     <div class="logo-float">
       <img src={logoFront} alt="Residencial Amena" />
@@ -44,7 +46,7 @@ const planCornerRadius = plan
             <h3>Próximamente</h3>
             <p>
               Estamos preparando el plano del residencial. Vuelve pronto para
-              descubrir los lotes disponibles.
+              descubrir las viviendas disponibles.
             </p>
           </div>
         ) : (
@@ -102,8 +104,12 @@ const planCornerRadius = plan
                   clip-path={planCornerRadius > 0 ? "url(#plan-clip)" : undefined}
                 />
                 <g id="lots-layer" />
+                <g id="buildings-layer" />
                 <g id="puntos-layer" />
+                <path id="tower-shade" fill="rgba(0,0,0,0.65)" fill-rule="evenodd" pointer-events="none" style="display:none" />
+                <g id="tower-layer" />
               </svg>
+              <BuildingNavigation />
               <div class="filter-bar" id="filter-bar">
                 <button
                   type="button"
@@ -171,37 +177,32 @@ const planCornerRadius = plan
                       </select>
                     </div>
                     </div>
-                    <div
-                      class="filter-reset-slot collapsed"
-                      id="filter-reset-slot"
-                    >
-                      <div class="filter-reset-clip">
-                        <button
-                          type="button"
-                          id="filter-reset"
-                          class="filter-reset"
-                          disabled
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            aria-hidden="true"
-                          >
-                            <path
-                              d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"
-                            ></path>
-                            <path d="M3 3v5h5"></path>
-                          </svg>
-                          Restablecer
-                        </button>
-                      </div>
-                    </div>
                   </div>
+                </div>
+                <div class="filter-reset-slot collapsed" id="filter-reset-slot">
+                  <button
+                    type="button"
+                    id="filter-reset"
+                    class="filter-reset"
+                    aria-label="Restablecer filtros"
+                  >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path
+                          d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"
+                        ></path>
+                        <path d="M3 3v5h5"></path>
+                    </svg>
+                    Restablecer
+                  </button>
                 </div>
               </div>
               <div
@@ -378,6 +379,7 @@ const planCornerRadius = plan
       bottom: 1rem;
       left: 50%;
       transform: translateX(-50%);
+      isolation: isolate;
       z-index: 10;
       width: 90%;
       max-width: 800px;
@@ -392,7 +394,18 @@ const planCornerRadius = plan
         background-color 0.3s ease,
         box-shadow 0.3s ease;
     }
+    .filter-bar::before {
+      content: "";
+      position: absolute;
+      inset: 1px;
+      z-index: 0;
+      border-radius: 13px;
+      background: var(--c-white);
+      pointer-events: none;
+    }
     .filter-panel {
+      position: relative;
+      z-index: 1;
       display: grid;
       grid-template-rows: 1fr;
       transition: grid-template-rows 0.3s ease;
@@ -416,33 +429,37 @@ const planCornerRadius = plan
       outline-offset: -2px;
     }
     .filter-reset-slot {
-      display: grid;
-      grid-template-rows: 1fr;
-      margin-top: 0.75rem;
+      position: absolute;
+      bottom: calc(100% - 1px);
+      left: 1.25rem;
+      z-index: -1;
       opacity: 1;
+      visibility: visible;
       transition:
-        grid-template-rows 0.3s ease,
-        margin-top 0.3s ease,
-        opacity 0.3s ease;
+        transform 0.3s ease,
+        opacity 0.3s ease,
+        visibility 0s;
     }
-    .filter-reset-slot.collapsed {
-      grid-template-rows: 0fr;
-      margin-top: 0;
+    .filter-reset-slot.collapsed,
+    .filter-bar.collapsed .filter-reset-slot {
+      transform: translateY(100%);
       opacity: 0;
+      visibility: hidden;
       pointer-events: none;
-    }
-    .filter-reset-clip {
-      min-height: 0;
-      overflow: hidden;
+      transition:
+        transform 0.3s ease,
+        opacity 0.3s ease,
+        visibility 0s linear 0.3s;
     }
     .filter-reset {
-      justify-self: start;
       display: inline-flex;
       align-items: center;
       gap: 0.35rem;
-      padding: 0;
-      border: 0;
-      background: transparent;
+      padding: 0.3rem 0.85rem;
+      border: 1px solid var(--c-line);
+      border-bottom: 0;
+      border-radius: 8px 8px 0 0;
+      background: var(--c-white);
       color: var(--c-text);
       font-family: inherit;
       font-size: 0.72rem;
@@ -455,16 +472,14 @@ const planCornerRadius = plan
       height: 0.8rem;
       flex-shrink: 0;
     }
-    .filter-reset:hover:not(:disabled) {
+    .filter-reset:hover {
       color: var(--c-accent);
-    }
-    .filter-reset:disabled {
-      cursor: default;
     }
     .filter-toggle {
       position: absolute;
       bottom: calc(100% - 1px);
       right: 1.25rem;
+      z-index: 2;
       display: inline-flex;
       align-items: center;
       gap: 0.35rem;
@@ -497,6 +512,9 @@ const planCornerRadius = plan
       border-color: transparent;
       background: transparent;
       box-shadow: none;
+    }
+    .filter-bar.collapsed::before {
+      background: transparent;
     }
     .filter-bar.collapsed .filter-panel {
       grid-template-rows: 0fr;
@@ -611,14 +629,31 @@ const planCornerRadius = plan
       padding: 2rem 2rem 8rem;
       transition: padding 0.3s ease;
     }
-    #canvas.has-active-filters {
-      padding-bottom: 10rem;
-    }
     #canvas.filters-hidden {
       padding: 2rem;
     }
     #canvas:active {
       cursor: grabbing;
+    }
+    .canvas-wrap.building-open {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100dvh;
+      aspect-ratio: auto !important;
+      z-index: 90;
+      background: var(--c-bg-dark, #244858);
+      overflow: hidden;
+    }
+    .canvas-wrap.building-open #canvas {
+      padding: 0;
+      transition: none;
+      overflow: hidden;
+      cursor: default;
+    }
+    .canvas-wrap.building-open .filter-bar,
+    .canvas-wrap.building-open .zoom-controls {
+      display: none;
     }
 
     /* Polygons y labels se crean desde el script (sin data-astro-cid-*),
@@ -747,7 +782,7 @@ const planCornerRadius = plan
       width: 100%;
       max-height: 100%;
     }
-    .modal-close {
+    .modal-close, :global(.building-close) {
       position: absolute;
       top: 0.85rem;
       right: 0.85rem;
@@ -768,9 +803,10 @@ const planCornerRadius = plan
       -webkit-backdrop-filter: blur(4px);
       transition: background 0.2s ease;
     }
-    .modal-close:hover {
+    .modal-close:hover, :global(.building-close:hover) {
       background: var(--c-accent);
     }
+    :global(.building-close[hidden]) { display: none; }
 
     .modal-grid {
       display: grid;
@@ -804,6 +840,7 @@ const planCornerRadius = plan
     }
     :global(.lot-gallery-viewer) {
       position: relative;
+      container-type: size;
       flex: 1 1 auto;
       min-height: 0;
       display: flex;
@@ -818,7 +855,15 @@ const planCornerRadius = plan
       object-fit: cover;
       display: block;
       opacity: 0;
+      background: var(--c-bg-dark);
+      transform: translate3d(0, 0, 0);
+      will-change: transform, opacity;
       transition: opacity 0.2s ease;
+    }
+    :global(.lot-gallery-img.is-floor-plan) {
+      box-sizing: border-box;
+      padding: 10cqh 10cqw;
+      object-position: center;
     }
     :global(.image-ready .lot-gallery-img) {
       opacity: 1;
@@ -889,6 +934,7 @@ const planCornerRadius = plan
     }
     :global(.lot-gallery-nav) {
       position: absolute;
+      z-index: 2;
       top: 50%;
       transform: translateY(-50%);
       width: 2.4rem;
@@ -918,10 +964,11 @@ const planCornerRadius = plan
       gap: 0.5rem;
       padding: 0.75rem;
       overflow-x: auto;
-      background: rgba(0, 0, 0, 0.3);
+      background: color-mix(in srgb, var(--c-bg-dark) 70%, black);
       flex-shrink: 0;
     }
     :global(.lot-gallery-thumb) {
+      container-type: size;
       width: 68px;
       height: 50px;
       flex-shrink: 0;
@@ -937,6 +984,12 @@ const planCornerRadius = plan
       height: 100%;
       object-fit: cover;
       display: block;
+      background: color-mix(in srgb, var(--c-bg-dark) 70%, black);
+    }
+    :global(.lot-gallery-thumb img.is-floor-plan) {
+      box-sizing: border-box;
+      padding: 10cqh 10cqw;
+      object-position: center;
     }
     :global(.lot-gallery-thumb.active) {
       border-color: var(--c-accent);
@@ -1291,9 +1344,6 @@ const planCornerRadius = plan
       }
       #canvas {
         padding: 3.5rem 1.5rem 13rem;
-      }
-      #canvas.has-active-filters {
-        padding-bottom: 15rem;
       }
       #canvas.filters-hidden {
         padding: 3.5rem 1.5rem 3.5rem;

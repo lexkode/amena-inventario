@@ -9,6 +9,10 @@ import {
 } from "@features/lots/lote.types";
 import type { ModeloConCaracteristicas } from "@features/catalog/modelo.types";
 import { claveGrupo, nombreGrupo, grupoViviendasSchema, NOMENCLATURAS_GRUPO, type GrupoViviendas } from "@features/lots/grupo.types";
+import { NOMENCLATURAS_TORRE, torreSchema, mismaUbicacion, validarUbicacion } from "@features/lots/altura.types";
+import { torreCreateSchema, validarCambioTorre, nombreEdificio, perimetroNivel, perimetrosEdificio, type Torre, type TorreInput } from "@features/lots/torre.types";
+import { createBuildingImage } from "@shared/map/building-renderer";
+import { puntoDentroPoligono, segmentoDentroPoligono, poligonoDentroPoligono, poligonoSimple } from "@core/geometry/perimeter";
 import {
   MAX_IMAGENES_POR_PUNTO,
   type PuntoImagenItem,
@@ -37,6 +41,10 @@ const STANDARD_SELECTED_STROKE = "#dc832f";
 const STANDARD_DASH = "6,4";
 
 type NewLote = {
+  plantaArquitectonicaPath: string | null;
+  tipoVivienda: "casa" | "apartamento";
+  nivel: number | null;
+  nombreNivel: "Planta" | "Piso" | "Nivel";
   grupo: GrupoViviendas | null;
   numeroLote: string;
   estado: LoteEstado;
@@ -47,6 +55,8 @@ type NewLote = {
 };
 
 type LoteDraft = {
+  plantaArquitectonicaPath: string;
+  nivel: string;
   grupoSeleccion: string;
   grupoNombre: string;
   grupoTipo: string;
@@ -59,6 +69,10 @@ type LoteDraft = {
 };
 
 type LoteSnapshot = {
+  plantaArquitectonicaPath: string | null;
+  tipoVivienda: "casa" | "apartamento";
+  nivel: number | null;
+  nombreNivel: "Planta" | "Piso" | "Nivel";
   grupo: GrupoViviendas | null;
   polygon: Punto[];
   numeroLote: string;
@@ -69,8 +83,12 @@ type LoteSnapshot = {
 };
 
 type LoteClipboard = LoteSnapshot;
+type TorreFormDraft = { grupo: GrupoViviendas; nombrePersonalizado: string; cantidadNiveles: string; imagenesNivel: Record<string, string>; perimetrosNivel: Record<string, Punto[]> };
 
 type HistoryEntry = {
+  torres: Torre[];
+  torreGrupo: string | null;
+  nivelActivo: number;
   label: string;
   key?: string;
   at: number;
@@ -81,6 +99,20 @@ type HistoryEntry = {
 };
 
 type State = {
+  torre: Torre | null;
+  torres: Torre[];
+  syncedTorres: Torre[];
+  dibujandoTorre: boolean;
+  pendingNuevaTorre: TorreInput | null;
+  torreDraft: TorreFormDraft | null;
+  editingTorre: boolean;
+  torreFormDirty: boolean;
+  torreOriginal: Torre | null;
+  selectedTorreVertex: number | null;
+  draggingTorreVertex: number | null;
+  torreImagenNivel: number;
+  drawError: string;
+  nivelActivo: number;
   mode: Mode;
   polygonView: PolygonView;
   view: { x: number; y: number; w: number; h: number };
@@ -124,6 +156,9 @@ type State = {
 };
 
 type InitialData = {
+  torres: Torre[];
+  opacidadPlanosNivel: number;
+  alturaDefaults: Pick<GrupoViviendas, "nombre" | "tipoIdentificador"> & { nombreNivel: NewLote["nombreNivel"] };
   grupoDefaults: Pick<GrupoViviendas, "nombre" | "tipoIdentificador">;
   plan: {
     id: number;
@@ -142,6 +177,20 @@ type InitialData = {
 // ============ State ============
 
 const state: State = {
+  torre: null,
+  torres: [],
+  syncedTorres: [],
+  dibujandoTorre: false,
+  pendingNuevaTorre: null,
+  torreDraft: null,
+  editingTorre: false,
+  torreFormDirty: false,
+  torreOriginal: null,
+  selectedTorreVertex: null,
+  draggingTorreVertex: null,
+  torreImagenNivel: 1,
+  drawError: "",
+  nivelActivo: 1,
   mode: "lotes",
   polygonView: "estandar",
   view: { x: 0, y: 0, w: 1, h: 1 },
@@ -195,6 +244,8 @@ const ICON_TRASH = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" 
 
 let svg!: SVGSVGElement;
 let lotsLayer!: SVGGElement;
+let towerLayer!: SVGGElement;
+let buildingsLayer!: SVGGElement;
 let puntosLayer!: SVGGElement;
 let overlayLayer!: SVGGElement;
 let sidePanel!: HTMLElement;
@@ -203,6 +254,16 @@ let selectionToolbar: HTMLDivElement | null = null;
 let planImage: SVGGElement | null = null;
 let planOpacity = 0.8;
 let initialData: InitialData;
+let editingFloorPerimeter: number | null = null;
+let drawingFloorPerimeter: number | null = null;
+
+function torreEditada(): Torre {
+  return { ...state.torre!, ...(state.torreDraft ? { imagenesNivel: state.torreDraft.imagenesNivel, perimetrosNivel: state.torreDraft.perimetrosNivel } : {}) };
+}
+
+function poligonoEnEdicion(): Punto[] {
+  return editingFloorPerimeter === null ? state.torre!.poligono : perimetroNivel(torreEditada(), editingFloorPerimeter);
+}
 
 // ============ Working copy & history ============
 
@@ -224,6 +285,7 @@ function genTempId(): number {
 
 function documentDirty(): boolean {
   return (
+    JSON.stringify(state.torres) !== JSON.stringify(state.syncedTorres) ||
     JSON.stringify(state.lotes) !== JSON.stringify(state.synced) ||
     JSON.stringify(state.puntos) !== JSON.stringify(state.syncedPuntos)
   );
@@ -240,12 +302,15 @@ function puntoFieldsChanged(a: PuntoInteres, b: PuntoInteres): boolean {
 
 function loteFieldsChanged(a: LoteConModelo, b: LoteConModelo): boolean {
   return (
-    JSON.stringify([a.grupo, a.numeroLote, a.estado, a.poligono, a.modeloId, a.terrenoM2, a.dimensionesLote]) !==
-    JSON.stringify([b.grupo, b.numeroLote, b.estado, b.poligono, b.modeloId, b.terrenoM2, b.dimensionesLote])
+    JSON.stringify(loteBody(a)) !== JSON.stringify(loteBody(b))
   );
 }
 
 function loteBody(lote: LoteConModelo): {
+  plantaArquitectonicaPath: string | null;
+  tipoVivienda: NewLote["tipoVivienda"];
+  nivel: number | null;
+  nombreNivel: NewLote["nombreNivel"];
   grupo: GrupoViviendas | null;
   numeroLote: string;
   estado: LoteEstado;
@@ -255,6 +320,10 @@ function loteBody(lote: LoteConModelo): {
   dimensionesLote: string | null;
 } {
   return {
+    plantaArquitectonicaPath: lote.plantaArquitectonicaPath ?? null,
+    tipoVivienda: lote.tipoVivienda,
+    nivel: lote.nivel,
+    nombreNivel: lote.nombreNivel,
     grupo: lote.grupo,
     numeroLote: lote.numeroLote,
     estado: lote.estado,
@@ -266,6 +335,20 @@ function loteBody(lote: LoteConModelo): {
 }
 
 function updateDirtyIndicator(): void {
+  sidePanel.inert = state.syncing;
+  const canvasWrap = document.getElementById("canvas-wrap");
+  if (canvasWrap) canvasWrap.inert = state.syncing;
+  for (const id of ["create-lote", "create-toggle", "create-apartamento", "paste-lote", "history-toggle"]) {
+    const button = document.getElementById(id) as HTMLButtonElement | null;
+    if (button) button.disabled = state.syncing || (state.editingTorre && id !== "history-toggle");
+  }
+  const editTower = document.getElementById("edit-tower") as HTMLButtonElement | null;
+  if (editTower) editTower.disabled = state.syncing || state.editingTorre;
+  document.querySelectorAll<HTMLButtonElement>("#tower-levels button").forEach((button) => { button.disabled = state.syncing || state.editingTorre; });
+  const undoBtn = document.getElementById("undo") as HTMLButtonElement | null;
+  const redoBtn = document.getElementById("redo") as HTMLButtonElement | null;
+  if (undoBtn) undoBtn.disabled = state.syncing || state.historyIndex <= 0;
+  if (redoBtn) redoBtn.disabled = state.syncing || state.historyIndex >= state.history.length - 1;
   const localDirty = documentDirty() || hasUnsavedChanges();
   const publishBtn = document.getElementById("publish-action") as HTMLButtonElement | null;
   if (publishBtn) {
@@ -303,12 +386,12 @@ function renderHistoryControls(): void {
   const value = document.getElementById("history-value");
   if (value) value.textContent = state.history[state.historyIndex]?.label ?? "—";
   const toggle = document.getElementById("history-toggle") as HTMLButtonElement | null;
-  if (toggle) toggle.disabled = state.history.length === 0;
+  if (toggle) toggle.disabled = state.syncing || state.history.length === 0;
 
   const undoBtn = document.getElementById("undo") as HTMLButtonElement | null;
   const redoBtn = document.getElementById("redo") as HTMLButtonElement | null;
-  if (undoBtn) undoBtn.disabled = state.historyIndex <= 0;
-  if (redoBtn) redoBtn.disabled = state.historyIndex >= state.history.length - 1;
+  if (undoBtn) undoBtn.disabled = state.syncing || state.historyIndex <= 0;
+  if (redoBtn) redoBtn.disabled = state.syncing || state.historyIndex >= state.history.length - 1;
 }
 
 function renderViewControl(): void {
@@ -329,6 +412,9 @@ function commitHistory(label: string, coalesceKey?: string): void {
   if (coalesceKey && atTip && last && last.key === coalesceKey && now - last.at < 800) {
     last.at = now;
     last.lotes = cloneLotes(state.lotes);
+    last.torres = structuredClone(state.torres);
+    last.torreGrupo = state.torre ? claveGrupo(state.torre.grupo) : null;
+    last.nivelActivo = state.nivelActivo;
     last.selectedLoteId = state.selectedLoteId;
     last.puntos = clonePuntos(state.puntos);
     last.selectedPuntoId = state.selectedPuntoId;
@@ -339,6 +425,9 @@ function commitHistory(label: string, coalesceKey?: string): void {
 
   state.history.splice(state.historyIndex + 1);
   state.history.push({
+    torres: structuredClone(state.torres),
+    torreGrupo: state.torre ? claveGrupo(state.torre.grupo) : null,
+    nivelActivo: state.nivelActivo,
     label,
     key: coalesceKey,
     at: now,
@@ -359,14 +448,25 @@ function commitHistory(label: string, coalesceKey?: string): void {
 }
 
 function goToHistory(index: number): void {
+  if (state.syncing) return;
   if (index < 0 || index >= state.history.length || index === state.historyIndex) return;
   state.historyIndex = index;
   const entry = state.history[index];
+  state.mode = "lotes";
+  state.torres = structuredClone(entry.torres);
+  state.torre = state.torres.find((t) => claveGrupo(t.grupo) === entry.torreGrupo) ?? null;
+  state.nivelActivo = entry.nivelActivo;
+  state.dibujandoTorre = false;
+  state.pendingNuevaTorre = null;
+  state.torreDraft = null;
+  clearTorreEdit();
+  state.drawError = "";
   state.lotes = cloneLotes(entry.lotes);
   state.puntos = clonePuntos(entry.puntos);
   state.pendingNewLote = null;
   state.currentPolygon = [];
   state.selectedVertex = null;
+  state.draggingVertex = null;
   state.draggingPolygon = null;
   state.draggingPunto = null;
   state.nuevoPuntoPos = null;
@@ -381,6 +481,8 @@ function goToHistory(index: number): void {
       ? entry.selectedPuntoId
       : null;
   const lote = state.lotes.find((l) => l.id === state.selectedLoteId);
+  if (lote) activarContextoLote(lote);
+  if (state.torre) state.selectedPuntoId = null;
   state.editSnapshot = lote ? captureSnapshot(lote) : null;
   render();
   renderHistoryControls();
@@ -399,6 +501,10 @@ function redo(): void {
 
 function renderViewTransform(): void {
   applySvgView(svg, state.view, state.initialView.w, zoomDisplay);
+  const shade = document.getElementById("tower-shade");
+  if (shade) {
+    for (const [key, value] of Object.entries({ x: state.view.x, y: state.view.y, width: state.view.w, height: state.view.h })) shade.setAttribute(key, String(value));
+  }
   renderSelectionToolbar();
 }
 
@@ -408,7 +514,7 @@ function updateCursor(): void {
   } else if (state.mode === "lotes") {
     svg.style.cursor = "grab";
   } else if (state.mode === "draw") {
-    svg.style.cursor = state.pendingNewLote ? "not-allowed" : "crosshair";
+    svg.style.cursor = state.pendingNewLote || state.pendingNuevaTorre ? "not-allowed" : "crosshair";
   } else if (state.mode === "punto") {
     svg.style.cursor = state.nuevoPuntoPos !== null ? "default" : "crosshair";
   } else {
@@ -418,8 +524,13 @@ function updateCursor(): void {
 
 function renderLotsLayer(): void {
   while (lotsLayer.firstChild) lotsLayer.removeChild(lotsLayer.firstChild);
+  towerLayer.replaceChildren();
 
   for (const lote of state.lotes) {
+    const enTorre = state.torre !== null && lote.tipoVivienda === "apartamento" && claveGrupo(lote.grupo) === claveGrupo(state.torre.grupo);
+    if (lote.tipoVivienda === "apartamento" && (!enTorre || lote.nivel !== state.nivelActivo)) continue;
+    const editable = !state.editingTorre && (state.torre === null || enTorre);
+    const layer = enTorre ? towerLayer : lotsLayer;
     const isSelected = lote.id === state.selectedLoteId;
     const isStandard = state.polygonView === "estandar";
     const label = createLotLabel(lote, { fontSize: 22, strokeWidth: 0.5 });
@@ -457,26 +568,94 @@ function renderLotsLayer(): void {
       strokeDasharray: dash,
     });
     polygon.style.cursor = state.mode === "lotes" ? "pointer" : "default";
+    if (!editable || state.mode !== "lotes") polygon.style.pointerEvents = "none";
     polygon.addEventListener("mousedown", (e) => {
       if (e.button !== 0 || e.shiftKey) return;
       e.stopPropagation();
-      if (state.mode !== "lotes") return;
-      void selectLote(lote.id);
-      state.draggingPolygon = {
-        loteId: lote.id,
-        start: svgToPoint(svg, e.clientX, e.clientY),
-        original: lote.poligono.map((p) => ({ ...p })),
-      };
-      state.dragMoved = false;
-      svg.style.cursor = "move";
+      if (state.mode !== "lotes" || !editable) return;
+      const canDrag = lote.id === state.selectedLoteId || !hasUnsavedChanges();
+      void selectLote(lote.id).then(() => {
+        if (state.selectedLoteId !== lote.id || !canDrag) return;
+        state.draggingPolygon = {
+          loteId: lote.id,
+          start: svgToPoint(svg, e.clientX, e.clientY),
+          original: lote.poligono.map((p) => ({ ...p })),
+        };
+        state.dragMoved = false;
+        svg.style.cursor = "move";
+      });
     });
-    lotsLayer.appendChild(polygon);
+    layer.appendChild(polygon);
 
-    if (label) lotsLayer.appendChild(label);
+    if (label) layer.appendChild(label);
+  }
+}
+
+function renderBuildingsLayer(): void {
+  buildingsLayer.replaceChildren();
+  for (const torre of state.torres) {
+    const activa = state.torre?.id === torre.id;
+    const contornoSeleccionado = activa && (state.editingTorre || state.selectedLoteId === null);
+    const efectiva = activa && state.editingTorre ? torreEditada() : torre;
+    const points = activa ? (state.editingTorre && editingFloorPerimeter === null ? torre.poligono : perimetroNivel(efectiva, state.nivelActivo)) : torre.poligono;
+    if (activa && (editingFloorPerimeter !== null || drawingFloorPerimeter !== null)) {
+      const reference = document.createElementNS(SVG_NS, "polygon");
+      reference.setAttribute("points", torre.poligono.map((p) => `${p.x},${p.y}`).join(" "));
+      reference.setAttribute("fill", "var(--c-bg-dark)");
+      reference.setAttribute("stroke", "white");
+      reference.setAttribute("stroke-width", "3");
+      reference.setAttribute("stroke-dasharray", "10,5");
+      reference.setAttribute("opacity", ".3");
+      reference.setAttribute("data-building-reference", "true");
+      reference.style.pointerEvents = "none";
+      towerLayer.insertBefore(reference, towerLayer.firstChild);
+    }
+    const polygon = document.createElementNS(SVG_NS, "polygon");
+    polygon.setAttribute("points", points.map((p) => `${p.x},${p.y}`).join(" "));
+    polygon.setAttribute("data-torre-id", String(torre.id));
+    polygon.setAttribute("fill", activa ? "rgba(220,131,47,0.08)" : "var(--c-bg-dark)");
+    polygon.setAttribute("fill-opacity", activa ? "1" : "0.35");
+    polygon.setAttribute("stroke", contornoSeleccionado ? "var(--c-accent)" : "var(--c-bg-dark)");
+    polygon.setAttribute("stroke-width", "3");
+    polygon.setAttribute("stroke-dasharray", "10,5");
+    if (activa) {
+      polygon.style.pointerEvents = state.editingTorre && drawingFloorPerimeter === null ? "stroke" : "none";
+      polygon.addEventListener("mousedown", (e) => { if (state.editingTorre && !e.shiftKey && e.button === 0) e.stopPropagation(); });
+      polygon.addEventListener("dblclick", (e) => {
+        if (!state.editingTorre || drawingFloorPerimeter !== null) return;
+        e.stopPropagation();
+        const p = svgToPoint(svg, e.clientX, e.clientY);
+        let best = Infinity, edge = 0, projected = p;
+        points.forEach((a, i) => {
+          const b = points[(i + 1) % points.length], dx = b.x - a.x, dy = b.y - a.y;
+          const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy)));
+          const point = { x: a.x + dx * t, y: a.y + dy * t }, distance = Math.hypot(p.x - point.x, p.y - point.y);
+          if (distance < best) { best = distance; edge = i; projected = point; }
+        });
+        const candidate = structuredClone(points);
+        candidate.splice(edge + 1, 0, projected);
+        if (updateTorrePolygon(candidate)) { state.selectedTorreVertex = edge + 1; render(); }
+      });
+      if (drawingFloorPerimeter === null) towerLayer.insertBefore(polygon, towerLayer.firstChild);
+      const image = createBuildingImage(efectiva, state.nivelActivo, "editor", initialData.opacidadPlanosNivel ?? 50);
+      if (image) towerLayer.insertBefore(image, towerLayer.firstChild);
+    } else {
+      polygon.style.pointerEvents = state.torre || state.mode !== "lotes" ? "none" : "";
+      polygon.style.cursor = "pointer";
+      polygon.addEventListener("mousedown", (e) => {
+        if (e.button !== 0 || e.shiftKey || state.torre || state.mode !== "lotes") return;
+        e.stopPropagation();
+        void entrarTorre(torre.id);
+      });
+      buildingsLayer.appendChild(polygon);
+      const label = createLotLabel({ poligono: torre.poligono, numeroLote: nombreEdificio(torre) } as LoteConModelo, { fontSize: 22 });
+      if (label) buildingsLayer.appendChild(label);
+    }
   }
 }
 
 function renderPuntosLayer(): void {
+  puntosLayer.style.pointerEvents = state.torre ? "none" : "";
   while (puntosLayer.firstChild) puntosLayer.removeChild(puntosLayer.firstChild);
 
   const r = puntoMarkerRadius(state.initialView.w, state.initialView.h);
@@ -506,6 +685,7 @@ function renderPuntosLayer(): void {
     if (state.mode !== "draw") {
       group.style.cursor = isSelected ? "grab" : "pointer";
       group.addEventListener("mousedown", (e) => {
+        if (state.torre) return;
         if (e.button !== 0) return;
         e.stopPropagation();
         if (isSelected) {
@@ -575,6 +755,33 @@ function createVertexMarker(x: number, y: number): SVGRectElement {
 
 function renderOverlayLayer(): void {
   while (overlayLayer.firstChild) overlayLayer.removeChild(overlayLayer.firstChild);
+  if (state.editingTorre && state.torre && drawingFloorPerimeter === null) {
+    poligonoEnEdicion().forEach((p, i) => {
+      const handle = createVertexMarker(p.x, p.y);
+      handle.setAttribute("class", "tower-vertex-handle");
+      handle.setAttribute("data-vertex-index", String(i));
+      handle.style.cursor = "move";
+      if (state.selectedTorreVertex === i) handle.setAttribute("opacity", "0.5");
+      handle.addEventListener("mousedown", (e) => {
+        if (e.button !== 0 || e.shiftKey) return;
+        e.stopPropagation();
+        state.selectedTorreVertex = i;
+        state.draggingTorreVertex = i;
+      });
+      handle.addEventListener("click", () => { state.selectedTorreVertex = i; render(); });
+      overlayLayer.appendChild(handle);
+    });
+    return;
+  }
+  if (state.pendingNuevaTorre) {
+    const polygon = document.createElementNS(SVG_NS, "polygon");
+    polygon.setAttribute("points", state.pendingNuevaTorre.poligono.map((p) => `${p.x},${p.y}`).join(" "));
+    polygon.setAttribute("fill", STANDARD_SELECTED_FILL);
+    polygon.setAttribute("stroke", STANDARD_SELECTED_STROKE);
+    polygon.setAttribute("stroke-width", "3");
+    polygon.style.pointerEvents = "none";
+    overlayLayer.appendChild(polygon);
+  }
 
   if (state.mode === "draw" && state.currentPolygon.length > 0) {
     const polyline = document.createElementNS(SVG_NS, "polyline");
@@ -645,6 +852,20 @@ function renderOverlayLayer(): void {
 }
 
 function renderSidePanel(): void {
+  if (drawingFloorPerimeter !== null) {
+    sidePanel.innerHTML = `<h2>Perímetro de ${escapeHtml(state.torre!.nombreNivel)} ${drawingFloorPerimeter}</h2>
+      <p>Dibuja el nuevo perímetro. El contorno transparente del edificio sirve de referencia.</p>
+      <p>${state.currentPolygon.length} vértices</p>
+      <p id="draw-error" class="form-error" ${state.drawError ? "" : "hidden"}>${escapeHtml(state.drawError)}</p>
+      <div class="actions"><button id="close-polygon" class="btn-primary" ${state.currentPolygon.length < 3 ? "disabled" : ""}>Aplicar perímetro</button><button id="cancel-draw" class="btn-secondary">Cancelar dibujo</button></div>`;
+    document.getElementById("close-polygon")?.addEventListener("click", closePolygon);
+    document.getElementById("cancel-draw")?.addEventListener("click", cancelDraw);
+    return;
+  }
+  if (state.pendingNuevaTorre || state.editingTorre) {
+    renderTorreForm();
+    return;
+  }
   if (state.pendingNewLote !== null) {
     renderLotForm(state.pendingNewLote, true);
     return;
@@ -674,15 +895,18 @@ function renderSidePanel(): void {
   if (state.mode === "draw") {
     if (state.currentPolygon.length === 0) {
       sidePanel.innerHTML = `
-        <h2 style="margin-top:0">Modo Dibujar</h2>
-        <p style="color:#5a7682;font-size:.9rem">Haz clic en el plano para colocar el primer vértice del polígono.</p>
+        <h2 style="margin-top:0">${state.dibujandoTorre ? "Dibujar edificio" : state.torre ? "Dibujar apartamento" : "Modo Dibujar"}</h2>
+        <p style="color:#5a7682;font-size:.9rem">${state.dibujandoTorre ? "Dibuja primero el perímetro exterior del edificio. Después podrás agregar sus apartamentos." : state.torre ? "Dibuja el apartamento dentro del perímetro del edificio. Puede tocar sus paredes, pero no salir de ellas." : "Haz clic en el plano para colocar el primer vértice del polígono."}</p>
+        <p id="draw-error" class="form-error" ${state.drawError ? "" : "hidden"}>${escapeHtml(state.drawError)}</p>
+        <div class="actions"><button id="cancel-draw" class="btn-secondary">Cancelar</button></div>
         <p style="color:#5a7682;font-size:.8rem;margin-top:1rem">Shift+arrastrar o botón central para panear. Rueda para zoom.</p>
       `;
     } else {
       const canClose = state.currentPolygon.length >= 3;
       sidePanel.innerHTML = `
-        <h2 style="margin-top:0">Dibujando: ${state.currentPolygon.length} puntos</h2>
+        <h2 style="margin-top:0">${state.dibujandoTorre ? "Edificio" : state.torre ? "Apartamento" : "Polígono"}: ${state.currentPolygon.length} puntos</h2>
         <p style="color:#5a7682;font-size:.85rem">Mínimo 3 vértices para cerrar.</p>
+        <p id="draw-error" class="form-error" ${state.drawError ? "" : "hidden"}>${escapeHtml(state.drawError)}</p>
         <div class="actions">
           <button id="close-polygon" class="btn-primary" ${canClose ? "" : "disabled"}>Cerrar polígono</button>
           <button id="cancel-draw" class="btn-secondary">Cancelar</button>
@@ -691,10 +915,8 @@ function renderSidePanel(): void {
       document
         .getElementById("close-polygon")
         ?.addEventListener("click", closePolygon);
-      document
-        .getElementById("cancel-draw")
-        ?.addEventListener("click", cancelDraw);
     }
+    document.getElementById("cancel-draw")?.addEventListener("click", cancelDraw);
     return;
   }
 
@@ -711,21 +933,23 @@ function renderSidePanel(): void {
 
 function renderLoteList(): void {
   const grupos = new Map<string, LoteConModelo[]>();
-  for (const lote of state.lotes) {
+  const casas = state.lotes.filter((l) => l.tipoVivienda === "casa");
+  const apartamentos = state.lotes.filter((l) => l.tipoVivienda === "apartamento");
+  for (const lote of casas) {
     const clave = claveGrupo(lote.grupo);
     const arr = grupos.get(clave) ?? [];
     arr.push(lote);
     grupos.set(clave, arr);
   }
 
-  let html = `<h2 style="margin-top:0">Vivienda Unifamiliar</h2>`;
+  let html = `<details class="lote-acc" ${state.torre ? "" : "open"}><summary class="lote-grupo">Vivienda unifamiliar</summary>`;
 
   const renderGrupo = (nombre: string, arr: LoteConModelo[]): void => {
     html += `<details class="lote-acc">`;
     html += `<summary class="lote-grupo">${escapeHtml(nombre)}<svg class="lote-chev" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></summary>`;
     html += `<ul class="lote-list">`;
     for (const lote of arr.sort((a, b) => a.numeroLote.localeCompare(b.numeroLote, "es", { numeric: true }))) {
-      html += `<li><button type="button" class="lote-row" data-lote-id="${lote.id}">Casa ${escapeHtml(lote.numeroLote)} · ${escapeHtml(lote.modelo?.nombre ?? "Sin modelo")}</button></li>`;
+      html += `<li><button type="button" class="lote-row" data-lote-id="${lote.id}" ${state.torre ? "disabled" : ""}>Casa ${escapeHtml(lote.numeroLote)} · ${escapeHtml(lote.modelo?.nombre ?? "Sin modelo")}</button></li>`;
     }
     html += `</ul>`;
     html += `</details>`;
@@ -735,11 +959,37 @@ function renderLoteList(): void {
     renderGrupo(nombreGrupo(arr[0].grupo), arr);
   }
 
-  if (state.lotes.length === 0) {
-    html += `<p class="lote-vacio">No hay viviendas todavía. Usa Nuevo lote para dibujar una.</p>`;
+  if (casas.length === 0) {
+    html += `<p class="lote-vacio">No hay casas todavía. Usa Nueva casa para dibujar una.</p>`;
   }
+  html += `</details><details class="lote-acc" ${state.torre ? "open" : ""}><summary class="lote-grupo">Vivienda en altura</summary>`;
+  for (const torre of [...state.torres].sort((a, b) => nombreGrupo(a.grupo).localeCompare(nombreGrupo(b.grupo), "es", { numeric: true }))) {
+    const key = claveGrupo(torre.grupo);
+    const arr = apartamentos.filter((l) => claveGrupo(l.grupo) === key);
+    const bloqueada = state.torre !== null && key !== claveGrupo(state.torre.grupo);
+    html += `<details class="lote-acc" ${state.torre && !bloqueada ? "open" : ""}><summary class="lote-grupo">${escapeHtml(nombreEdificio(torre))}</summary><ul class="lote-list"><li><button type="button" class="lote-row" data-torre-id="${torre.id}" ${bloqueada ? "disabled" : ""}>Ver apartamentos</button> <button type="button" class="lote-row" data-edit-torre-id="${torre.id}" ${bloqueada ? "disabled" : ""}>Editar edificio</button></li>`;
+    for (const lote of arr.sort((a, b) => (a.nivel ?? 1) - (b.nivel ?? 1) || a.numeroLote.localeCompare(b.numeroLote, "es", { numeric: true }))) {
+      html += `<li><button type="button" class="lote-row" data-lote-id="${lote.id}" ${bloqueada ? "disabled" : ""}>Apartamento ${escapeHtml(lote.numeroLote)} · ${escapeHtml(lote.nombreNivel)} ${lote.nivel} · ${escapeHtml(lote.modelo?.nombre ?? "Sin modelo")}</button></li>`;
+    }
+    html += `</ul></details>`;
+  }
+  if (!state.torres.length) html += `<p class="lote-vacio">No hay edificios todavía. Usa Nuevo apartamento para dibujar el primero.</p>`;
+  html += `</details><details class="lote-acc"><summary class="lote-grupo">Puntos de interés</summary><ul class="lote-list">`;
+  for (const punto of state.puntos) html += `<li><button type="button" class="lote-row" data-punto-id="${punto.id}" ${state.torre ? "disabled" : ""}>${escapeHtml(punto.nombre)}</button></li>`;
+  if (!state.puntos.length) html += `<li class="lote-vacio">No hay puntos de interés todavía.</li>`;
+  html += `</ul></details>`;
 
   sidePanel.innerHTML = `<div class="lote-scroll">${html}</div>`;
+  sidePanel.querySelectorAll<HTMLElement>("[data-torre-id]").forEach((btn) => btn.addEventListener("click", () => { void entrarTorre(Number(btn.dataset.torreId)); }));
+  sidePanel.querySelectorAll<HTMLElement>("[data-edit-torre-id]").forEach((btn) => btn.addEventListener("click", () => { void entrarTorre(Number(btn.dataset.editTorreId), true); }));
+  sidePanel.querySelectorAll<HTMLElement>("[data-punto-id]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (state.torre) return;
+      state.selectedPuntoId = Number(btn.dataset.puntoId);
+      state.selectedLoteId = null;
+      render();
+    });
+  });
   sidePanel.querySelectorAll<HTMLElement>("[data-lote-id]").forEach((btn) => {
     btn.addEventListener("click", () => {
       void selectLote(Number(btn.dataset.loteId));
@@ -1031,15 +1281,167 @@ async function deletePuntoImage(puntoId: number, imagenId: number): Promise<void
   }
 }
 
+function renderTorreForm(): void {
+  const pending = state.pendingNuevaTorre ?? state.torre!;
+  const isNew = state.pendingNuevaTorre !== null;
+  const draft = state.torreDraft;
+  const grupo = draft?.grupo ?? pending.grupo;
+  const nombrePersonalizado = draft?.nombrePersonalizado ?? pending.nombrePersonalizado ?? "";
+  const cantidad = draft?.cantidadNiveles ?? String(pending.cantidadNiveles);
+  const imagenes = draft?.imagenesNivel ?? pending.imagenesNivel;
+  const count = Math.max(1, Math.min(200, Number(cantidad) || 1));
+  state.torreImagenNivel = Math.min(state.torreImagenNivel, count);
+  const imagePath = imagenes[String(state.torreImagenNivel)];
+  const perimetros = draft?.perimetrosNivel ?? pending.perimetrosNivel ?? {};
+  sidePanel.innerHTML = `
+    <form id="tower-form" class="form-col" autocomplete="off">
+      <div class="form-head"><h2>${isNew ? "Nuevo edificio" : escapeHtml(nombreEdificio(state.torre!))}</h2></div>
+      <div class="form-fields">
+        <p class="muted">${isNew ? "Guarda el perímetro para entrar al edificio y dibujar sus apartamentos." : "Arrastra los vértices. Doble clic en el contorno agrega uno; Supr elimina el vértice seleccionado. El perímetro debe conservar todos sus apartamentos dentro."}</p>
+        <div class="field"><label for="torreNombrePersonalizado">Nombre personalizado (opcional)</label><input id="torreNombrePersonalizado" maxlength="100" value="${escapeHtml(nombrePersonalizado)}" placeholder="Ej. Edificio Mirador" /></div>
+        <div class="field"><label for="torreNombre">Nomenclatura</label><select id="torreNombre" ${isNew ? "" : "disabled"}>${NOMENCLATURAS_TORRE.map((nombre) => `<option value="${nombre}" ${nombre === grupo.nombre ? "selected" : ""}>${nombre}</option>`).join("")}</select></div>
+        <div class="field"><label for="torreTipo">Tipo de numeración</label><select id="torreTipo" ${isNew ? "" : "disabled"}><option value="alfabetico" ${grupo.tipoIdentificador === "alfabetico" ? "selected" : ""}>Alfabética (A, B, C…)</option><option value="numerico" ${grupo.tipoIdentificador === "numerico" ? "selected" : ""}>Numérica (1, 2, 3…)</option></select></div>
+        <div class="field"><label for="torreIdentificador">Numeración del edificio</label><input id="torreIdentificador" maxlength="16" required ${isNew ? "" : "readonly"} value="${escapeHtml(grupo.identificador)}" /></div>
+        <div class="field"><label for="torreCantidadNiveles">Cantidad de niveles</label><input id="torreCantidadNiveles" type="number" min="1" max="200" step="1" required value="${escapeHtml(cantidad)}" /><small>Reducir la cantidad quita las imágenes de los niveles eliminados. No se permite si contienen apartamentos.</small></div>
+        <div class="field"><label for="torreImagenNivel">Nivel: perímetro e imagen</label><select id="torreImagenNivel">${Array.from({ length: count }, (_, i) => `<option value="${i + 1}" ${state.torreImagenNivel === i + 1 ? "selected" : ""}>${escapeHtml(pending.nombreNivel)} ${i + 1}</option>`).join("")}</select></div>
+        ${isNew ? '<small>Guarda primero el edificio para personalizar los perímetros de cada nivel.</small>' : `<div class="field"><label>Perímetro de ${escapeHtml(pending.nombreNivel)} ${state.torreImagenNivel}</label>
+          <small>${perimetros[String(state.torreImagenNivel)] ? "Perímetro personalizado" : "Hereda el perímetro del edificio"}</small>
+          <div class="actions"><button type="button" id="floor-perimeter-draw" class="btn-secondary">Dibujar nuevo perímetro</button><button type="button" id="floor-perimeter-edit" class="btn-secondary">Editar vértices del nivel</button>${perimetros[String(state.torreImagenNivel)] ? '<button type="button" id="floor-perimeter-reset" class="btn-secondary">Usar perímetro del edificio</button>' : ""}</div>
+          <button type="button" id="building-perimeter-edit" class="btn-secondary">Editar perímetro original del edificio</button>
+          <small>Editando: ${editingFloorPerimeter === null ? "perímetro original del edificio" : `${escapeHtml(pending.nombreNivel)} ${editingFloorPerimeter}`}</small></div>`}
+        ${imagePath ? `<img src="${escapeHtml(imagePath)}" alt="Plano de ${escapeHtml(pending.nombreNivel)} ${state.torreImagenNivel}" style="width:100%;max-height:160px;object-fit:contain;margin-top:.6rem" />` : '<p class="muted">Este nivel no tiene imagen base.</p>'}
+        <div class="actions"><button type="button" class="btn-secondary" id="tower-image-pick">${imagePath ? "Cambiar imagen" : "Elegir / subir imagen"}</button>${imagePath ? '<button type="button" class="btn-secondary" id="tower-image-remove">Quitar imagen</button>' : ""}</div>
+        <p class="muted">Los apartamentos comienzan en ${escapeHtml(pending.nombreNivel)} 1.</p>
+      </div>
+      <div class="form-actions"><p id="form-error" class="form-error" hidden></p><div class="actions"><button type="submit" class="btn-primary" ${isNew || state.torreFormDirty ? "" : "disabled"}>${isNew ? "Crear edificio" : "Guardar cambios"}</button><button type="button" id="cancel-tower" class="btn-secondary">${isNew ? "Cancelar" : "Volver a apartamentos"}</button>${isNew ? "" : '<button type="button" id="delete-tower" class="btn-danger">Eliminar edificio</button>'}</div></div>
+    </form>`;
+  const nombre = document.getElementById("torreNombre") as HTMLSelectElement;
+  const tipo = document.getElementById("torreTipo") as HTMLSelectElement;
+  const identificador = document.getElementById("torreIdentificador") as HTMLInputElement;
+  const nombreInput = document.getElementById("torreNombrePersonalizado") as HTMLInputElement;
+  const nivelesInput = document.getElementById("torreCantidadNiveles") as HTMLInputElement;
+  const capturar = () => {
+    state.torreDraft = { grupo: { nombre: nombre.value, tipoIdentificador: tipo.value as GrupoViviendas["tipoIdentificador"], identificador: identificador.value }, nombrePersonalizado: nombreInput.value, cantidadNiveles: nivelesInput.value, imagenesNivel: structuredClone(state.torreDraft?.imagenesNivel ?? pending.imagenesNivel), perimetrosNivel: structuredClone(state.torreDraft?.perimetrosNivel ?? pending.perimetrosNivel ?? {}) };
+    state.torreFormDirty = true;
+    const save = sidePanel.querySelector<HTMLButtonElement>('button[type="submit"]');
+    if (save) save.disabled = false;
+    identificador.inputMode = tipo.value === "numerico" ? "numeric" : "text";
+    updateDirtyIndicator();
+  };
+  [nombre, tipo, identificador, nombreInput, nivelesInput].forEach((el) => { el.addEventListener("input", capturar); el.addEventListener("change", capturar); });
+  nivelesInput.addEventListener("change", () => { renderTorreForm(); });
+  identificador.inputMode = grupo.tipoIdentificador === "numerico" ? "numeric" : "text";
+  document.getElementById("tower-form")?.addEventListener("submit", (e) => { e.preventDefault(); saveTorre(); });
+  document.getElementById("cancel-tower")?.addEventListener("click", () => {
+    if (isNew) cancelDraw();
+    else void (async () => { if (await confirmDiscard()) { clearTorreEdit(); render(); } })();
+  });
+  document.getElementById("delete-tower")?.addEventListener("click", () => { void eliminarEdificio(); });
+  document.getElementById("torreImagenNivel")?.addEventListener("change", (e) => {
+    state.torreImagenNivel = Number((e.target as HTMLSelectElement).value);
+    state.selectedTorreVertex = null;
+    state.draggingTorreVertex = null;
+    if (editingFloorPerimeter !== null) editingFloorPerimeter = state.torreImagenNivel;
+    if (!isNew) state.nivelActivo = state.torreImagenNivel;
+    render();
+  });
+  document.getElementById("floor-perimeter-draw")?.addEventListener("click", () => {
+    capturar();
+    drawingFloorPerimeter = state.torreImagenNivel;
+    editingFloorPerimeter = state.torreImagenNivel;
+    state.nivelActivo = state.torreImagenNivel;
+    state.currentPolygon = [];
+    state.selectedTorreVertex = null;
+    state.drawError = "";
+    state.mode = "draw";
+    render();
+  });
+  document.getElementById("floor-perimeter-edit")?.addEventListener("click", () => {
+    capturar();
+    editingFloorPerimeter = state.torreImagenNivel;
+    state.nivelActivo = state.torreImagenNivel;
+    state.selectedTorreVertex = null;
+    render();
+  });
+  document.getElementById("building-perimeter-edit")?.addEventListener("click", () => {
+    editingFloorPerimeter = null;
+    state.selectedTorreVertex = null;
+    render();
+  });
+  document.getElementById("floor-perimeter-reset")?.addEventListener("click", () => {
+    capturar();
+    const candidate = structuredClone(state.torreDraft!.perimetrosNivel);
+    delete candidate[String(state.torreImagenNivel)];
+    const error = validarCambioTorre({ ...torreEditada(), perimetrosNivel: candidate }, state.lotes.filter((l) => l.torreId === state.torre!.id));
+    if (error) { showFormError(error); return; }
+    state.torreDraft!.perimetrosNivel = candidate;
+    editingFloorPerimeter = state.torreImagenNivel;
+    state.selectedTorreVertex = null;
+    render();
+  });
+  document.getElementById("tower-image-pick")?.addEventListener("click", () => {
+    capturar();
+    const nivel = state.torreImagenNivel;
+    void openImagePicker({ limit: 1, existing: [] }).then((paths) => {
+      if (!paths?.length || (isNew ? state.pendingNuevaTorre !== pending : !state.editingTorre || state.torre?.id !== (pending as Torre).id)) return;
+      state.torreDraft!.imagenesNivel[String(nivel)] = paths[0];
+      state.torreFormDirty = true;
+      render();
+      updateDirtyIndicator();
+    });
+  });
+  document.getElementById("tower-image-remove")?.addEventListener("click", () => {
+    capturar();
+    delete state.torreDraft!.imagenesNivel[String(state.torreImagenNivel)];
+    render();
+    updateDirtyIndicator();
+  });
+}
+
+function saveTorre(): boolean {
+  const pending = state.pendingNuevaTorre ?? (state.editingTorre ? state.torre : null);
+  if (!pending) return false;
+  const isNew = state.pendingNuevaTorre !== null;
+  const draft = state.torreDraft;
+  const cantidadNiveles = draft ? Number(draft.cantidadNiveles) : pending.cantidadNiveles;
+  const imagenesNivel = Object.fromEntries(Object.entries(draft?.imagenesNivel ?? pending.imagenesNivel).filter(([nivel]) => Number(nivel) <= cantidadNiveles));
+  const perimetrosNivel = Object.fromEntries(Object.entries(draft?.perimetrosNivel ?? pending.perimetrosNivel ?? {}).filter(([nivel]) => Number(nivel) <= cantidadNiveles));
+  const result = torreCreateSchema.safeParse({ ...pending, grupo: isNew ? draft?.grupo ?? pending.grupo : pending.grupo, nombrePersonalizado: draft?.nombrePersonalizado ?? pending.nombrePersonalizado, cantidadNiveles, imagenesNivel, perimetrosNivel });
+  if (!result.success) { showFormError(result.error.issues[0]?.message ?? "Edificio inválido"); return false; }
+  if (isNew && state.torres.some((t) => claveGrupo(t.grupo) === claveGrupo(result.data.grupo))) { showFormError("Ya existe un edificio con esta numeración"); return false; }
+  if (!isNew) {
+    const error = validarCambioTorre(result.data, state.lotes.filter((l) => l.torreId === state.torre!.id));
+    if (error) { showFormError(error); return false; }
+  }
+  const torre: Torre = isNew ? { ...result.data, id: genTempId(), createdAt: Date.now(), updatedAt: Date.now() } : { ...state.torre!, ...result.data, updatedAt: Date.now() };
+  if (isNew) state.torres.push(torre);
+  else state.torres[state.torres.findIndex((t) => t.id === torre.id)] = torre;
+  state.torre = torre;
+  state.nivelActivo = isNew ? 1 : Math.min(state.nivelActivo, torre.cantidadNiveles);
+  state.pendingNuevaTorre = null;
+  state.torreDraft = null;
+  clearTorreEdit();
+  state.dibujandoTorre = false;
+  state.drawError = "";
+  clearFormDraft();
+  state.mode = isNew ? "draw" : "lotes";
+  commitHistory(`${isNew ? "Crear" : "Editar"} ${nombreEdificio(torre)}`);
+  render();
+  return true;
+}
+
 function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
   const draft = state.draft;
+  const apartamento = lote.tipoVivienda === "apartamento";
+  const viviendaLabel = apartamento ? "apartamento" : "casa";
+  const gruposExistentes = apartamento ? new Map(state.torres.map((t) => [claveGrupo(t.grupo), t.grupo])) : new Map(state.lotes.filter((l) => l.grupo && l.tipoVivienda === "casa").map((l) => [claveGrupo(l.grupo), l.grupo!]));
   const grupoSeleccion = draft?.grupoSeleccion ?? claveGrupo(lote.grupo);
   const grupoNombre = draft?.grupoNombre ?? lote.grupo?.nombre ?? initialData.grupoDefaults.nombre;
   const grupoTipo = draft?.grupoTipo ?? lote.grupo?.tipoIdentificador ?? initialData.grupoDefaults.tipoIdentificador;
   const grupoIdentificador = draft?.grupoIdentificador ?? lote.grupo?.identificador ?? "";
-  const gruposExistentes = new Map(state.lotes.filter((l) => l.grupo).map((l) => [claveGrupo(l.grupo), l.grupo!]));
+  const torreAsignada = apartamento ? state.torres.find((t) => claveGrupo(t.grupo) === grupoSeleccion) : null;
   const gruposOptions = [...gruposExistentes].sort((a, b) => nombreGrupo(a[1]).localeCompare(nombreGrupo(b[1]), "es", { numeric: true })).map(([clave, grupo]) =>
-    `<option value="${escapeHtml(clave)}" ${clave === grupoSeleccion ? "selected" : ""}>${escapeHtml(nombreGrupo(grupo))}</option>`).join("");
+    `<option value="${escapeHtml(clave)}" ${clave === grupoSeleccion ? "selected" : ""}>${escapeHtml(apartamento ? nombreEdificio(state.torres.find((t) => claveGrupo(t.grupo) === clave)!) : nombreGrupo(grupo))}</option>`).join("");
   const numeroLote = draft ? draft.numeroLote : isNew ? "" : (lote as LoteConModelo).numeroLote;
   const estado = draft ? draft.estado : lote.estado;
   const modeloId = draft
@@ -1063,13 +1465,13 @@ function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
       ? (state.modelos.find((m) => String(m.id) === modeloId)?.nombre ?? null)
       : null;
   const title = isNew
-    ? "Nueva vivienda"
+    ? (apartamento ? "Nuevo apartamento" : "Nueva casa")
     : titleModel
-      ? `Casa ${numeroLote} · ${titleModel}`
-      : `Casa ${numeroLote} · Sin modelo`;
+      ? `${apartamento ? "Apartamento" : "Casa"} ${numeroLote} · ${titleModel}`
+      : `${apartamento ? "Apartamento" : "Casa"} ${numeroLote} · Sin modelo`;
 
   const modelosOptions = state.modelos
-    .filter((m) => m.tipo === "casa")
+    .filter((m) => m.tipo === lote.tipoVivienda)
     .map(
       (m) =>
         `<option value="${m.id}" ${String(m.id) === modeloId ? "selected" : ""}>${escapeHtml(m.nombre)}</option>`,
@@ -1078,7 +1480,7 @@ function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
 
   const backButton = isNew
     ? ""
-    : '<button type="button" id="back-to-list" class="back-btn" aria-label="Volver a la lista de lotes"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg></button>';
+    : '<button type="button" id="back-to-list" class="back-btn" aria-label="Volver a la lista de viviendas"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg></button>';
 
   const baseImagenes = isNew ? [] : (lote as LoteConModelo).imagenes;
   const keptImagenes = baseImagenes.filter(
@@ -1092,7 +1494,7 @@ function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
     .map(
       (img) => `
     <div class="lote-img">
-      <img src="${escapeHtml(img.path)}" alt="Imagen del lote" />
+      <img src="${escapeHtml(img.path)}" alt="Imagen de la vivienda" />
       <button type="button" class="img-remove" data-img-id="${img.id}" aria-label="Quitar imagen">&times;</button>
     </div>`,
     )
@@ -1112,7 +1514,7 @@ function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
     ? ""
     : `
       <div class="field">
-        <label>Imágenes del lote</label>
+        <label>Imágenes ${apartamento ? "del apartamento" : "de la casa"}</label>
         <div class="lote-imgs" id="lote-imgs">
           ${keptHtml}${pendingHtml}
           ${imagenesAtLimit ? "" : `
@@ -1120,10 +1522,11 @@ function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
             <span>+</span>
           </button>`}
         </div>
-        ${imagenesAtLimit ? `<small class="hint">Máximo ${MAX_IMAGENES_POR_LOTE} imágenes por lote</small>` : ""}
+        ${imagenesAtLimit ? `<small class="hint">Máximo ${MAX_IMAGENES_POR_LOTE} imágenes por vivienda</small>` : ""}
       </div>`;
 
   const saveDisabled = !isNew && !state.formDirty;
+  const plantaPath = draft ? draft.plantaArquitectonicaPath : lote.plantaArquitectonicaPath ?? "";
 
   sidePanel.innerHTML = `
     <form id="lot-form" class="form-col" autocomplete="off">
@@ -1134,18 +1537,17 @@ function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
       </div>
       <div class="form-fields">
         <div class="field">
-          <label for="grupoSeleccion">Grupo de viviendas</label>
+          <label for="grupoSeleccion">${apartamento ? "Edificio al que pertenece" : "Grupo de viviendas"}</label>
           <select id="grupoSeleccion">
-            <option value="" ${grupoSeleccion === "" ? "selected" : ""}>Sin grupo</option>
+            ${apartamento ? "" : `<option value="" ${grupoSeleccion === "" ? "selected" : ""}>Sin grupo</option>`}
             ${gruposOptions}
-            <option value="nuevo" ${grupoSeleccion === "nuevo" ? "selected" : ""}>Crear / asignar otro grupo…</option>
+            ${apartamento ? "" : `<option value="nuevo" ${grupoSeleccion === "nuevo" ? "selected" : ""}>Crear / asignar otro grupo…</option>`}
           </select>
         </div>
         <div id="grupo-nuevo" ${grupoSeleccion === "nuevo" ? "" : "hidden"}>
           <div class="field">
-            <label for="grupoNombre">Nomenclatura del grupo</label>
-            <input id="grupoNombre" list="nomenclaturas-grupo" maxlength="64" value="${escapeHtml(grupoNombre)}" placeholder="Polígono o nombre personalizado" />
-            <datalist id="nomenclaturas-grupo">${NOMENCLATURAS_GRUPO.map((nombre) => `<option value="${nombre}"></option>`).join("")}</datalist>
+            <label for="grupoNombre">Nomenclatura ${apartamento ? "del edificio" : "del grupo"}</label>
+            ${apartamento ? `<select id="grupoNombre">${NOMENCLATURAS_TORRE.map((nombre) => `<option value="${nombre}" ${grupoNombre === nombre ? "selected" : ""}>${nombre}</option>`).join("")}</select>` : `<input id="grupoNombre" list="nomenclaturas-grupo" maxlength="64" value="${escapeHtml(grupoNombre)}" placeholder="Polígono o nombre personalizado" /><datalist id="nomenclaturas-grupo">${NOMENCLATURAS_GRUPO.map((nombre) => `<option value="${nombre}"></option>`).join("")}</datalist>`}
           </div>
           <div class="field">
             <label for="grupoTipo">Tipo de identificador</label>
@@ -1155,14 +1557,15 @@ function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
             </select>
           </div>
           <div class="field">
-            <label for="grupoIdentificador">Identificador del grupo</label>
+            <label for="grupoIdentificador">${apartamento ? "Numeración del edificio" : "Identificador del grupo"}</label>
             <input id="grupoIdentificador" maxlength="16" list="letras-grupo" value="${escapeHtml(grupoIdentificador)}" placeholder="${grupoTipo === "alfabetico" ? "A" : "1"}" />
             <datalist id="letras-grupo">${"ABCDEFGHIJKLMNÑOPQRSTUVWXYZ".split("").map((letra) => `<option value="${letra}"></option>`).join("")}</datalist>
             <datalist id="numeros-grupo">${Array.from({ length: 20 }, (_, i) => `<option value="${i + 1}"></option>`).join("")}</datalist>
           </div>
         </div>
+        ${apartamento ? `<div class="field"><label for="nivel">${escapeHtml(lote.nombreNivel)}</label><input id="nivel" type="number" min="1" max="${torreAsignada?.cantidadNiveles ?? 1}" step="1" required value="${escapeHtml(draft?.nivel ?? String(lote.nivel ?? 1))}" /></div>` : ""}
         <div class="field">
-          <label for="numeroLote">Número de casa</label>
+          <label for="numeroLote">Número de ${viviendaLabel}</label>
           <input id="numeroLote" type="number" min="0" step="1" required value="${escapeHtml(numeroLote)}" />
         </div>
         <div class="field">
@@ -1174,19 +1577,28 @@ function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
           </select>
         </div>
         <div class="field">
-          <label for="modeloId">Modelo de casa</label>
+          <label for="modeloId">Modelo de ${viviendaLabel}</label>
           <select id="modeloId">
             <option value="" ${modeloId === "" ? "selected" : ""}>— Sin modelo —</option>
             ${modelosOptions}
           </select>
         </div>
-        <div class="field">
+        <div class="field" ${apartamento ? 'style="display:none"' : ""}>
           <label for="terrenoM2">Terreno (m²)</label>
           <input id="terrenoM2" type="number" step="0.01" min="0" value="${escapeHtml(terrenoM2)}" />
         </div>
-        <div class="field">
-          <label for="dimensionesLote">Dimensiones del lote</label>
+        <div class="field" ${apartamento ? 'style="display:none"' : ""}>
+          <label for="dimensionesLote">Dimensiones del terreno</label>
           <input id="dimensionesLote" type="text" maxlength="64" value="${escapeHtml(dimensionesLote)}" placeholder="ej. 15m x 7m" />
+        </div>
+        <div class="field">
+          <label>Planta arquitectónica</label>
+          <input type="hidden" id="planta-arquitectonica-path" value="${escapeHtml(plantaPath)}" />
+          ${plantaPath ? `<img src="${escapeHtml(plantaPath)}" alt="Planta arquitectónica" style="width:100%;max-height:200px;object-fit:contain" />` : '<small class="hint">Sin planta arquitectónica.</small>'}
+          <div class="actions">
+            <button type="button" id="planta-arquitectonica-add" class="btn-secondary">${plantaPath ? "Cambiar planta" : "Agregar planta"}</button>
+            ${plantaPath ? '<button type="button" id="planta-arquitectonica-remove" class="btn-secondary">Quitar planta</button>' : ""}
+          </div>
         </div>
         ${imagenesHtml}
       </div>
@@ -1194,8 +1606,8 @@ function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
         <p id="form-error" class="form-error" hidden></p>
         <p id="form-success" class="form-success" hidden></p>
         <div class="actions">
-          <button type="submit" id="save-lote-btn" class="btn-primary" ${saveDisabled ? "disabled" : ""}>${isNew ? "Crear lote" : "Guardar cambios"}</button>
-          ${!isNew ? '<button type="button" id="delete-lote" class="btn-danger">Eliminar lote</button>' : ""}
+          <button type="submit" id="save-lote-btn" class="btn-primary" ${saveDisabled ? "disabled" : ""}>${isNew ? `Crear ${viviendaLabel}` : "Guardar cambios"}</button>
+          ${!isNew ? `<button type="button" id="delete-lote" class="btn-danger">Eliminar ${viviendaLabel}</button>` : ""}
           ${isNew ? '<button type="button" id="cancel-new" class="btn-secondary">Cancelar</button>' : ""}
         </div>
       </div>
@@ -1206,9 +1618,25 @@ function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
     e.preventDefault();
     void saveLote();
   });
+  document.getElementById("planta-arquitectonica-add")?.addEventListener("click", () => {
+    void (async () => {
+      const paths = await openImagePicker({ limit: 1, existing: [] });
+      if (!paths?.length || !document.getElementById("planta-arquitectonica-path")) return;
+      (document.getElementById("planta-arquitectonica-path") as HTMLInputElement).value = paths[0];
+      markFormDirty();
+      renderSidePanel();
+    })();
+  });
+  document.getElementById("planta-arquitectonica-remove")?.addEventListener("click", () => {
+    (document.getElementById("planta-arquitectonica-path") as HTMLInputElement).value = "";
+    markFormDirty();
+    renderSidePanel();
+  });
 
   if (isNew) {
     document.getElementById("cancel-new")?.addEventListener("click", () => {
+      resetPendingImages();
+      clearFormDraft();
       state.pendingNewLote = null;
       state.currentPolygon = [];
       state.mode = "lotes";
@@ -1244,7 +1672,7 @@ function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
   grupoTipoEl.addEventListener("change", syncGrupoInputs);
   syncGrupoInputs();
 
-  [numeroLoteEl, estadoEl, modeloSelect, terrenoInput, dimensionesInput, grupoSelect, grupoTipoEl, grupoIdEl, document.getElementById("grupoNombre")].forEach((el) => {
+  [numeroLoteEl, estadoEl, modeloSelect, terrenoInput, dimensionesInput, grupoSelect, grupoTipoEl, grupoIdEl, document.getElementById("grupoNombre"), document.getElementById("nivel")].forEach((el) => {
     el?.addEventListener("input", markFormDirty);
     el?.addEventListener("change", markFormDirty);
   });
@@ -1254,7 +1682,7 @@ function renderLotForm(lote: LoteConModelo | NewLote, isNew: boolean): void {
     if (!id) return;
     const modelo = state.modelos.find((m) => m.id === id);
     if (!modelo) return;
-    if (isNew) {
+    if (isNew && !apartamento) {
       if (terrenoInput && !terrenoInput.value) {
         terrenoInput.value = String(modelo.terrenoM2);
       }
@@ -1270,8 +1698,10 @@ function markFormDirty(): void {
   const btn = document.getElementById("save-lote-btn") as HTMLButtonElement | null;
   if (btn) btn.disabled = false;
   state.draft = {
+    plantaArquitectonicaPath: (document.getElementById("planta-arquitectonica-path") as HTMLInputElement | null)?.value ?? "",
+    nivel: (document.getElementById("nivel") as HTMLInputElement | null)?.value ?? "",
     grupoSeleccion: (document.getElementById("grupoSeleccion") as HTMLSelectElement | null)?.value ?? "",
-    grupoNombre: (document.getElementById("grupoNombre") as HTMLInputElement | null)?.value ?? "",
+    grupoNombre: (document.getElementById("grupoNombre") as HTMLInputElement | HTMLSelectElement | null)?.value ?? "",
     grupoTipo: (document.getElementById("grupoTipo") as HTMLSelectElement | null)?.value ?? "alfabetico",
     grupoIdentificador: (document.getElementById("grupoIdentificador") as HTMLInputElement | null)?.value ?? "",
     numeroLote:
@@ -1310,7 +1740,7 @@ function renderLoteImages(): void {
       .map(
         (img) => `
     <div class="lote-img">
-      <img src="${escapeHtml(img.path)}" alt="Imagen del lote" />
+      <img src="${escapeHtml(img.path)}" alt="Imagen de la vivienda" />
       <button type="button" class="img-remove" data-img-id="${img.id}" aria-label="Quitar imagen">&times;</button>
     </div>`,
       )
@@ -1336,7 +1766,7 @@ function renderLoteImages(): void {
   if (atLimit && field) {
     field.insertAdjacentHTML(
       "beforeend",
-      `<small class="hint">Máximo ${MAX_IMAGENES_POR_LOTE} imágenes por lote</small>`,
+      `<small class="hint">Máximo ${MAX_IMAGENES_POR_LOTE} imágenes por vivienda</small>`,
     );
   }
 
@@ -1400,6 +1830,38 @@ function renderModeButtons(): void {
   const creating = state.mode === "draw" || state.mode === "punto";
   document.getElementById("create-lote")?.classList.toggle("active", creating);
   document.getElementById("create-toggle")?.classList.toggle("active", creating);
+  const create = document.getElementById("create-lote");
+  const label = create?.querySelector("span");
+  if (label) label.textContent = state.torre ? "Nuevo apartamento" : "Nueva casa";
+  create?.setAttribute("aria-label", state.torre ? "Crear nuevo apartamento" : "Crear nueva casa");
+  create?.setAttribute("title", state.torre ? "Crear nuevo apartamento" : "Crear nueva casa");
+  const towerAction = document.getElementById("create-apartamento");
+  if (towerAction) towerAction.textContent = state.torre ? "Nuevo apartamento" : "Nueva torre";
+  const punto = document.getElementById("create-punto") as HTMLButtonElement | null;
+  if (punto) punto.disabled = state.torre !== null;
+  const context = document.getElementById("tower-context");
+  if (context) context.hidden = state.torre === null;
+  const contextLabel = document.getElementById("tower-context-label");
+  if (contextLabel && state.torre) contextLabel.textContent = `${state.editingTorre ? "Editando" : "Apartamentos de"} ${nombreEdificio(state.torre)} · ${state.torre.nombreNivel} ${state.nivelActivo}`;
+  const edit = document.getElementById("edit-tower") as HTMLButtonElement | null;
+  if (edit) edit.disabled = state.editingTorre || state.syncing;
+  const levels = document.getElementById("tower-levels");
+  if (levels) {
+    levels.hidden = !state.torre;
+    levels.replaceChildren();
+    if (state.torre) for (let i = state.torre.cantidadNiveles; i >= 1; i--) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = `${state.torre.nombreNivel} ${i}`;
+      button.setAttribute("aria-current", String(i === state.nivelActivo));
+      button.disabled = state.editingTorre || state.syncing;
+      button.addEventListener("click", () => { void cambiarNivel(i); });
+      levels.appendChild(button);
+    }
+  }
+  if (create instanceof HTMLButtonElement) create.disabled = state.editingTorre;
+  const shade = document.getElementById("tower-shade");
+  if (shade) shade.style.display = state.torre === null ? "none" : "";
 }
 
 function renderMapOpacity(): void {
@@ -1418,9 +1880,9 @@ function createSelectionToolbar(): void {
   el.className = "selection-toolbar";
   el.hidden = true;
   el.innerHTML = `
-    <button type="button" data-action="edit" title="Editar lote" aria-label="Editar lote">${ICON_EDIT}</button>
-    <button type="button" data-action="copy" title="Copiar lote (Ctrl+C)" aria-label="Copiar lote">${ICON_COPY}</button>
-    <button type="button" data-action="delete" data-danger="true" title="Eliminar lote" aria-label="Eliminar lote">${ICON_TRASH}</button>
+    <button type="button" data-action="edit" title="Editar vivienda" aria-label="Editar vivienda">${ICON_EDIT}</button>
+    <button type="button" data-action="copy" title="Copiar vivienda (Ctrl+C)" aria-label="Copiar vivienda">${ICON_COPY}</button>
+    <button type="button" data-action="delete" data-danger="true" title="Eliminar vivienda" aria-label="Eliminar vivienda">${ICON_TRASH}</button>
   `;
   el.querySelector<HTMLElement>('[data-action="edit"]')?.addEventListener("click", focusLotForm);
   el.querySelector<HTMLElement>('[data-action="copy"]')?.addEventListener("click", copyLote);
@@ -1480,6 +1942,10 @@ function focusLotForm(): void {
 
 function captureSnapshot(lote: LoteConModelo): LoteSnapshot {
   return {
+    plantaArquitectonicaPath: lote.plantaArquitectonicaPath ?? null,
+    tipoVivienda: lote.tipoVivienda,
+    nivel: lote.nivel,
+    nombreNivel: lote.nombreNivel,
     grupo: structuredClone(lote.grupo),
     polygon: lote.poligono.map((p) => ({ ...p })),
     numeroLote: lote.numeroLote,
@@ -1490,40 +1956,141 @@ function captureSnapshot(lote: LoteConModelo): LoteSnapshot {
   };
 }
 
+function geometriaPermitida(vivienda: Pick<NewLote, "tipoVivienda" | "grupo" | "nivel">, poligono: Punto[]): boolean {
+  if (vivienda.tipoVivienda !== "apartamento") return true;
+  const torre = state.torres.find((t) => claveGrupo(t.grupo) === claveGrupo(vivienda.grupo));
+  return !!torre && poligonoDentroPoligono(poligono, perimetroNivel(torre, vivienda.nivel ?? 1));
+}
+
+function clearTorreEdit(): void {
+  editingFloorPerimeter = null;
+  drawingFloorPerimeter = null;
+  state.editingTorre = false;
+  state.torreFormDirty = false;
+  state.torreOriginal = null;
+  state.selectedTorreVertex = null;
+  state.draggingTorreVertex = null;
+  state.torreDraft = null;
+}
+
+async function editarEdificio(): Promise<void> {
+  if (!state.torre || state.syncing || !(await confirmDiscard())) return;
+  state.torreOriginal = structuredClone(state.torre);
+  state.editingTorre = true;
+  state.torreFormDirty = false;
+  state.torreImagenNivel = state.nivelActivo;
+  state.torreDraft = null;
+  state.selectedLoteId = null;
+  state.selectedVertex = null;
+  state.editSnapshot = null;
+  state.pendingNewLote = null;
+  state.currentPolygon = [];
+  state.mode = "lotes";
+  resetPendingImages();
+  clearFormDraft();
+  render();
+}
+
+async function cambiarNivel(nivel: number): Promise<void> {
+  if (!state.torre || state.editingTorre || state.syncing || !(await confirmDiscard())) return;
+  state.nivelActivo = nivel;
+  state.selectedLoteId = null;
+  state.selectedVertex = null;
+  state.currentPolygon = [];
+  state.pendingNewLote = null;
+  state.editSnapshot = null;
+  resetPendingImages();
+  clearFormDraft();
+  state.mode = "lotes";
+  render();
+}
+
+function updateTorrePolygon(candidate: Punto[]): boolean {
+  if (!state.torre || !state.editingTorre) return false;
+  const effective = torreEditada();
+  const updated = editingFloorPerimeter === null ? { ...effective, poligono: candidate } : { ...effective, perimetrosNivel: { ...effective.perimetrosNivel, [String(editingFloorPerimeter)]: candidate } };
+  const error = validarCambioTorre(updated, state.lotes.filter((l) => l.torreId === state.torre!.id));
+  if (error) {
+    if (drawingFloorPerimeter !== null) state.drawError = error;
+    else showFormError(error);
+    return false;
+  }
+  if (editingFloorPerimeter === null) state.torre.poligono = candidate;
+  else state.torreDraft!.perimetrosNivel = updated.perimetrosNivel;
+  state.torreFormDirty = true;
+  updateDirtyIndicator();
+  return true;
+}
+
+async function eliminarEdificio(): Promise<void> {
+  const torre = state.torre;
+  if (!torre || state.syncing) return;
+  const apartamentos = state.lotes.filter((l) => l.torreId === torre.id);
+  const action = await showModal({
+    title: "Eliminar edificio y apartamentos",
+    message: `Se eliminará ${escapeHtml(nombreEdificio(torre))} y sus ${apartamentos.length} apartamentos, incluidas sus galerías y todas las plantas. Los cambios se aplicarán al guardar el borrador y publicar. ¿Continuar?`,
+    defaultAction: "cancel",
+    buttons: [{ label: "Cancelar", value: "cancel", className: "btn-secondary" }, { label: "Eliminar todo", value: "confirm", className: "btn-danger" }],
+  });
+  if (action !== "confirm") return;
+  // Preserve pending gallery resources so undo can restore the entire building.
+  state.lotes = state.lotes.filter((l) => l.torreId !== torre.id);
+  state.torres = state.torres.filter((t) => t.id !== torre.id);
+  state.torre = null;
+  clearTorreEdit();
+  state.selectedLoteId = null;
+  state.selectedVertex = null;
+  state.pendingNewLote = null;
+  state.currentPolygon = [];
+  state.mode = "lotes";
+  resetPendingImages();
+  clearFormDraft();
+  commitHistory(`Eliminar ${nombreEdificio(torre)} y apartamentos`);
+  render();
+}
+
 function copyLote(): void {
   const lote = state.lotes.find((l) => l.id === state.selectedLoteId);
   if (!lote) return;
   state.clipboard = captureSnapshot(lote);
   renderPasteButton();
-  showFormSuccess("Lote copiado. Pega con Ctrl+V o el botón Pegar lote.");
+  showFormSuccess("Vivienda copiada. Pega con Ctrl+V o el botón Pegar.");
 }
 
-function numeroEnUso(modeloId: number | null, numeroLote: string, grupo: GrupoViviendas | null): boolean {
+function numeroEnUso(modeloId: number | null, numeroLote: string, grupo: GrupoViviendas | null, tipoVivienda: NewLote["tipoVivienda"], nivel: number | null): boolean {
   return state.lotes.some(
-    (l) => claveGrupo(l.grupo) === claveGrupo(grupo) && (grupo !== null || (l.modeloId ?? null) === modeloId) && l.numeroLote === numeroLote,
+    (l) => mismaUbicacion(l, { grupo, tipoVivienda, nivel }) && (grupo !== null || (l.modeloId ?? null) === modeloId) && l.numeroLote === numeroLote,
   );
 }
 
-function nextNumeroLote(base: string, modeloId: number | null, grupo: GrupoViviendas | null): string {
+function nextNumeroLote(base: string, modeloId: number | null, grupo: GrupoViviendas | null, tipoVivienda: NewLote["tipoVivienda"], nivel: number | null): string {
   const parsed = Number.parseInt(base, 10);
   if (Number.isNaN(parsed)) {
     let candidate = `${base} copia`;
     let i = 2;
-    while (numeroEnUso(modeloId, candidate, grupo)) candidate = `${base} copia ${i++}`;
+    while (numeroEnUso(modeloId, candidate, grupo, tipoVivienda, nivel)) candidate = `${base} copia ${i++}`;
     return candidate;
   }
   let n = parsed + 1;
-  while (numeroEnUso(modeloId, String(n), grupo)) n++;
+  while (numeroEnUso(modeloId, String(n), grupo, tipoVivienda, nivel)) n++;
   return String(n);
 }
 
 async function pasteLote(): Promise<void> {
   const clip = state.clipboard;
   if (!clip) return;
+  if (state.torre && (clip.tipoVivienda !== "apartamento" || claveGrupo(clip.grupo) !== claveGrupo(state.torre.grupo))) return;
+  if (!state.torre && clip.tipoVivienda === "apartamento") return;
   if (!(await confirmDiscard())) return;
 
-  const numero = nextNumeroLote(clip.numeroLote, clip.modeloId, clip.grupo);
+  const nivel = clip.tipoVivienda === "apartamento" ? state.nivelActivo : null;
+  const numero = nextNumeroLote(clip.numeroLote, clip.modeloId, clip.grupo, clip.tipoVivienda, nivel);
   const lote: LoteConModelo = {
+    plantaArquitectonicaPath: clip.plantaArquitectonicaPath,
+    torreId: state.torre?.id ?? null,
+    tipoVivienda: clip.tipoVivienda,
+    nivel,
+    nombreNivel: clip.nombreNivel,
     grupo: structuredClone(clip.grupo),
     id: genTempId(),
     numeroLote: numero,
@@ -1538,6 +2105,8 @@ async function pasteLote(): Promise<void> {
     updatedAt: Date.now(),
   };
 
+  if (!geometriaPermitida(lote, lote.poligono)) { showFormError("No se puede pegar el apartamento fuera del perímetro del edificio"); return; }
+
   state.lotes.push(lote);
   state.selectedLoteId = lote.id;
   state.selectedVertex = null;
@@ -1547,20 +2116,24 @@ async function pasteLote(): Promise<void> {
   resetPendingImages();
   clearFormDraft();
   state.editSnapshot = captureSnapshot(lote);
-  commitHistory(`Pegar casa ${numero} · ${nombreGrupo(lote.grupo)}`);
+  commitHistory(`Pegar ${lote.tipoVivienda} ${numero} · ${nombreGrupo(lote.grupo)}`);
   render();
-  showFormSuccess("Lote pegado. No olvides publicar.");
+  showFormSuccess("Vivienda pegada. No olvides publicar.");
 }
 
 function renderPasteButton(): void {
   const group = document.getElementById("paste-group");
-  if (group) group.hidden = state.clipboard === null;
+  const clip = state.clipboard;
+  if (group) group.hidden = !clip || (state.torre ? clip.tipoVivienda !== "apartamento" || claveGrupo(clip.grupo) !== claveGrupo(state.torre.grupo) : clip.tipoVivienda !== "casa");
+  const button = document.getElementById("paste-lote");
+  if (button) button.textContent = state.torre ? "Pegar apartamento" : "Pegar casa";
 }
 
 function render(): void {
   renderViewTransform();
   updateCursor();
   renderLotsLayer();
+  renderBuildingsLayer();
   renderPuntosLayer();
   renderOverlayLayer();
   renderSidePanel();
@@ -1574,6 +2147,8 @@ function render(): void {
 
 function hasUnsavedChanges(): boolean {
   return (
+    state.torreFormDirty ||
+    state.pendingNuevaTorre !== null ||
     state.formDirty ||
     state.pendingImageAdds.length > 0 ||
     state.pendingImageRemoves.length > 0
@@ -1899,11 +2474,26 @@ function openImagePicker(opts: {
 }
 
 function discardChanges(): void {
+  if (state.editingTorre && state.torreOriginal) {
+    const restored = structuredClone(state.torreOriginal);
+    state.torres[state.torres.findIndex((t) => t.id === restored.id)] = restored;
+    state.torre = restored;
+    clearTorreEdit();
+  }
+  if (state.pendingNuevaTorre) {
+    state.pendingNuevaTorre = null;
+    state.torreDraft = null;
+    state.dibujandoTorre = false;
+  }
   if (state.selectedLoteId !== null && state.editSnapshot) {
     const lote = state.lotes.find((l) => l.id === state.selectedLoteId);
     if (lote) {
       lote.numeroLote = state.editSnapshot.numeroLote;
       lote.grupo = structuredClone(state.editSnapshot.grupo);
+      lote.torreId = lote.tipoVivienda === "apartamento" ? state.torres.find((t) => claveGrupo(t.grupo) === claveGrupo(lote.grupo))?.id ?? null : null;
+      lote.tipoVivienda = state.editSnapshot.tipoVivienda;
+      lote.nivel = state.editSnapshot.nivel;
+      lote.nombreNivel = state.editSnapshot.nombreNivel;
       lote.estado = state.editSnapshot.estado;
       lote.modeloId = state.editSnapshot.modeloId;
       lote.modelo =
@@ -1912,6 +2502,7 @@ function discardChanges(): void {
           : null;
       lote.terrenoM2 = state.editSnapshot.terrenoM2;
       lote.dimensionesLote = state.editSnapshot.dimensionesLote;
+      lote.plantaArquitectonicaPath = state.editSnapshot.plantaArquitectonicaPath;
     }
   }
   resetPendingImages();
@@ -1925,7 +2516,7 @@ async function confirmDiscard(): Promise<boolean> {
   const action = await showModal({
     title: "Cambios sin guardar",
     message: numero
-      ? `El lote ${escapeHtml(numero)} tiene cambios sin guardar. ¿Qué deseas hacer?`
+      ? `La vivienda ${escapeHtml(numero)} tiene cambios sin guardar. ¿Qué deseas hacer?`
       : "Hay cambios sin guardar. ¿Qué deseas hacer?",
     defaultAction: "save",
     buttons: [
@@ -1947,14 +2538,14 @@ async function confirmDiscard(): Promise<boolean> {
 async function confirmDeleteLote(): Promise<boolean> {
   const numero = currentEditingLabel();
   const action = await showModal({
-    title: "Eliminar lote",
+    title: "Eliminar vivienda",
     message: numero
-      ? `¿Eliminar el lote ${escapeHtml(numero)}? Esta acción no se puede deshacer.`
-      : "¿Eliminar este lote? Esta acción no se puede deshacer.",
+      ? `¿Eliminar la vivienda ${escapeHtml(numero)}?`
+      : "¿Eliminar esta vivienda?",
     defaultAction: "cancel",
     buttons: [
       { label: "Cancelar", value: "cancel", className: "btn-secondary" },
-      { label: "Eliminar lote", value: "confirm", className: "btn-danger" },
+      { label: "Eliminar vivienda", value: "confirm", className: "btn-danger" },
     ],
   });
   return action === "confirm";
@@ -1972,8 +2563,15 @@ function currentEditingLabel(): string | null {
 }
 
 async function setMode(mode: Mode): Promise<void> {
+  if (state.torre && mode === "punto") return;
   if (mode === state.mode) return;
   if (!(await confirmDiscard())) return;
+  clearTorreEdit();
+  if (state.torre && mode === "punto") return;
+  state.dibujandoTorre = false;
+  state.pendingNuevaTorre = null;
+  state.torreDraft = null;
+  state.drawError = "";
   state.mode = mode;
   state.currentPolygon = [];
   state.pendingNewLote = null;
@@ -1990,8 +2588,11 @@ async function setMode(mode: Mode): Promise<void> {
 }
 
 async function selectLote(id: number | null): Promise<void> {
+  const target = state.lotes.find((l) => l.id === id);
+  if (state.torre && target && (target.tipoVivienda !== "apartamento" || claveGrupo(target.grupo) !== claveGrupo(state.torre.grupo))) return;
   if (id === state.selectedLoteId) return;
   if (!(await confirmDiscard())) return;
+  clearTorreEdit();
   state.selectedLoteId = id;
   state.selectedVertex = null;
   state.draggingPolygon = null;
@@ -2002,20 +2603,59 @@ async function selectLote(id: number | null): Promise<void> {
   resetPendingImages();
   clearFormDraft();
   const lote = id !== null ? state.lotes.find((l) => l.id === id) : undefined;
+  state.mode = "lotes";
+  if (lote) activarContextoLote(lote);
   state.editSnapshot = lote ? captureSnapshot(lote) : null;
   render();
 }
 
 function closePolygon(): void {
   if (state.currentPolygon.length < 3) return;
+  if ((state.dibujandoTorre || state.torre) && !poligonoSimple(state.currentPolygon)) {
+    state.drawError = "El polígono debe tener área y no cruzarse a sí mismo";
+    renderSidePanel();
+    return;
+  }
+  if (drawingFloorPerimeter !== null) {
+    const nivel = drawingFloorPerimeter;
+    editingFloorPerimeter = nivel;
+    if (!updateTorrePolygon(structuredClone(state.currentPolygon))) {
+      state.drawError = "El perímetro debe ser válido y contener los apartamentos de este nivel";
+      renderSidePanel();
+      return;
+    }
+    drawingFloorPerimeter = null;
+    state.currentPolygon = [];
+    state.drawError = "";
+    state.mode = "lotes";
+    render();
+    return;
+  }
+  if (state.dibujandoTorre) {
+    state.pendingNuevaTorre = { grupo: siguienteGrupoTorre(), nombreNivel: initialData.alturaDefaults.nombreNivel, nombrePersonalizado: null, cantidadNiveles: 1, imagenesNivel: {}, perimetrosNivel: {}, poligono: structuredClone(state.currentPolygon) };
+    state.currentPolygon = [];
+    state.torreDraft = null;
+    render();
+    updateDirtyIndicator();
+    return;
+  }
+  if (state.torre && !poligonoDentroPoligono(state.currentPolygon, perimetroNivel(state.torre, state.nivelActivo))) {
+    state.drawError = "El apartamento debe quedar completamente dentro del perímetro del edificio";
+    renderSidePanel();
+    return;
+  }
   state.pendingNewLote = {
-    grupo: null,
+    tipoVivienda: state.torre ? "apartamento" : "casa",
+    nivel: state.torre ? state.nivelActivo : null,
+    nombreNivel: state.torre?.nombreNivel ?? "Planta",
+    grupo: state.torre ? structuredClone(state.torre.grupo) : null,
     numeroLote: "",
     estado: "disponible",
     poligono: [...state.currentPolygon],
     modeloId: null,
     terrenoM2: null,
     dimensionesLote: null,
+    plantaArquitectonicaPath: null,
   };
   state.currentPolygon = [];
   resetPendingImages();
@@ -2024,8 +2664,113 @@ function closePolygon(): void {
 }
 
 function cancelDraw(): void {
+  if (drawingFloorPerimeter !== null) {
+    drawingFloorPerimeter = null;
+    state.currentPolygon = [];
+    state.drawError = "";
+    state.mode = "lotes";
+    render();
+    return;
+  }
+  clearTorreEdit();
+  state.dibujandoTorre = false;
+  state.pendingNuevaTorre = null;
+  state.torreDraft = null;
+  state.drawError = "";
+  clearFormDraft();
+  resetPendingImages();
   state.currentPolygon = [];
   state.pendingNewLote = null;
+  state.mode = "lotes";
+  render();
+  updateDirtyIndicator();
+}
+
+function activarContextoLote(lote: LoteConModelo): void {
+  state.torre = lote.tipoVivienda === "apartamento" && lote.grupo
+    ? state.torres.find((t) => claveGrupo(t.grupo) === claveGrupo(lote.grupo)) ?? null
+    : null;
+  state.nivelActivo = lote.nivel ?? 1;
+}
+
+function siguienteGrupoTorre(): GrupoViviendas {
+  const defaults = initialData.alturaDefaults;
+  const letras = "ABCDEFGHIJKLMNÑOPQRSTUVWXYZ";
+  const letra = (n: number): string => n < letras.length ? letras[n] : letra(Math.floor(n / letras.length) - 1) + letras[n % letras.length];
+  let index = 0;
+  let grupo: GrupoViviendas;
+  do {
+    grupo = { nombre: defaults.nombre, tipoIdentificador: defaults.tipoIdentificador, identificador: defaults.tipoIdentificador === "numerico" ? String(index + 1) : letra(index) };
+    index++;
+  } while (state.torres.some((t) => claveGrupo(t.grupo) === claveGrupo(grupo)));
+  return grupo;
+}
+
+async function crearApartamento(): Promise<void> {
+  if (state.syncing) return;
+  closeAllDropdowns();
+  if (!(await confirmDiscard())) return;
+  clearTorreEdit();
+  state.mode = "draw";
+  state.dibujandoTorre = state.torre === null;
+  state.currentPolygon = [];
+  state.pendingNewLote = null;
+  state.pendingNuevaTorre = null;
+  state.selectedLoteId = null;
+  state.selectedVertex = null;
+  state.draggingVertex = null;
+  state.draggingPolygon = null;
+  state.editSnapshot = null;
+  resetPendingImages();
+  clearFormDraft();
+  state.drawError = "";
+  render();
+}
+
+async function entrarTorre(id: number, editar = false): Promise<void> {
+  const torre = state.torres.find((t) => t.id === id);
+  if (!torre || (state.torre && state.torre.id !== id)) return;
+  if (!(await confirmDiscard())) return;
+  clearTorreEdit();
+  state.torre = state.torres.find((t) => t.id === id)!;
+  state.nivelActivo = 1;
+  state.selectedLoteId = null;
+  state.selectedVertex = null;
+  state.draggingVertex = null;
+  state.draggingPolygon = null;
+  state.selectedPuntoId = null;
+  state.nuevoPuntoPos = null;
+  state.pendingNewLote = null;
+  state.pendingNuevaTorre = null;
+  state.dibujandoTorre = false;
+  state.torreDraft = null;
+  state.currentPolygon = [];
+  state.drawError = "";
+  resetPendingImages();
+  clearFormDraft();
+  state.mode = "lotes";
+  render();
+  if (editar) await editarEdificio();
+}
+
+async function salirTorre(): Promise<void> {
+  if (!(await confirmDiscard())) return;
+  clearTorreEdit();
+  state.torre = null;
+  state.pendingNuevaTorre = null;
+  state.dibujandoTorre = false;
+  state.torreDraft = null;
+  state.drawError = "";
+  state.nivelActivo = 1;
+  state.selectedLoteId = null;
+  state.selectedVertex = null;
+  state.draggingVertex = null;
+  state.draggingPolygon = null;
+  state.pendingNewLote = null;
+  state.currentPolygon = [];
+  state.editSnapshot = null;
+  resetPendingImages();
+  clearFormDraft();
   state.mode = "lotes";
   render();
 }
@@ -2100,12 +2845,27 @@ function handleSvgMouseDown(e: MouseEvent): void {
   }
   if (e.button !== 0) return;
 
+  if (drawingFloorPerimeter !== null) {
+    state.currentPolygon.push(svgToPoint(svg, e.clientX, e.clientY));
+    state.drawError = "";
+    render();
+    return;
+  }
+
   if (state.mode === "lotes") {
     state.panFromBackground = true;
     startPan(e.clientX, e.clientY);
   } else if (state.mode === "draw") {
-    if (state.pendingNewLote !== null) return;
+    if (state.pendingNewLote !== null || state.pendingNuevaTorre !== null) return;
     const p = svgToPoint(svg, e.clientX, e.clientY);
+    const anterior = state.currentPolygon.at(-1);
+    const boundary = state.torre ? perimetroNivel(state.torre, state.nivelActivo) : [];
+    if (state.torre && (!puntoDentroPoligono(p, boundary) || (anterior && !segmentoDentroPoligono(anterior, p, boundary)))) {
+      state.drawError = "Dibuja dentro del perímetro del edificio; no se permiten vértices ni lados fuera de él";
+      renderSidePanel();
+      return;
+    }
+    state.drawError = "";
     state.currentPolygon.push(p);
     render();
   } else if (state.mode === "punto") {
@@ -2122,11 +2882,17 @@ function handleSvgMouseDown(e: MouseEvent): void {
 function handleDocumentMouseMove(e: MouseEvent): void {
   if (state.isPanning) {
     panTo(e.clientX, e.clientY);
+  } else if (state.draggingTorreVertex !== null && state.torre) {
+    const p = svgToPoint(svg, e.clientX, e.clientY);
+    const candidate = poligonoEnEdicion().map((pt, i) => i === state.draggingTorreVertex ? p : pt);
+    if (updateTorrePolygon(candidate)) render();
   } else if (state.draggingVertex) {
     const p = svgToPoint(svg, e.clientX, e.clientY);
     const lote = state.lotes.find((l) => l.id === state.draggingVertex!.loteId);
     if (lote) {
-      lote.poligono[state.draggingVertex.index] = p;
+      const candidate = lote.poligono.map((pt, i) => i === state.draggingVertex!.index ? p : pt);
+      if (!geometriaPermitida(lote, candidate)) return;
+      lote.poligono = candidate;
       state.dragMoved = true;
       render();
     }
@@ -2137,7 +2903,9 @@ function handleDocumentMouseMove(e: MouseEvent): void {
     const dy = p.y - drag.start.y;
     const lote = state.lotes.find((l) => l.id === drag.loteId);
     if (lote) {
-      lote.poligono = drag.original.map((pt) => ({ x: pt.x + dx, y: pt.y + dy }));
+      const candidate = drag.original.map((pt) => ({ x: pt.x + dx, y: pt.y + dy }));
+      if (!geometriaPermitida(lote, candidate)) return;
+      lote.poligono = candidate;
       state.dragMoved = true;
       render();
     }
@@ -2155,6 +2923,7 @@ function handleDocumentMouseMove(e: MouseEvent): void {
 }
 
 function handleDocumentMouseUp(e: MouseEvent): void {
+  state.draggingTorreVertex = null;
   if (state.isPanning) {
     const moved = Math.hypot(
       e.clientX - state.panStart.clientX,
@@ -2188,7 +2957,7 @@ function handleDocumentMouseUp(e: MouseEvent): void {
     state.dragMoved = false;
     if (moved) {
       const lote = state.lotes.find((l) => l.id === drag.loteId);
-      if (lote) commitHistory(`Mover vértice lote ${lote.numeroLote}`, `vertex:${lote.id}`);
+      if (lote) commitHistory(`Mover vértice de ${lote.tipoVivienda} ${lote.numeroLote}`, `vertex:${lote.id}`);
     }
   }
   if (state.draggingPolygon) {
@@ -2199,7 +2968,7 @@ function handleDocumentMouseUp(e: MouseEvent): void {
     updateCursor();
     if (moved) {
       const lote = state.lotes.find((l) => l.id === drag.loteId);
-      if (lote) commitHistory(`Mover lote ${lote.numeroLote}`, `polygon:${lote.id}`);
+      if (lote) commitHistory(`Mover ${lote.tipoVivienda} ${lote.numeroLote}`, `polygon:${lote.id}`);
     }
   }
   if (state.draggingPunto) {
@@ -2221,9 +2990,19 @@ function handleWheel(e: WheelEvent): void {
 }
 
 function handleKeyDown(e: KeyboardEvent): void {
-  if (activeModal !== null) return;
+  if (activeModal !== null || state.syncing) return;
+  if (drawingFloorPerimeter !== null) {
+    if (e.key === "Escape") { e.preventDefault(); cancelDraw(); }
+    else if (e.key === "Enter") { e.preventDefault(); closePolygon(); }
+    else if (e.key === "Backspace" || e.key === "Delete") { e.preventDefault(); state.currentPolygon.pop(); render(); }
+    return;
+  }
 
   // Escape cancels a new-lote or puncto creation even while typing in the form.
+  if (e.key === "Escape" && state.pendingNuevaTorre) {
+    cancelDraw();
+    return;
+  }
   if (e.key === "Escape" && (state.pendingNewLote !== null || state.mode === "punto")) {
     if (state.mode === "punto") {
       if (state.nuevoPuntoPos !== null) {
@@ -2234,6 +3013,8 @@ function handleKeyDown(e: KeyboardEvent): void {
         state.mode = "lotes";
       }
     } else {
+      clearFormDraft();
+      resetPendingImages();
       state.pendingNewLote = null;
       state.currentPolygon = [];
       state.mode = "lotes";
@@ -2275,11 +3056,26 @@ function handleKeyDown(e: KeyboardEvent): void {
     }
   }
 
+  if (state.editingTorre && state.torre) {
+    const index = state.selectedTorreVertex;
+    if (index !== null && (e.key === "Delete" || e.key === "Backspace")) {
+      e.preventDefault();
+      if (updateTorrePolygon(poligonoEnEdicion().filter((_, i) => i !== index))) { state.selectedTorreVertex = null; render(); }
+      return;
+    }
+    const dx = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
+    const dy = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
+    if (index !== null && (dx || dy)) {
+      e.preventDefault();
+      const candidate = poligonoEnEdicion().map((p, i) => i === index ? { x: p.x + dx, y: p.y + dy } : p);
+      if (updateTorrePolygon(candidate)) render();
+    } else if (e.key === "Escape") void (async () => { if (await confirmDiscard()) { clearTorreEdit(); render(); } })();
+    return;
+  }
+
   if (e.key === "Escape") {
-    if (state.currentPolygon.length > 0) {
-      state.currentPolygon = [];
-      state.mode = "lotes";
-      render();
+    if (state.currentPolygon.length > 0 || state.dibujandoTorre) {
+      cancelDraw();
     } else if (state.selectedVertex !== null) {
       state.selectedVertex = null;
       render();
@@ -2313,8 +3109,10 @@ function handleKeyDown(e: KeyboardEvent): void {
       const dx = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
       const dy = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
       if (dx !== 0 || dy !== 0) {
-        lote.poligono = lote.poligono.map((p) => ({ x: p.x + dx, y: p.y + dy }));
-        commitHistory(`Mover lote ${lote.numeroLote}`, `nudge:${lote.id}`);
+        const candidate = lote.poligono.map((p) => ({ x: p.x + dx, y: p.y + dy }));
+        if (!geometriaPermitida(lote, candidate)) { e.preventDefault(); showFormError("No puedes mover el apartamento fuera del edificio"); return; }
+        lote.poligono = candidate;
+        commitHistory(`Mover ${lote.tipoVivienda} ${lote.numeroLote}`, `nudge:${lote.id}`);
         e.preventDefault();
         render();
       }
@@ -2327,13 +3125,16 @@ function handleKeyDown(e: KeyboardEvent): void {
       if (dx !== 0 || dy !== 0) {
         const idx = state.selectedVertex!.index;
         const p = lote.poligono[idx];
-        lote.poligono[idx] = { x: p.x + dx, y: p.y + dy };
-        commitHistory(`Mover vértice lote ${lote.numeroLote}`, `nudge-vertex:${lote.id}`);
+        const candidate = lote.poligono.map((pt, i) => i === idx ? { x: p.x + dx, y: p.y + dy } : pt);
+        if (!geometriaPermitida(lote, candidate)) { e.preventDefault(); showFormError("No puedes mover el vértice fuera del edificio"); return; }
+        lote.poligono = candidate;
+        commitHistory(`Mover vértice de ${lote.tipoVivienda} ${lote.numeroLote}`, `nudge-vertex:${lote.id}`);
         e.preventDefault();
         render();
       }
     }
   } else if (state.selectedPuntoId !== null) {
+    if (state.torre) return;
     const punto = state.puntos.find((p) => p.id === state.selectedPuntoId);
     if (punto) {
       const dx = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
@@ -2352,6 +3153,10 @@ function handleKeyDown(e: KeyboardEvent): void {
 // ============ API actions ============
 
 function getFormData(): {
+  plantaArquitectonicaPath: string | null;
+  tipoVivienda: NewLote["tipoVivienda"];
+  nivel: number | null;
+  nombreNivel: NewLote["nombreNivel"];
   grupo: GrupoViviendas | null;
   numeroLote: string;
   estado: LoteEstado;
@@ -2368,7 +3173,7 @@ function getFormData(): {
 
   const numeroLote = numeroLoteEl.value.trim();
   if (!numeroLote) {
-    showFormError("El número de lote es obligatorio");
+    showFormError("El número de vivienda es obligatorio");
     return null;
   }
 
@@ -2382,10 +3187,15 @@ function getFormData(): {
   }
   const dimensionesLote = dimEl.value.trim() || null;
   const seleccion = (document.getElementById("grupoSeleccion") as HTMLSelectElement).value;
+  const vivienda = state.pendingNewLote ?? state.lotes.find((l) => l.id === state.selectedLoteId);
+  if (!vivienda) return null;
+  const tipoVivienda = vivienda.tipoVivienda;
+  const nivel = tipoVivienda === "apartamento" ? Number((document.getElementById("nivel") as HTMLInputElement).value) : null;
+  const nombreNivel = vivienda.nombreNivel;
   let grupo: GrupoViviendas | null = null;
   if (seleccion === "nuevo") {
-    const result = grupoViviendasSchema.safeParse({
-      nombre: (document.getElementById("grupoNombre") as HTMLInputElement).value,
+    const result = (tipoVivienda === "apartamento" ? torreSchema : grupoViviendasSchema).safeParse({
+      nombre: (document.getElementById("grupoNombre") as HTMLInputElement | HTMLSelectElement).value,
       tipoIdentificador: (document.getElementById("grupoTipo") as HTMLSelectElement).value,
       identificador: (document.getElementById("grupoIdentificador") as HTMLInputElement).value,
     });
@@ -2395,11 +3205,17 @@ function getFormData(): {
     }
     grupo = result.data;
   } else if (seleccion) {
-    grupo = structuredClone(state.lotes.find((l) => claveGrupo(l.grupo) === seleccion)?.grupo ?? null);
+    grupo = structuredClone(tipoVivienda === "apartamento" ? state.torres.find((t) => claveGrupo(t.grupo) === seleccion)?.grupo ?? null : state.lotes.find((l) => l.tipoVivienda === tipoVivienda && claveGrupo(l.grupo) === seleccion)?.grupo ?? null);
     if (!grupo) { showFormError("El grupo seleccionado ya no existe"); return null; }
   }
 
-  return { numeroLote, estado, modeloId, terrenoM2, dimensionesLote, grupo };
+  const ubicacionError = validarUbicacion({ tipoVivienda, grupo, nivel });
+  if (ubicacionError) { showFormError(ubicacionError); return null; }
+  const modelo = modeloById(modeloId);
+  if (modeloId !== null && modelo?.tipo !== tipoVivienda) { showFormError("El modelo debe corresponder al tipo de vivienda"); return null; }
+  const nivelExistente = tipoVivienda === "apartamento" ? state.torres.find((t) => claveGrupo(t.grupo) === claveGrupo(grupo)) : undefined;
+  if (nivelExistente && nivel! > nivelExistente.cantidadNiveles) { showFormError("El nivel supera la cantidad de niveles del edificio"); return null; }
+  return { numeroLote, estado, modeloId, terrenoM2: tipoVivienda === "casa" ? terrenoM2 : null, dimensionesLote: tipoVivienda === "casa" ? dimensionesLote : null, plantaArquitectonicaPath: (document.getElementById("planta-arquitectonica-path") as HTMLInputElement).value || null, grupo, tipoVivienda, nivel, nombreNivel: nivelExistente?.nombreNivel ?? nombreNivel };
 }
 
 function showFormError(msg: string): void {
@@ -2475,6 +3291,7 @@ function modeloById(id: number | null): LoteConModelo["modelo"] {
 }
 
 function saveLote(): boolean {
+  if (state.pendingNuevaTorre || state.editingTorre) return saveTorre();
   clearFormError();
   const data = getFormData();
   if (!data) return false;
@@ -2487,22 +3304,27 @@ function saveLote(): boolean {
     showFormError("El polígono debe tener al menos 3 puntos");
     return false;
   }
+  if (!geometriaPermitida(data, poligono)) { showFormError("El apartamento debe quedar completamente dentro del perímetro del edificio"); return false; }
 
   const modeloId = data.modeloId ?? null;
   const duplicate = state.lotes.find(
     (l) =>
       l.id !== state.selectedLoteId &&
-      claveGrupo(l.grupo) === claveGrupo(data.grupo) &&
+      mismaUbicacion(l, data) &&
       (data.grupo !== null || (l.modeloId ?? null) === modeloId) &&
       l.numeroLote === data.numeroLote,
   );
   if (duplicate) {
-    showFormError(`El número de casa ${data.numeroLote} ya existe en este grupo o modelo sin grupo`);
+    showFormError(data.tipoVivienda === "apartamento" ? `El apartamento ${data.numeroLote} ya existe en ${nombreGrupo(data.grupo)} · ${data.nombreNivel} ${data.nivel}` : `El número de casa ${data.numeroLote} ya existe en este grupo o modelo sin grupo`);
     return false;
   }
 
   if (isNew) {
     const lote: LoteConModelo = {
+      torreId: data.tipoVivienda === "apartamento" ? state.torres.find((t) => claveGrupo(t.grupo) === claveGrupo(data.grupo))?.id ?? null : null,
+      tipoVivienda: data.tipoVivienda,
+      nivel: data.nivel,
+      nombreNivel: data.nombreNivel,
       grupo: data.grupo,
       id: genTempId(),
       numeroLote: data.numeroLote,
@@ -2511,6 +3333,7 @@ function saveLote(): boolean {
       modeloId,
       terrenoM2: data.terrenoM2,
       dimensionesLote: data.dimensionesLote,
+      plantaArquitectonicaPath: data.plantaArquitectonicaPath,
       modelo: modeloById(modeloId),
       imagenes: [],
       createdAt: Date.now(),
@@ -2521,11 +3344,12 @@ function saveLote(): boolean {
     state.selectedLoteId = lote.id;
     state.pendingNewLote = null;
     state.mode = "lotes";
+    activarContextoLote(lote);
     clearFormDraft();
     state.editSnapshot = captureSnapshot(lote);
-    commitHistory(`Crear casa ${lote.numeroLote} · ${nombreGrupo(lote.grupo)}`);
+    commitHistory(`Crear ${lote.tipoVivienda} ${lote.numeroLote} · ${nombreGrupo(lote.grupo)}`);
     render();
-    showFormSuccess("Lote creado. No olvides publicar.");
+    showFormSuccess(`${lote.tipoVivienda === "apartamento" ? "Apartamento creado" : "Casa creada"}. No olvides publicar.`);
     return true;
   }
 
@@ -2533,16 +3357,22 @@ function saveLote(): boolean {
 
   current.numeroLote = data.numeroLote;
   current.grupo = data.grupo;
+  current.torreId = data.tipoVivienda === "apartamento" ? state.torres.find((t) => claveGrupo(t.grupo) === claveGrupo(data.grupo))?.id ?? null : null;
+  current.tipoVivienda = data.tipoVivienda;
+  current.nivel = data.nivel;
+  current.nombreNivel = data.nombreNivel;
+  activarContextoLote(current);
   current.estado = data.estado;
   current.modeloId = modeloId;
   current.modelo = modeloById(modeloId);
   current.terrenoM2 = data.terrenoM2;
   current.dimensionesLote = data.dimensionesLote;
+  current.plantaArquitectonicaPath = data.plantaArquitectonicaPath;
   current.poligono = poligono.map((p) => ({ ...p }));
   consumePendingImages(current);
   clearFormDraft();
   state.editSnapshot = captureSnapshot(current);
-  commitHistory(`Editar casa ${current.numeroLote} · ${nombreGrupo(current.grupo)}`);
+  commitHistory(`Editar ${current.tipoVivienda} ${current.numeroLote} · ${nombreGrupo(current.grupo)}`);
   render();
   showFormSuccess("Cambios aplicados. No olvides publicar.");
   return true;
@@ -2568,7 +3398,7 @@ function deleteLote(): void {
   state.editSnapshot = null;
   resetPendingImages();
   clearFormDraft();
-  commitHistory(`Eliminar lote ${lote?.numeroLote ?? ""}`.trim());
+  commitHistory(`Eliminar ${lote?.tipoVivienda ?? "vivienda"} ${lote?.numeroLote ?? ""}`.trim());
   render();
 }
 
@@ -2632,17 +3462,64 @@ async function guardarBorrador(): Promise<boolean> {
 
   const loteIdMap = new Map<number, number>();
   const imgIdMap = new Map<number, LoteImagenItem>();
+  const edificiosPendientes: Torre[] = [];
 
   try {
     const syncedById = new Map(state.synced.map((l) => [l.id, l]));
     const currentById = new Map(state.lotes.map((l) => [l.id, l]));
+    const torresEliminadas = new Set(state.syncedTorres.filter((t) => !state.torres.some((actual) => actual.id === t.id)).map((t) => t.id));
 
     for (const l of state.synced) {
-      if (!currentById.has(l.id)) {
+      if (!currentById.has(l.id) && (l.torreId === null || !torresEliminadas.has(l.torreId))) {
         const res = await fetch(`/api/admin/lotes/${l.id}`, { method: "DELETE" });
         const r = (await res.json()) as { ok: boolean; error?: string };
-        if (!r.ok) throw new Error(r.error ?? "Error al eliminar el lote");
+        if (!r.ok) throw new Error(r.error ?? "Error al eliminar la vivienda");
       }
+    }
+
+    for (const torre of [...state.syncedTorres]) {
+      if (state.torres.some((t) => t.id === torre.id)) continue;
+      const res = await fetch(`/api/admin/torres/${torre.id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirmar: true }) });
+      const r = (await res.json()) as { ok: boolean; error?: string };
+      if (!r.ok) throw new Error(r.error ?? "Error al eliminar el edificio");
+      state.syncedTorres = state.syncedTorres.filter((t) => t.id !== torre.id);
+      state.synced = state.synced.filter((l) => l.torreId !== torre.id);
+    }
+    // Buildings must exist before their apartments are validated by the API.
+    for (const torre of state.torres) {
+      if (state.syncedTorres.some((t) => t.id === torre.id)) continue;
+      const res = await fetch("/api/admin/torres", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(torre),
+      });
+      const r = (await res.json()) as { ok: boolean; data?: Torre; error?: string };
+      if (!r.ok || !r.data) throw new Error(r.error ?? "Error al crear el edificio");
+      const tempId = torre.id;
+      torre.id = r.data.id;
+      for (const lote of state.lotes) if (lote.torreId === tempId) lote.torreId = torre.id;
+      for (const entry of state.history) {
+        for (const t of entry.torres) if (t.id === tempId) t.id = torre.id;
+        for (const lote of entry.lotes) if (lote.torreId === tempId) lote.torreId = torre.id;
+      }
+      state.syncedTorres.push(structuredClone(torre));
+    }
+    for (const torre of state.torres) {
+      const base = state.syncedTorres.find((t) => t.id === torre.id);
+      if (!base || JSON.stringify(base) === JSON.stringify(torre)) continue;
+      // When apartments also moved, first allow both old and new geometries.
+      // The final perimeter is applied after the apartments have synchronized.
+      let body = torre;
+      const apartamentosServidor = state.synced.filter((l) => l.torreId === torre.id && currentById.has(l.id));
+      if (validarCambioTorre(torre, apartamentosServidor)) {
+        const puntos = [...perimetrosEdificio(base), ...perimetrosEdificio(torre)];
+        const xs = puntos.map((p) => p.x), ys = puntos.map((p) => p.y);
+        const x1 = Math.min(...xs), x2 = Math.max(...xs), y1 = Math.min(...ys), y2 = Math.max(...ys);
+        body = { ...torre, perimetrosNivel: {}, cantidadNiveles: Math.max(base.cantidadNiveles, torre.cantidadNiveles), poligono: [{ x: x1, y: y1 }, { x: x2, y: y1 }, { x: x2, y: y2 }, { x: x1, y: y2 }] };
+        edificiosPendientes.push(torre);
+      }
+      const res = await fetch(`/api/admin/torres/${torre.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const r = (await res.json()) as { ok: boolean; error?: string };
+      if (!r.ok) throw new Error(r.error ?? "Error al actualizar el edificio");
     }
 
     for (const lote of state.lotes) {
@@ -2653,7 +3530,7 @@ async function guardarBorrador(): Promise<boolean> {
           body: JSON.stringify(loteBody(lote)),
         });
         const r = (await res.json()) as { ok: boolean; data?: LoteConModelo; error?: string };
-        if (!r.ok || !r.data) throw new Error(r.error ?? "Error al crear el lote");
+        if (!r.ok || !r.data) throw new Error(r.error ?? "Error al crear la vivienda");
         loteIdMap.set(lote.id, r.data.id);
         const realId = r.data.id;
         if (lote.id > 0) {
@@ -2685,7 +3562,7 @@ async function guardarBorrador(): Promise<boolean> {
             body: JSON.stringify(loteBody(lote)),
           });
           const r = (await res.json()) as { ok: boolean; error?: string };
-          if (!r.ok) throw new Error(r.error ?? "Error al guardar el lote");
+          if (!r.ok) throw new Error(r.error ?? "Error al guardar la vivienda");
         }
       }
     }
@@ -2719,6 +3596,12 @@ async function guardarBorrador(): Promise<boolean> {
           }
         }
       }
+    }
+
+    for (const torre of edificiosPendientes) {
+      const res = await fetch(`/api/admin/torres/${torre.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(torre) });
+      const r = (await res.json()) as { ok: boolean; error?: string };
+      if (!r.ok) throw new Error(r.error ?? "Error al guardar el perímetro final del edificio");
     }
 
     // Sincronizar puntos de interés (igual que los lotes: local hasta guardar)
@@ -2782,6 +3665,7 @@ async function guardarBorrador(): Promise<boolean> {
     remapPuntoIds(puntoIdMap);
     remapPuntoImagenIds(puntoImagenIdMap);
     state.synced = cloneLotes(state.lotes);
+    state.syncedTorres = structuredClone(state.torres);
     state.syncedPuntos = clonePuntos(state.puntos);
     state.pendingImageFiles.clear();
     state.pendingImagePaths.clear();
@@ -2920,7 +3804,7 @@ function showPublicacionesModal(): Promise<RestoreTarget | null> {
           <div class="publicacion-row">
             <div class="publicacion-info">
               <span class="publicacion-fecha">${new Date(row.createdAt).toLocaleString("es-SV")}</span>
-              <span class="publicacion-meta">${badge}${row.totalLotes} lote(s)${esActual ? " · actual" : ""}</span>
+              <span class="publicacion-meta">${badge}${row.totalLotes} vivienda(s)${esActual ? " · actual" : ""}</span>
             </div>
             <div class="publicacion-actions">
               ${download}
@@ -3039,14 +3923,14 @@ async function subirRespaldo(file: File): Promise<void> {
     });
     const r = (await res.json()) as {
       ok: boolean;
-      data?: { lotes: LoteConModelo[]; pendiente: boolean; tienePublicacion: boolean };
+      data?: { lotes: LoteConModelo[]; torres: Torre[]; pendiente: boolean; tienePublicacion: boolean };
       error?: string;
     };
     if (!r.ok || !r.data) throw new Error(r.error ?? "Error al restaurar");
     loadDocument(r.data.lotes, {
       tienePublicacion: r.data.tienePublicacion,
       pendiente: r.data.pendiente,
-    });
+    }, r.data.torres);
     showFormSuccess("Respaldo restaurado en el borrador");
   } catch (err) {
     showFormError(err instanceof Error ? err.message : String(err));
@@ -3120,14 +4004,14 @@ async function restaurarPublicacion(id: number): Promise<void> {
     });
     const r = (await res.json()) as {
       ok: boolean;
-      data?: { lotes: LoteConModelo[]; pendiente: boolean; tienePublicacion: boolean };
+      data?: { lotes: LoteConModelo[]; torres: Torre[]; pendiente: boolean; tienePublicacion: boolean };
       error?: string;
     };
     if (!r.ok || !r.data) throw new Error(r.error ?? "Error al restaurar");
     loadDocument(r.data.lotes, {
       tienePublicacion: r.data.tienePublicacion,
       pendiente: r.data.pendiente,
-    });
+    }, r.data.torres);
     showFormSuccess("Versión restaurada en el borrador");
   } catch (err) {
     showFormError(err instanceof Error ? err.message : String(err));
@@ -3149,14 +4033,14 @@ async function restaurarRespaldo(id: number): Promise<void> {
     });
     const r = (await res.json()) as {
       ok: boolean;
-      data?: { lotes: LoteConModelo[]; pendiente: boolean; tienePublicacion: boolean };
+      data?: { lotes: LoteConModelo[]; torres: Torre[]; pendiente: boolean; tienePublicacion: boolean };
       error?: string;
     };
     if (!r.ok || !r.data) throw new Error(r.error ?? "Error al restaurar");
     loadDocument(r.data.lotes, {
       tienePublicacion: r.data.tienePublicacion,
       pendiente: r.data.pendiente,
-    });
+    }, r.data.torres);
     showFormSuccess("Respaldo restaurado en el borrador");
   } catch (err) {
     showFormError(err instanceof Error ? err.message : String(err));
@@ -3170,7 +4054,18 @@ async function restaurarRespaldo(id: number): Promise<void> {
 function loadDocument(
   lotes: LoteConModelo[],
   estado: { tienePublicacion: boolean; pendiente: boolean },
+  torres: Torre[],
 ): void {
+  clearTorreEdit();
+  state.torres = torres;
+  state.syncedTorres = structuredClone(torres);
+  state.pendingNuevaTorre = null;
+  state.dibujandoTorre = false;
+  state.torreDraft = null;
+  state.drawError = "";
+  state.torre = null;
+  state.nivelActivo = 1;
+  state.mode = "lotes";
   state.lotes = lotes;
   state.synced = cloneLotes(lotes);
   state.hasPublication = estado.tienePublicacion;
@@ -3265,6 +4160,8 @@ export function initEditor(): void {
 
   svg = document.getElementById("canvas") as unknown as SVGSVGElement;
   lotsLayer = document.getElementById("lots-layer") as unknown as SVGGElement;
+  towerLayer = document.getElementById("tower-layer") as unknown as SVGGElement;
+  buildingsLayer = document.getElementById("buildings-layer") as unknown as SVGGElement;
   puntosLayer = document.getElementById("puntos-layer") as unknown as SVGGElement;
   overlayLayer = document.getElementById("overlay-layer") as unknown as SVGGElement;
   sidePanel = document.getElementById("side-panel") as HTMLElement;
@@ -3277,6 +4174,8 @@ export function initEditor(): void {
   state.view = defaultView();
   state.atDefaultView = true;
   state.lotes = initialData.lotes;
+  state.torres = initialData.torres ?? [];
+  state.syncedTorres = structuredClone(state.torres);
   state.puntos = initialData.puntos ?? [];
   state.modelos = initialData.modelos;
   state.synced = cloneLotes(initialData.lotes);
@@ -3286,12 +4185,16 @@ export function initEditor(): void {
   commitHistory("Estado inicial");
 
   document.getElementById("create-lote")?.addEventListener("click", () => {
-    if (state.mode === "draw" && state.pendingNewLote === null) {
+    if (state.mode === "draw" && state.pendingNewLote === null && state.pendingNuevaTorre === null) {
       cancelDraw();
       return;
     }
-    void setMode("draw");
+    if (state.torre) void crearApartamento();
+    else void setMode("draw");
   });
+  document.getElementById("create-apartamento")?.addEventListener("click", () => { void crearApartamento(); });
+  document.getElementById("exit-tower")?.addEventListener("click", () => { void salirTorre(); });
+  document.getElementById("edit-tower")?.addEventListener("click", () => { void editarEdificio(); });
   document.getElementById("create-punto")?.addEventListener("click", () => {
     closeAllDropdowns();
     if (state.mode === "punto") {

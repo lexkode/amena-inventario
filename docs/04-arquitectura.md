@@ -26,7 +26,7 @@ Lógica organizada por dominio:
 
 - `auth`: contraseñas y sesiones.
 - `catalog`: modelos de vivienda.
-- `lots`: lotes, estados y polígonos.
+- `lots`: casas, estados y polígonos.
 - `plan`: plano activo.
 
 ### `src/core`
@@ -48,7 +48,7 @@ Layouts, componentes y utilidades visuales reutilizadas por las páginas y los s
 Código ejecutado en el navegador:
 
 - `public-map.ts`: mapa público, filtros y modales.
-- `editor.ts`: dibujo, edición y persistencia de lotes.
+- `editor.ts`: dibujo, edición y persistencia de casas.
 
 ## Flujo de una petición administrativa
 
@@ -66,7 +66,7 @@ Petición HTTP
 ## Flujo de la página pública
 
 1. Astro obtiene el plano activo.
-2. Astro obtiene lotes y modelos.
+2. Astro obtiene viviendas y modelos.
 3. Astro genera el HTML inicial.
 4. Los datos iniciales se entregan al navegador.
 5. `public-map.ts` dibuja los polígonos SVG y gestiona la interacción.
@@ -98,5 +98,5 @@ Petición HTTP
 
 - Las consultas son asíncronas (postgres.js).
 - La aplicación depende del filesystem local para uploads.
-- La página pública carga todos los lotes y modelos iniciales.
+- La página pública carga todas las viviendas y modelos iniciales.
 - La arquitectura está pensada para una instancia y un volumen pequeño o moderado.

@@ -4,7 +4,7 @@
 
 - **Astro SSR en Vercel** (`@astrojs/vercel`, `output: "server"`).
 - **PostgreSQL en Supabase** con el pooler (Supavisor, modo Transaction).
-- **Cloudflare R2** para la imagen del plano y las fotos de los lotes (egress $0).
+- **Cloudflare R2** para la imagen del plano y las fotos de las viviendas (egress $0).
 - **Drizzle ORM** con dialecto `postgresql`.
 
 ## Entornos
@@ -106,8 +106,8 @@ Ambos necesitan backup independiente del código.
 
 - La web pública responde.
 - El mapa carga su imagen desde R2.
-- Los lotes aparecen correctamente.
+- Las viviendas aparecen correctamente.
 - El login administrativo funciona.
 - Las rutas `/admin` están protegidas.
-- Se puede crear o actualizar un lote.
+- Se puede crear o actualizar una casa.
 - La documentación de `/admin/documentacion` abre (los `.md` van empaquetados en la función).

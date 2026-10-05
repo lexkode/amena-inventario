@@ -15,11 +15,11 @@ todas las funcionalidades.
 Construir una aplicación Astro SSR que permita:
 
 - Mostrar públicamente el plano de un residencial.
-- Consultar la disponibilidad de los lotes.
-- Filtrar lotes por estado y modelo.
+- Consultar la disponibilidad de las viviendas.
+- Filtrar viviendas por estado y modelo.
 - Gestionar modelos de vivienda desde un panel administrativo.
 - Subir y actualizar el plano.
-- Crear, editar y eliminar lotes mediante un editor visual.
+- Crear, editar y eliminar casas mediante un editor visual.
 - Mantener los datos en MySQL.
 
 El objetivo inicial no incluye pagos, reservas online, CRM, múltiples
@@ -251,7 +251,7 @@ Crear estas tablas:
 2. `sessions`: sesiones activas.
 3. `planos`: planos cargados.
 4. `modelos`: casas y apartamentos.
-5. `lotes`: parcelas del residencial.
+5. `lotes`: viviendas del residencial (nombre interno conservado por compatibilidad).
 
 Aplicar estas reglas:
 
@@ -325,14 +325,14 @@ Antes del panel administrativo, construir el flujo público:
 5. Crear `features/plan/plano.types.ts`.
 6. Crear `features/plan/plano.service.ts`.
 7. Obtener el plano activo desde MySQL.
-8. Obtener lotes y modelos desde MySQL.
+8. Obtener viviendas y modelos desde MySQL.
 9. Mostrar un estado vacío si todavía no existen datos.
 10. Renderizar el mapa con los datos del servidor.
 
 Después añadir, en este orden:
 
 1. Colores por estado.
-2. Números de lote.
+2. Números de casa.
 3. Zoom.
 4. Desplazamiento.
 5. Filtro por estado.
@@ -368,7 +368,7 @@ Los endpoints deben rechazar por sí mismos las peticiones no autenticadas.
 6. Crear el formulario de edición.
 7. Validar todos los campos en servidor.
 8. Mantener las páginas Astro sin consultas directas a MySQL.
-9. Probar que un modelo asociado a lotes se elimina de forma segura.
+9. Probar que un modelo asociado a viviendas se elimina de forma segura.
 
 ## Etapa 10: Gestión Del Plano
 
@@ -388,14 +388,14 @@ nuevo ciclo de despliegue. Preferir un directorio persistente configurado por
 `UPLOADS_DIR`. Si el directorio está fuera de la raíz pública, servir los
 archivos mediante una ruta controlada del servidor.
 
-## Etapa 11: CRUD De Lotes
+## Etapa 11: CRUD De Casas
 
 1. Definir los estados permitidos: `disponible`, `reservado` y `vendido`.
 2. Validar número, estado, modelo y datos opcionales.
 3. Validar que el polígono tenga al menos tres puntos.
 4. Validar que los puntos estén dentro de las dimensiones del plano.
 5. Crear endpoints para listar, crear, actualizar y eliminar.
-6. Crear una restricción única para el número de lote.
+6. Crear una restricción única para el número de casa.
 7. Mantener la relación opcional con el modelo.
 8. Registrar `createdAt` y `updatedAt`.
 9. Usar transacciones cuando una operación modifique varias tablas.
@@ -435,7 +435,7 @@ Verificar manualmente:
 4. Las rutas `/admin` están protegidas.
 5. Los endpoints administrativos rechazan peticiones sin sesión.
 6. Los cambios de modelos aparecen en el mapa.
-7. Los cambios de lotes sobreviven a un reinicio.
+7. Los cambios de casas sobreviven a un reinicio.
 8. El plano cargado permanece después de un nuevo despliegue.
 9. No existen secretos en el diff de Git.
 10. Los backups se pueden restaurar en una base separada.
@@ -526,7 +526,7 @@ de datos todavía pueden cambiar.
 0.5.0  Login y logout
 0.6.0  CRUD de modelos
 0.7.0  Gestión y subida del plano
-0.8.0  CRUD de lotes
+0.8.0  CRUD de casas
 0.9.0  Editor visual
 1.0.0  Seguridad, backups y documentación final
 ```

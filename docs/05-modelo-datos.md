@@ -64,14 +64,14 @@ Representa una casa o apartamento del catálogo.
 | `orden` | integer | Sí | Orden de presentación |
 | `createdAt` | integer | Sí | Fecha de creación |
 
-## Lote (`lotes`)
+## Vivienda (tabla interna `lotes`)
 
-Representa una parcela dibujada en el plano.
+Representa una vivienda dibujada en el plano. Los nombres internos de la tabla y los campos se mantienen por compatibilidad con las rutas, publicaciones y respaldos anteriores.
 
 | Campo | Tipo | Requerido | Descripción |
 |---|---|---:|---|
 | `id` | integer | Sí | Identificador |
-| `numeroLote` | text | Sí | Identificador visible del lote |
+| `numeroLote` | text | Sí | Número visible de la casa o apartamento |
 | `estado` | enum | Sí | `disponible`, `reservado` o `vendido` |
 | `poligonoJson` | text | Sí | Lista de puntos serializada como JSON |
 | `modeloId` | integer | No | Modelo asociado |
@@ -83,10 +83,10 @@ Representa una parcela dibujada en el plano.
 ## Relaciones
 
 - Un usuario puede tener muchas sesiones.
-- Un modelo puede estar asociado a muchos lotes.
-- Un lote puede tener cero o un modelo.
-- Si se elimina un modelo, `modeloId` del lote queda en `null`.
-- Un plano se relaciona con los lotes conceptualmente mediante las coordenadas, no mediante una foreign key.
+- Un modelo puede estar asociado a muchas viviendas.
+- Una vivienda puede tener cero o un modelo.
+- Si se elimina un modelo, `modeloId` de la vivienda queda en `null`.
+- Un plano se relaciona con las viviendas conceptualmente mediante las coordenadas, no mediante una foreign key.
 
 ## Datos serializados
 

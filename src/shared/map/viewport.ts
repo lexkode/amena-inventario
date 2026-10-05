@@ -96,6 +96,26 @@ export function fitView(initial: { w: number; h: number }): View {
   return { x: 0, y: 0, w: initial.w, h: initial.h };
 }
 
+/** Fit the complete perimeter with room for the floor navigation and exit controls. */
+export function fitBuildingView(
+  points: { x: number; y: number }[],
+  container: { w: number; h: number },
+  sidePadding = 48,
+): View {
+  const xs = points.map((p) => p.x), ys = points.map((p) => p.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const width = Math.max(1, container.w), height = Math.max(1, container.h);
+  const paddingLeft = sidePadding;
+  const paddingRight = sidePadding;
+  const paddingTop = height * .25;
+  const paddingBottom = height * .30;
+  const scale = Math.max((maxX - minX) / (width - paddingLeft - paddingRight), (maxY - minY) / (height - paddingTop - paddingBottom), .001);
+  const w = width * scale, h = height * scale;
+  const centerX = (paddingLeft + width - paddingRight) / 2;
+  return { x: (minX + maxX) / 2 - centerX * scale, y: minY - paddingTop * scale, w, h };
+}
+
 // Región del plano que cubre por completo el contenedor (equivalente a
 // background-size: cover), recortando lo que sobre y centrándola.
 export function coverView(

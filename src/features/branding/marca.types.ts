@@ -27,9 +27,9 @@ export const BRAND_TOKENS: BrandToken[] = [
   { key: "c-danger", label: "Peligro", group: "Alertas", default: "#b91c1c" },
   { key: "c-success", label: "Éxito", group: "Alertas", default: "#16a34a" },
 
-  { key: "c-disponible", label: "Disponible", group: "Estados de lotes", default: "#23a157" },
-  { key: "c-reservado", label: "Reservado", group: "Estados de lotes", default: "#d3873d" },
-  { key: "c-vendido", label: "Vendido", group: "Estados de lotes", default: "#d33c3c" },
+  { key: "c-disponible", label: "Disponible", group: "Estados de viviendas", default: "#23a157" },
+  { key: "c-reservado", label: "Reservado", group: "Estados de viviendas", default: "#d3873d" },
+  { key: "c-vendido", label: "Vendido", group: "Estados de viviendas", default: "#d33c3c" },
 
   { key: "c-disponible-bg", label: "Disponible (fondo)", group: "Tags de estados", default: "#dcfce7" },
   { key: "c-disponible-fg", label: "Disponible (texto)", group: "Tags de estados", default: "#166534" },
@@ -78,4 +78,8 @@ export type MarcaConfig = {
   tipografia: string | null;
   nombreGrupo: string;
   tipoIdentificadorGrupo: "numerico" | "alfabetico";
+  nombreTorre: "Torre" | "Edificio" | "Complejo" | "Condominio";
+  tipoIdentificadorTorre: "numerico" | "alfabetico";
+  nombreNivel: "Planta" | "Piso" | "Nivel";
+  opacidadPlanosNivel: number;
 };

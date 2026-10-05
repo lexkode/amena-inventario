@@ -31,7 +31,7 @@ Proteger el panel administrativo, los datos del inventario y los archivos subido
 
 - Los formularios y cuerpos JSON se validan con Zod.
 - La validación se ejecuta en el servidor aunque también exista validación visual en el navegador.
-- Los estados de lote y tipos de modelo se limitan a valores conocidos.
+- Los estados de vivienda y tipos de modelo se limitan a valores conocidos.
 - Los polígonos requieren al menos tres puntos.
 
 ## Protección de contenido dinámico

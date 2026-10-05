@@ -43,7 +43,7 @@ const AMENA_MODELOS: NewModelo[] = [
     parqueos: 1,
     dimensionesLote: "15m x 7m",
     caracteristicasJson: JSON.stringify([
-      "Lote Esquinero",
+      "Casa Esquinera",
       "1 Parqueo",
       "Jardín Frontal",
       "Jardín Trasero",

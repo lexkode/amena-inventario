@@ -12,7 +12,7 @@ Cambiar estos valores no renombra grupos existentes ni modifica publicaciones.
 
 ## Asignación de viviendas
 
-En el formulario de cada vivienda, **Grupo de viviendas** permite seleccionar
+En el formulario de cada casa, **Grupo de viviendas** permite seleccionar
 un grupo existente, dejarla sin grupo o crear/asignar otro grupo. Para un grupo
 nuevo se indica la nomenclatura, el tipo de identificador y su valor; los valores
 de Marca aparecen como predeterminados. Varias viviendas con los mismos tres
@@ -36,6 +36,14 @@ Las publicaciones y respaldos JSON de R2 incluyen el nombre, tipo y valor del
 grupo. Restaurar recupera esos datos en el borrador sin depender de la Marca
 actual y sin publicar automáticamente. Los archivos y publicaciones anteriores
 que no contienen agrupación se restauran con `grupo: null`.
+
+## Nomenclatura comercial
+
+La interfaz usa **casa** para viviendas unifamiliares y **vivienda** para textos
+generales que incluyen casas y apartamentos. El popup muestra el modelo como
+título y debajo **Casa 1 · Polígono A** (o **Apartamento 1**, según el modelo).
+Los identificadores internos `lotes`, `numeroLote` y las rutas `/api/admin/lotes`
+se conservan por compatibilidad; no son nombres comerciales visibles.
 
 ## Despliegue y pruebas
 

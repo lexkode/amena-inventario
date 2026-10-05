@@ -11,6 +11,10 @@ const DEFAULT_CONFIG: MarcaConfig = {
   tipografia: null,
   nombreGrupo: "Polígono",
   tipoIdentificadorGrupo: "alfabetico",
+  nombreTorre: "Torre",
+  tipoIdentificadorTorre: "alfabetico",
+  nombreNivel: "Planta",
+  opacidadPlanosNivel: 50,
 };
 
 const TOKEN_KEYS = new Set(BRAND_TOKENS.map((t) => t.key));
@@ -49,6 +53,10 @@ export async function getMarca(): Promise<MarcaConfig> {
       tipografia: row.tipografia,
       nombreGrupo: row.nombreGrupo,
       tipoIdentificadorGrupo: row.tipoIdentificadorGrupo,
+      nombreTorre: row.nombreTorre,
+      tipoIdentificadorTorre: row.tipoIdentificadorTorre,
+      nombreNivel: row.nombreNivel,
+      opacidadPlanosNivel: row.opacidadPlanosNivel ?? 50,
     };
   } catch {
     return { ...DEFAULT_CONFIG, colores: {} };
@@ -73,6 +81,10 @@ export async function upsertMarca(input: MarcaConfig): Promise<void> {
     tipografia: input.tipografia,
     nombreGrupo: input.nombreGrupo,
     tipoIdentificadorGrupo: input.tipoIdentificadorGrupo,
+    nombreTorre: input.nombreTorre,
+    tipoIdentificadorTorre: input.tipoIdentificadorTorre,
+    nombreNivel: input.nombreNivel,
+    opacidadPlanosNivel: input.opacidadPlanosNivel,
   };
 
   if (current) {

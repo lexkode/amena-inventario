@@ -1,0 +1,2 @@
+ALTER TABLE "marca" ADD COLUMN "opacidad_planos_nivel" integer DEFAULT 50 NOT NULL;--> statement-breakpoint
+ALTER TABLE "marca" ADD CONSTRAINT "marca_opacidad_planos_nivel_check" CHECK ("marca"."opacidad_planos_nivel" BETWEEN 0 AND 100);

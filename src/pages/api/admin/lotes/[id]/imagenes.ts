@@ -26,7 +26,7 @@ export const POST: APIRoute = jsonApi(async ({ request, params }) => {
 
   const lote = await getLoteById(loteId);
   if (!lote) {
-    return json({ ok: false, error: "Lote no encontrado" }, 404);
+    return json({ ok: false, error: "Vivienda no encontrada" }, 404);
   }
 
   if ((request.headers.get("content-type") ?? "").includes("application/json")) {
@@ -50,7 +50,7 @@ export const POST: APIRoute = jsonApi(async ({ request, params }) => {
     const nuevos = paths.filter((p) => !existentes.has(p));
     if (actuales.length + nuevos.length > MAX_IMAGENES_POR_LOTE) {
       return json(
-        { ok: false, error: `Máximo ${MAX_IMAGENES_POR_LOTE} imágenes por lote` },
+        { ok: false, error: `Máximo ${MAX_IMAGENES_POR_LOTE} imágenes por vivienda` },
         400,
       );
     }
@@ -73,7 +73,7 @@ export const POST: APIRoute = jsonApi(async ({ request, params }) => {
   const imagenesActuales = await getImagenesByLote(loteId);
   if (imagenesActuales.length >= MAX_IMAGENES_POR_LOTE) {
     return json(
-      { ok: false, error: `Máximo ${MAX_IMAGENES_POR_LOTE} imágenes por lote` },
+      { ok: false, error: `Máximo ${MAX_IMAGENES_POR_LOTE} imágenes por vivienda` },
       400,
     );
   }

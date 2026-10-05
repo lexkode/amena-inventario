@@ -6,6 +6,7 @@ import {
 } from "@features/branding/marca.service";
 import { BRAND_TOKENS, HEX_COLOR_RE } from "@features/branding/marca.types";
 import { nombreGrupoSchema, tipoIdentificadorSchema } from "@features/lots/grupo.types";
+import { nombreTorreSchema, nombreNivelSchema } from "@features/lots/altura.types";
 import { formApi } from "@core/http/api";
 import { redirect } from "@core/http/json";
 import { ALLOWED_MIME, MAX_FILE_SIZE, saveUpload } from "@core/storage";
@@ -32,6 +33,14 @@ export const POST: APIRoute = formApi(async ({ request }) => {
   if (!nombreResult.success || !tipoResult.success) return fail("Nomenclatura o tipo de identificador inválido");
   const nombreGrupo = nombreResult.data;
   const tipoIdentificadorGrupo = tipoResult.data;
+  const torreResult = nombreTorreSchema.safeParse(form.get("nombreTorre") ?? current.nombreTorre);
+  const torreTipoResult = tipoIdentificadorSchema.safeParse(form.get("tipoIdentificadorTorre") ?? current.tipoIdentificadorTorre);
+  const nivelResult = nombreNivelSchema.safeParse(form.get("nombreNivel") ?? current.nombreNivel);
+  if (!torreResult.success || !torreTipoResult.success || !nivelResult.success) return fail("Nomenclatura de vivienda en altura inválida");
+  const altura = { nombreTorre: torreResult.data, tipoIdentificadorTorre: torreTipoResult.data, nombreNivel: nivelResult.data };
+  const opacidadPlanosNivelRaw = Number(form.get("opacidadPlanosNivel") ?? current.opacidadPlanosNivel);
+  if (!Number.isInteger(opacidadPlanosNivelRaw) || opacidadPlanosNivelRaw < 0 || opacidadPlanosNivelRaw > 100) return fail("La opacidad de los planos por nivel debe estar entre 0 y 100");
+  const opacidadPlanosNivel = opacidadPlanosNivelRaw;
 
   const colores: Record<string, string> = {};
   for (const token of BRAND_TOKENS) {
@@ -49,6 +58,7 @@ export const POST: APIRoute = formApi(async ({ request }) => {
   if (accion === "reset-logos") {
     try {
       await upsertMarca({
+        ...altura,
         colores,
         logoFrontPath: null,
         logoAdminPath: null,
@@ -56,6 +66,7 @@ export const POST: APIRoute = formApi(async ({ request }) => {
         tipografia,
         nombreGrupo,
         tipoIdentificadorGrupo,
+        opacidadPlanosNivel,
       });
     } catch (err) {
       return fail(err instanceof Error ? err.message : String(err));
@@ -83,6 +94,7 @@ export const POST: APIRoute = formApi(async ({ request }) => {
       current.logoAdminColapsadoPath,
     );
     await upsertMarca({
+      ...altura,
       colores,
       logoFrontPath,
       logoAdminPath,
@@ -90,6 +102,7 @@ export const POST: APIRoute = formApi(async ({ request }) => {
       tipografia,
       nombreGrupo,
       tipoIdentificadorGrupo,
+      opacidadPlanosNivel,
     });
   } catch (err) {
     return fail(err instanceof Error ? err.message : String(err));

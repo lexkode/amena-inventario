@@ -9,6 +9,8 @@ import {
 import { getModelos } from "@features/catalog/modelo.service";
 import { getPuntos } from "@features/points/punto.service";
 import { getMarca } from "@features/branding/marca.service";
+import { getTorres } from "@features/lots/torre.service";
+import BuildingNavigation from "@shared/components/BuildingNavigation.astro";
 
 const user = Astro.locals.user;
 if (!user) {
@@ -17,6 +19,7 @@ if (!user) {
 
 const plan = await getPlanoActivo();
 const lotes = plan ? await getLotes() : [];
+const torres = plan ? await getTorres() : [];
 const modelos = await getModelos();
 const puntos = await getPuntos();
 if (plan) await asegurarPublicacionInicial();
@@ -25,7 +28,7 @@ const estadoPublicacion = plan
   : { tienePublicacion: false, pendiente: false };
 
 const marca = await getMarca();
-const initialData = { plan, lotes, modelos, puntos, estadoPublicacion, grupoDefaults: { nombre: marca.nombreGrupo, tipoIdentificador: marca.tipoIdentificadorGrupo } };
+const initialData = { plan, lotes, torres, modelos, puntos, estadoPublicacion, opacidadPlanosNivel: marca.opacidadPlanosNivel, grupoDefaults: { nombre: marca.nombreGrupo, tipoIdentificador: marca.tipoIdentificadorGrupo }, alturaDefaults: { nombre: marca.nombreTorre, tipoIdentificador: marca.tipoIdentificadorTorre, nombreNivel: marca.nombreNivel } };
 ---
 
 <AdminLayout title="Editor de Plano" user={user}>
@@ -65,11 +68,11 @@ const initialData = { plan, lotes, modelos, puntos, estadoPublicacion, grupoDefa
             id="create-lote"
             class="create-lote-btn"
             type="button"
-            title="Crear nuevo lote"
-            aria-label="Crear nuevo lote"
+            title="Crear nueva casa"
+            aria-label="Crear nueva casa"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-            <span>Nuevo lote</span>
+            <span>Nueva casa</span>
           </button>
           <button
             id="create-toggle"
@@ -83,11 +86,12 @@ const initialData = { plan, lotes, modelos, puntos, estadoPublicacion, grupoDefa
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
           </button>
           <div class="dropdown-menu" id="create-menu" data-dropdown-menu role="menu" hidden>
+            <button type="button" role="menuitem" id="create-apartamento">Nueva torre</button>
             <button type="button" role="menuitem" id="create-punto">Punto de interés</button>
           </div>
         </div>
         <div class="paste-group" id="paste-group" hidden>
-          <button id="paste-lote" class="zoom-btn" type="button" title="Pegar lote copiado (Ctrl+V)">Pegar lote</button>
+          <button id="paste-lote" class="zoom-btn" type="button" title="Pegar casa copiada (Ctrl+V)">Pegar casa</button>
         </div>
       </div>
     </div>
@@ -154,7 +158,7 @@ const initialData = { plan, lotes, modelos, puntos, estadoPublicacion, grupoDefa
   {!plan ? (
     <div class="empty">
       <p class="empty-title">No hay un plano configurado todavía.</p>
-      <p class="muted">El editor necesita la imagen del plano base para poder dibujar lotes encima.</p>
+      <p class="muted">El editor necesita la imagen del plano base para poder dibujar las casas encima.</p>
       <a href="/admin/plano" class="btn-primary">Configurar plano</a>
     </div>
   ) : (
@@ -167,9 +171,13 @@ const initialData = { plan, lotes, modelos, puntos, estadoPublicacion, grupoDefa
         >
           <image id="plan-image" href={plan.imagenPath} x="0" y="0" width={plan.anchoPx} height={plan.altoPx} preserveAspectRatio="xMidYMid meet" />
           <g id="lots-layer"></g>
+          <g id="buildings-layer"></g>
           <g id="puntos-layer"></g>
+          <rect id="tower-shade" fill="rgba(0,0,0,0.35)" pointer-events="none" style="display:none" />
+          <g id="tower-layer"></g>
           <g id="overlay-layer"></g>
         </svg>
+        <BuildingNavigation editor />
       </div>
       <aside class="side-panel" id="side-panel"></aside>
     </div>

@@ -9,10 +9,10 @@ Visitante.
 ### Pasos
 
 1. El visitante entra en `/`.
-2. El servidor obtiene el plano activo, los lotes y los modelos.
+2. El servidor obtiene el plano activo, las viviendas y los modelos.
 3. Astro renderiza la página inicial.
 4. El navegador recibe los datos iniciales y carga el script del mapa.
-5. El mapa dibuja los lotes sobre la imagen del plano.
+5. El mapa dibuja las casas sobre la imagen del plano.
 6. El visitante puede hacer zoom, desplazarse y filtrar información.
 
 ### Resultado
@@ -23,7 +23,7 @@ El visitante ve la disponibilidad actual del residencial.
 
 Si no existe un plano, la página muestra un mensaje de próximamente.
 
-## Consultar un lote
+## Consultar una vivienda
 
 ### Actor
 
@@ -31,10 +31,10 @@ Visitante.
 
 ### Pasos
 
-1. El visitante selecciona un lote en el mapa.
-2. Se abre un modal con el número y estado del lote.
+1. El visitante selecciona una vivienda en el mapa.
+2. Se abre un modal con el número y estado de la vivienda.
 3. Si existe un modelo asociado, se muestran sus datos y características.
-4. El visitante puede pulsar `Consultar por este lote`.
+4. El visitante puede pulsar `Consultar por esta casa` o `Consultar por este apartamento`, según el tipo.
 
 ### Estado actual
 
@@ -94,7 +94,7 @@ Administrador autenticado.
 5. La imagen se guarda en `public/uploads`.
 6. El registro del plano activo se actualiza en PostgreSQL (la imagen se sube a R2).
 
-## Crear un lote
+## Crear una casa
 
 ### Actor
 
@@ -108,10 +108,10 @@ Administrador autenticado.
 4. Cierra el polígono con al menos tres puntos.
 5. Introduce número, estado, modelo y datos opcionales.
 6. El navegador envía `POST /api/admin/lotes`.
-7. El servidor valida los datos y guarda el lote.
-8. El nuevo lote aparece en el editor.
+7. El servidor valida los datos y guarda la casa.
+8. La nueva casa aparece en el editor.
 
-## Editar un lote
+## Editar una casa
 
 ### Actor
 
@@ -120,13 +120,13 @@ Administrador autenticado.
 ### Pasos
 
 1. Selecciona el modo `Editar`.
-2. Selecciona un lote existente.
+2. Selecciona una casa existente.
 3. Cambia sus datos o mueve sus vértices.
 4. El navegador envía `PATCH /api/admin/lotes/[id]`.
 5. El servidor valida y guarda los cambios.
 6. El editor actualiza el estado local.
 
-## Eliminar un lote
+## Eliminar una casa
 
 ### Actor
 
@@ -134,11 +134,11 @@ Administrador autenticado.
 
 ### Pasos
 
-1. Selecciona un lote.
+1. Selecciona una casa.
 2. Confirma la eliminación.
 3. El navegador envía `DELETE /api/admin/lotes/[id]`.
 4. El servidor elimina el registro.
-5. El lote desaparece del editor.
+5. La casa desaparece del editor.
 
 ## Cerrar sesión
 

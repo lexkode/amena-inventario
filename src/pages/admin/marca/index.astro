@@ -3,6 +3,7 @@ import AdminLayout from "@shared/layouts/AdminLayout.astro";
 import { getMarca, coloresEfectivos } from "@features/branding/marca.service";
 import { BRAND_FONTS, BRAND_TOKENS } from "@features/branding/marca.types";
 import { NOMENCLATURAS_GRUPO } from "@features/lots/grupo.types";
+import { NOMENCLATURAS_TORRE, NOMENCLATURAS_NIVEL } from "@features/lots/altura.types";
 import logo from "@assets/logo-AMENA.webp";
 import logoColapsado from "@assets/logo-AMENA-colapsado.webp";
 
@@ -84,6 +85,39 @@ const logos = [
             <option value="numerico" selected={marca.tipoIdentificadorGrupo === "numerico"}>Numérico (1, 2, 3…)</option>
           </select>
         </div>
+      </div>
+    </section>
+    <section class="card">
+      <h2 class="card-title">Grupos de Vivienda en altura</h2>
+      <p class="muted intro">Valores predeterminados para edificios nuevos. No modifica los edificios existentes.</p>
+      <div class="color-grid">
+        <div class="font-field">
+          <label for="nombreTorre">Nomenclatura del edificio</label>
+          <select id="nombreTorre" name="nombreTorre">
+            {NOMENCLATURAS_TORRE.map((nombre) => <option value={nombre} selected={marca.nombreTorre === nombre}>{nombre}</option>)}
+          </select>
+        </div>
+        <div class="font-field">
+          <label for="tipoIdentificadorTorre">Numeración del edificio</label>
+          <select id="tipoIdentificadorTorre" name="tipoIdentificadorTorre">
+            <option value="alfabetico" selected={marca.tipoIdentificadorTorre === "alfabetico"}>Alfabética (A, B, C…)</option>
+            <option value="numerico" selected={marca.tipoIdentificadorTorre === "numerico"}>Numérica (1, 2, 3…)</option>
+          </select>
+        </div>
+        <div class="font-field">
+          <label for="nombreNivel">Nomenclatura del nivel</label>
+          <select id="nombreNivel" name="nombreNivel">
+            {NOMENCLATURAS_NIVEL.map((nombre) => <option value={nombre} selected={marca.nombreNivel === nombre}>{nombre}</option>)}
+          </select>
+        </div>
+      </div>
+      <div class="font-field floor-opacity-field">
+        <label for="opacidadPlanosNivel">Opacidad de los planos por nivel</label>
+        <div class="opacity-control">
+          <input id="opacidadPlanosNivel" name="opacidadPlanosNivel" type="range" min="0" max="100" step="1" value={marca.opacidadPlanosNivel} />
+          <output for="opacidadPlanosNivel">{marca.opacidadPlanosNivel}%</output>
+        </div>
+        <p class="hint">Transparencia aplicada a la imagen base de cada planta, debajo de sus apartamentos.</p>
       </div>
     </section>
     <section class="card">
@@ -178,6 +212,9 @@ const logos = [
   }
   nomenclatura?.addEventListener("change", syncNombreGrupo);
   syncNombreGrupo();
+  const floorOpacity = document.querySelector<HTMLInputElement>("#opacidadPlanosNivel");
+  const floorOpacityOutput = floorOpacity?.parentElement?.querySelector("output");
+  floorOpacity?.addEventListener("input", () => { if (floorOpacityOutput) floorOpacityOutput.value = `${floorOpacity.value}%`; });
   document.querySelectorAll<HTMLInputElement>("[data-color-sync]").forEach((picker) => {
     const text = picker.parentElement?.querySelector<HTMLInputElement>('input[type="text"]');
     if (!text) return;
@@ -281,6 +318,10 @@ const logos = [
     flex-direction: column;
     max-width: 320px;
   }
+  .floor-opacity-field { margin-top: 1rem; max-width: 36rem; }
+  .opacity-control { display: flex; align-items: center; gap: .75rem; }
+  .opacity-control input { flex: 1; }
+  .opacity-control output { min-width: 3.5rem; font-variant-numeric: tabular-nums; }
   .font-field[hidden] {
     display: none;
   }

@@ -9,6 +9,7 @@ import {
   puntoInteresImagenes,
   puntoPublicaciones,
   puntosInteres,
+  torres,
 } from "@core/db/schema";
 import { deleteUpload } from "@core/storage";
 
@@ -24,6 +25,7 @@ export async function getUploadUsage(url: string): Promise<UploadUsage> {
     .where(eq(planos.imagenPath, url))
     .limit(1);
   if (plano.length > 0) labels.push("el plano activo");
+  if ((await db.select({ imagenes: torres.imagenesNivel }).from(torres)).some((t) => Object.values(t.imagenes).includes(url))) labels.push("la imagen base de un nivel de edificio");
 
   const lote = (
     await db
@@ -33,7 +35,10 @@ export async function getUploadUsage(url: string): Promise<UploadUsage> {
       .where(eq(loteImagenes.path, url))
       .limit(1)
   )[0];
-  if (lote) labels.push(`el lote ${lote.numeroLote}`);
+  if (lote) labels.push(`la vivienda ${lote.numeroLote}`);
+  const planta = (await db.select({ numeroLote: lotes.numeroLote }).from(lotes)
+    .where(eq(lotes.plantaArquitectonicaPath, url)).limit(1))[0];
+  if (planta) labels.push(`la planta arquitectónica de la vivienda ${planta.numeroLote}`);
 
   const punto = (
     await db
@@ -63,7 +68,7 @@ export async function getUploadUsage(url: string): Promise<UploadUsage> {
     .from(lotePublicaciones)
     .orderBy(desc(lotePublicaciones.createdAt), desc(lotePublicaciones.id))
     .limit(1);
-  if (lotePub?.snapshotJson.includes(url)) labels.push("la publicación vigente de lotes");
+  if (lotePub?.snapshotJson.includes(url)) labels.push("la publicación vigente de viviendas");
 
   const [puntoPub] = await db
     .select({ snapshotJson: puntoPublicaciones.snapshotJson })

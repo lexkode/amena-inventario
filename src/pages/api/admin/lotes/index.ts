@@ -24,7 +24,7 @@ export const POST: APIRoute = jsonApi(async ({ request }) => {
     return json({ ok: true, data }, 201);
   } catch (err) {
     return json(
-      { ok: false, error: err instanceof Error ? err.message : "Error al crear el lote" },
+      { ok: false, error: err instanceof Error ? err.message : "Error al crear la vivienda" },
       400,
     );
   }

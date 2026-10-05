@@ -1,0 +1,1 @@
+ALTER TABLE "torres" ADD COLUMN "perimetros_nivel" jsonb DEFAULT '{}'::jsonb NOT NULL;

@@ -2,23 +2,29 @@
 
 ## Residencial
 
-Proyecto inmobiliario que contiene un plano y un conjunto de lotes comercializables. La implementación actual está orientada a Residencial Amena y no contempla todavía múltiples residenciales.
+Proyecto inmobiliario que contiene un plano y un conjunto de viviendas comercializables. La implementación actual está orientada a Residencial Amena y no contempla todavía múltiples residenciales.
 
 ## Plano
 
-Imagen base del residencial sobre la que se dibujan los lotes. Se almacena una ruta pública, sus dimensiones en píxeles y un nombre. La aplicación trata el plano más reciente como el plano activo.
+Imagen base del residencial sobre la que se dibujan las casas. Se almacena una ruta pública, sus dimensiones en píxeles y un nombre. La aplicación trata el plano más reciente como el plano activo.
 
-## Lote
+## Vivienda
 
-Parcela individual del residencial. Tiene un número visible, un estado comercial, un polígono de coordenadas y datos opcionales de terreno y dimensiones.
+Unidad residencial construida, ya sea casa o apartamento. Es el término general usado para el inventario y los modelos que incluyen ambos tipos.
 
-## Número de lote
+## Casa
 
-Identificador visible para usuarios y administradores, por ejemplo `A-01` o `12`. Actualmente es obligatorio, pero la base de datos todavía no impone unicidad.
+Vivienda unifamiliar del residencial. Tiene un número visible, un estado comercial, un contorno de coordenadas, un modelo opcional y datos de terreno y dimensiones.
+
+## Número de casa
+
+Identificador visible para usuarios y administradores, por ejemplo `12`. Es obligatorio y no puede repetirse dentro de un mismo grupo. Sin grupo se conserva la regla de número único por modelo.
 
 ## Polígono
 
-Lista de puntos `{ x, y }` que representa la forma del lote dentro del sistema de coordenadas del plano. El editor exige al menos tres puntos.
+Grupo de casas unifamiliares, cuya nomenclatura puede ser Polígono, Sector, Etapa, Fase, Cluster o personalizada, con identificador numérico o alfabético.
+
+El contorno geométrico de una casa también se representa como un polígono: una lista de puntos `{ x, y }` en las coordenadas del plano, con al menos tres puntos. No debe confundirse con el grupo de casas.
 
 ## Punto
 
@@ -28,7 +34,7 @@ Coordenada bidimensional del plano:
 { x: number; y: number }
 ```
 
-## Estado del lote
+## Estado de la vivienda
 
 - **Disponible:** puede ser ofrecido a un cliente.
 - **Reservado:** tiene una reserva o proceso comercial en curso.
@@ -36,11 +42,11 @@ Coordenada bidimensional del plano:
 
 ## Modelo
 
-Tipo de vivienda asociado opcionalmente a uno o varios lotes. Puede ser una casa o un apartamento e incluye precio, superficies, habitaciones, baños, parqueos y características.
+Tipo de vivienda asociado opcionalmente a una o varias unidades del inventario. Puede ser una casa o un apartamento e incluye precio, superficies, habitaciones, baños, parqueos y características.
 
 ## Tipo de modelo
 
-- **Casa:** vivienda asociada normalmente a un lote de terreno.
+- **Casa:** vivienda unifamiliar construida con terreno propio.
 - **Apartamento:** unidad habitacional que puede no tener terreno propio.
 
 ## Características

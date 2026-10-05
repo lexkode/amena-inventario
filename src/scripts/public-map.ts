@@ -3,14 +3,19 @@
 import type { LoteEstado, LoteConModelo } from "@features/lots/lote.types";
 import type { ModeloConCaracteristicas } from "@features/catalog/modelo.types";
 import type { PuntoInteres } from "@features/points/punto.types";
+import { nombreEdificio, perimetroNivel, perimetrosEdificio, type Torre } from "@features/lots/torre.types";
+import { lotGallery } from "@shared/map/lot-gallery";
+import { claveGrupo, nombreGrupo } from "@features/lots/grupo.types";
+import { createBuildingCountTags, createBuildingImage } from "@shared/map/building-renderer";
 import type { Plano } from "@db/schema";
 import {
   applyViewTransform as applySvgView,
   fitView as makeFitView,
+  fitBuildingView,
   panTo as panView,
   zoomAtPoint as zoomViewAt,
 } from "@shared/map/viewport";
-import { escapeHtml } from "@shared/map/svg-utils";
+import { escapeHtml, SVG_NS } from "@shared/map/svg-utils";
 import { createLotLabel, createLotPolygon } from "@shared/map/lot-renderer";
 import { ESTADO_FILL, ESTADO_LABEL, ESTADO_STROKE } from "@shared/map/lot-colors";
 import { puntoMarkerRadius } from "@shared/map/punto-marker";
@@ -19,6 +24,8 @@ import { setPopupOpen } from "@shared/ui/popup";
 type FilterStatus = "all" | LoteEstado;
 
 type InitialData = {
+  torres: Torre[];
+  opacidadPlanosNivel?: number;
   plan: Plano | null;
   lotes: LoteConModelo[];
   puntos: PuntoInteres[];
@@ -32,6 +39,9 @@ type InitialData = {
 };
 
 type State = {
+  torres: Torre[];
+  torre: Torre | null;
+  nivelActivo: number;
   view: { x: number; y: number; w: number; h: number };
   initialView: { w: number; h: number };
   isPanning: boolean;
@@ -57,6 +67,9 @@ const usdFormatter = new Intl.NumberFormat("en-US", {
 // ============ State ============
 
 const state: State = {
+  torres: [],
+  torre: null,
+  nivelActivo: 1,
   view: { x: 0, y: 0, w: 1, h: 1 },
   initialView: { w: 1, h: 1 },
   isPanning: false,
@@ -72,6 +85,8 @@ const state: State = {
 
 let svg!: SVGSVGElement;
 let lotsLayer!: SVGGElement;
+let buildingsLayer!: SVGGElement;
+let towerLayer!: SVGGElement;
 let puntosLayer!: SVGGElement;
 let lotModal!: HTMLElement;
 let lotModalBackdrop!: HTMLElement;
@@ -91,6 +106,57 @@ let filterResetSlot!: HTMLElement;
 
 let planAncho = 1;
 let planAlto = 1;
+let opacidadPlanosNivel = 50;
+let buildingPreviousView: State["view"] | null = null;
+let previousBodyOverflow = "";
+let buildingAnimation = 0;
+let buildingClosing = false;
+let floorChanging = false;
+let floorAnimationGeneration = 0;
+let floorAnimation: { cancel: () => void } | null = null;
+let floorOffsetY = 0;
+let floorOpacity = 1;
+
+function cubicBezierProgress(t: number, x1: number, y1: number, x2: number, y2: number): number {
+  const curve = (u: number, a: number, b: number) => 3 * (1 - u) ** 2 * u * a + 3 * (1 - u) * u ** 2 * b + u ** 3;
+  let low = 0, high = 1, u = t;
+  for (let i = 0; i < 14; i++) {
+    u = (low + high) / 2;
+    if (curve(u, x1, x2) < t) low = u;
+    else high = u;
+  }
+  return curve(u, y1, y2);
+}
+
+/** Match the popup motion curves: fluid zoom-in and its matching zoom-out. */
+function animateBuildingView(target: State["view"], closing = false): Promise<boolean> {
+  const generation = ++buildingAnimation;
+  const from = { ...state.view };
+  // Keep a shorter zoom even for reduced-motion users; opening and closing
+  // must remain visibly animated and share the same total duration.
+  const duration = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 260 : 340;
+  let start: number | null = null;
+  return new Promise((resolve) => {
+    const frame = (now: number) => {
+      if (generation !== buildingAnimation) { resolve(false); return; }
+      start ??= now;
+      const t = duration ? Math.min(1, (now - start) / duration) : 1;
+      const progress = closing
+        ? cubicBezierProgress(t, 0.8, 0, 1, 1)
+        : cubicBezierProgress(t, 0, 0, 0.2, 1);
+      state.view = {
+        x: from.x + (target.x - from.x) * progress,
+        y: from.y + (target.y - from.y) * progress,
+        w: from.w + (target.w - from.w) * progress,
+        h: from.h + (target.h - from.h) * progress,
+      };
+      renderViewTransform();
+      if (t < 1) requestAnimationFrame(frame);
+      else resolve(true);
+    };
+    requestAnimationFrame(frame);
+  });
+}
 
 const MAX_ZOOM = 2;
 
@@ -136,6 +202,17 @@ function getLoteById(id: number): LoteConModelo | undefined {
   return state.lotes.find((l) => l.id === id);
 }
 
+function grupoVisible(lote: LoteConModelo): string {
+  const torre = lote.tipoVivienda === "apartamento" ? state.torres.find((t) => claveGrupo(t.grupo) === claveGrupo(lote.grupo)) : null;
+  return torre ? nombreEdificio(torre) : nombreGrupo(lote.grupo);
+}
+
+function consumeSuppressedClick(): boolean {
+  if (!suppressNextClick) return false;
+  suppressNextClick = false;
+  return true;
+}
+
 function getLoteBBox(lote: LoteConModelo): { minX: number; minY: number; maxX: number; maxY: number; w: number; h: number } {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const p of lote.poligono) {
@@ -153,28 +230,303 @@ function renderViewTransform(): void {
   applySvgView(svg, state.view, state.initialView.w);
   const zoomPct = getScale() * 100;
   if (zoomDisplay) zoomDisplay.textContent = `${Math.round(zoomPct)}%`;
+  renderFloorMotion();
+  positionMobileLevels();
+}
+
+function renderFloorMotion(): void {
+  // Animate the complete active floor (plan, perimeter and apartment lots).
+  towerLayer.setAttribute("transform", `translate(0 ${floorOffsetY})`);
+  towerLayer.setAttribute("opacity", String(floorOpacity));
+  const shade = document.getElementById("tower-shade");
+  if (shade) {
+    const { x, y, w, h } = state.view;
+    // Overscan the viewport rectangle so preserveAspectRatio/slice can never
+    // expose square corners as the viewBox changes during the zoom.
+    // The floor carries its own background; a hole here would reveal a static
+    // piece of the master plan that cannot fade with the moving floor.
+    shade.setAttribute("d", `M ${x - w * 2},${y - h * 2} h ${w * 5} v ${h * 5} h ${-w * 5} Z`);
+  }
 }
 
 function renderLotsLayer(): void {
   while (lotsLayer.firstChild) lotsLayer.removeChild(lotsLayer.firstChild);
+  towerLayer.replaceChildren();
+  const floorContent = document.createElementNS(SVG_NS, "g");
+  floorContent.classList.add("building-floor-content");
+  if (state.torre) {
+    const image = createBuildingImage(state.torre, state.nivelActivo, "public", opacidadPlanosNivel);
+    const perimeter = document.createElementNS(SVG_NS, "polygon");
+    perimeter.setAttribute("points", perimetroNivel(state.torre, state.nivelActivo).map((p) => `${p.x},${p.y}`).join(" "));
+    // Reconstruct the undimmed map inside the perimeter as part of the same
+    // animated group, including an opaque backing for the translucent plan.
+    const background = perimeter.cloneNode() as SVGPolygonElement;
+    background.setAttribute("fill", "var(--c-bg-dark, #244858)");
+    background.style.pointerEvents = "none";
+    floorContent.appendChild(background);
+    const planImage = document.getElementById("plan-image");
+    if (planImage) {
+      const defs = document.createElementNS(SVG_NS, "defs");
+      const clip = document.createElementNS(SVG_NS, "clipPath");
+      clip.id = "public-floor-background-clip";
+      clip.setAttribute("clipPathUnits", "userSpaceOnUse");
+      clip.appendChild(perimeter.cloneNode());
+      defs.appendChild(clip);
+      const plan = planImage.cloneNode() as SVGImageElement;
+      plan.removeAttribute("id");
+      plan.setAttribute("clip-path", `url(#${clip.id})`);
+      plan.style.pointerEvents = "none";
+      floorContent.append(defs, plan);
+    }
+    perimeter.classList.add("building-perimeter");
+    perimeter.setAttribute("fill", "rgba(220,131,47,0.08)");
+    perimeter.setAttribute("stroke", "var(--c-accent)");
+    perimeter.setAttribute("stroke-width", "3");
+    perimeter.addEventListener("click", (e) => e.stopPropagation());
+    floorContent.appendChild(perimeter);
+    if (image) floorContent.appendChild(image);
+    towerLayer.appendChild(floorContent);
+  }
 
   for (const lote of state.lotes) {
+    const apartamentoActivo = lote.tipoVivienda === "apartamento" && state.torre !== null && claveGrupo(lote.grupo) === claveGrupo(state.torre.grupo) && lote.nivel === state.nivelActivo;
+    if (lote.tipoVivienda === "apartamento" && !apartamentoActivo) continue;
+    const layer = apartamentoActivo ? floorContent : lotsLayer;
     const polygon = createLotPolygon(lote, {
       fill: ESTADO_FILL[lote.estado],
       stroke: ESTADO_STROKE[lote.estado],
       selected: lote.id === state.lotModalLoteId,
       dimmed: !isLoteMatching(lote),
     });
+    if (state.torre && !apartamentoActivo) polygon.style.pointerEvents = "none";
     polygon.addEventListener("click", (e) => {
       e.stopPropagation();
-      if (polygon.classList.contains("dimmed")) return;
+      if (consumeSuppressedClick() || polygon.classList.contains("dimmed")) return;
       openLotModal(lote.id);
     });
-    lotsLayer.appendChild(polygon);
+    layer.appendChild(polygon);
 
     const label = createLotLabel(lote);
-    if (label) lotsLayer.appendChild(label);
+    if (label) layer.appendChild(label);
   }
+  renderFloorMotion();
+}
+
+function buildingApartmentCounts(torre: Torre | null, nivel?: number): Record<LoteEstado, number> {
+  const counts: Record<LoteEstado, number> = { disponible: 0, reservado: 0, vendido: 0 };
+  if (!torre) return counts;
+  for (const lote of state.lotes) {
+    if (lote.tipoVivienda === "apartamento"
+      && claveGrupo(lote.grupo) === claveGrupo(torre.grupo)
+      && (nivel === undefined || lote.nivel === nivel)
+      && isLoteMatching(lote)) {
+      counts[lote.estado]++;
+    }
+  }
+  return counts;
+}
+
+function renderBuildingsLayer(): void {
+  buildingsLayer.replaceChildren();
+  for (const torre of state.torres) {
+    if (torre.id === state.torre?.id) continue;
+    const polygon = document.createElementNS(SVG_NS, "polygon");
+    polygon.setAttribute("points", torre.poligono.map((p) => `${p.x},${p.y}`).join(" "));
+    polygon.setAttribute("data-torre-id", String(torre.id));
+    polygon.setAttribute("fill", "var(--c-bg-dark)");
+    polygon.setAttribute("fill-opacity", "0.35");
+    polygon.setAttribute("stroke", "var(--c-bg-dark)");
+    polygon.setAttribute("stroke-width", "3");
+    polygon.style.cursor = "pointer";
+    polygon.style.pointerEvents = state.torre ? "none" : "";
+    polygon.setAttribute("role", "button");
+    const counts = buildingApartmentCounts(torre);
+    polygon.setAttribute("aria-label", `Ver ${nombreEdificio(torre)}: ${counts.disponible} disponibles, ${counts.reservado} reservados, ${counts.vendido} vendidos`);
+    polygon.setAttribute("tabindex", state.torre ? "-1" : "0");
+    const open = () => openBuilding(torre);
+    polygon.addEventListener("click", (e) => { e.stopPropagation(); if (!consumeSuppressedClick()) open(); });
+    polygon.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } });
+    buildingsLayer.appendChild(polygon);
+    const label = createLotLabel({ poligono: torre.poligono, numeroLote: nombreEdificio(torre) } as LoteConModelo);
+    if (label) {
+      const x = Number(label.getAttribute("x")), y = Number(label.getAttribute("y"));
+      const block = document.createElementNS(SVG_NS, "g");
+      block.classList.add("building-label-block");
+      block.setAttribute("pointer-events", "none");
+      block.appendChild(label);
+      buildingsLayer.appendChild(block);
+      const textBounds = label.getBBox();
+      block.appendChild(createBuildingCountTags(counts, x, textBounds.y + textBounds.height + 6));
+      // Center the complete name + counters using their rendered bounds.
+      const bounds = block.getBBox();
+      block.setAttribute("transform", `translate(${x - bounds.x - bounds.width / 2} ${y - bounds.y - bounds.height / 2})`);
+    }
+  }
+  const context = document.getElementById("tower-context");
+  if (context) context.hidden = !state.torre;
+  const exit = document.getElementById("exit-tower");
+  if (exit) exit.hidden = !state.torre;
+  const label = document.getElementById("tower-context-label");
+  if (label && state.torre) label.textContent = `${nombreEdificio(state.torre)} · ${state.torre.nombreNivel} ${state.nivelActivo}`;
+  const floorCounts = buildingApartmentCounts(state.torre, state.nivelActivo);
+  document.querySelectorAll<HTMLElement>("[data-floor-count]").forEach((counter) => {
+    const count = String(floorCounts[counter.dataset.floorCount as LoteEstado]);
+    if (counter.textContent !== count) counter.textContent = count;
+  });
+  const shade = document.getElementById("tower-shade");
+  if (shade) shade.style.display = state.torre ? "" : "none";
+  const levels = document.getElementById("tower-levels");
+  if (levels) {
+    levels.hidden = !state.torre;
+    levels.replaceChildren();
+    if (state.torre) for (let i = state.torre.cantidadNiveles; i >= 1; i--) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = `${state.torre.nombreNivel} ${i}`;
+      button.setAttribute("aria-current", String(i === state.nivelActivo));
+      button.disabled = floorChanging || buildingClosing;
+      button.addEventListener("click", () => { void changeBuildingFloor(i); });
+      levels.appendChild(button);
+    }
+  }
+  positionMobileLevels();
+}
+
+/** Exit completely before the next floor enters, following its vertical position. */
+async function changeBuildingFloor(nivel: number): Promise<void> {
+  const torre = state.torre;
+  if (!torre || buildingClosing || floorChanging || nivel === state.nivelActivo) return;
+  const generation = ++floorAnimationGeneration;
+  const direction = nivel > state.nivelActivo ? 1 : -1;
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // floorOffsetY is converted from screen pixels to SVG map units every frame.
+  // Move the floor beyond the visible canvas so it reads as leaving the screen.
+  const distance = Math.max(svg.getBoundingClientRect().height * 1.15, 600);
+  floorChanging = true;
+  towerLayer.style.pointerEvents = "none";
+  renderBuildingsLayer();
+  const play = async (entering: boolean): Promise<boolean> => {
+    const duration = reduced ? (entering ? 170 : 150) : (entering ? 240 : 210);
+    return new Promise<boolean>((resolve) => {
+      let frame = 0, start: number | null = null;
+      floorAnimation = { cancel: () => { cancelAnimationFrame(frame); resolve(false); } };
+      const tick = (now: number) => {
+        if (generation !== floorAnimationGeneration || state.torre !== torre || buildingClosing) { resolve(false); return; }
+        start ??= now;
+        const t = Math.min(1, (now - start) / duration);
+        const progress = entering ? cubicBezierProgress(t, 0, 0, 0.2, 1) : cubicBezierProgress(t, 0.4, 0, 1, 1);
+        // SVG transforms use map units, not screen pixels. Convert on every frame
+        // so zoom or resize cannot make the vertical movement imperceptible.
+        const scale = Math.abs(svg.getScreenCTM()?.d ?? 1) || 1;
+        floorOffsetY = (entering ? -direction * distance * (1 - progress) : direction * distance * progress) / scale;
+        // Keep the floor visible during a substantial part of its travel,
+        // rather than fading it away before the movement can be perceived.
+        floorOpacity = entering ? Math.min(1, progress / 0.8) : 1 - Math.max(0, (progress - 0.2) / 0.8);
+        renderFloorMotion();
+        if (t < 1) frame = requestAnimationFrame(tick);
+        else resolve(true);
+      };
+      frame = requestAnimationFrame(tick);
+    });
+  };
+  try {
+    if (!(await play(false))) return;
+    floorAnimation?.cancel();
+    state.nivelActivo = nivel;
+    floorOffsetY = -direction * distance / (Math.abs(svg.getScreenCTM()?.d ?? 1) || 1);
+    floorOpacity = 0;
+    render();
+    await play(true);
+  } finally {
+    if (generation === floorAnimationGeneration) {
+      floorAnimation?.cancel();
+      floorAnimation = null;
+      floorOffsetY = 0;
+      floorOpacity = 1;
+      renderFloorMotion();
+      floorChanging = false;
+      towerLayer.style.removeProperty("pointer-events");
+      renderBuildingsLayer();
+    }
+  }
+}
+
+function focusBuilding(): void {
+  if (!state.torre) return;
+  state.view = fitBuildingView(perimetrosEdificio(state.torre), getCanvasContentSize(), buildingSidePadding());
+}
+
+/** Center the mobile floor list in the live gap between the building and its title. */
+function positionMobileLevels(): void {
+  const levels = document.getElementById("tower-levels");
+  if (!levels) return;
+  if (!state.torre || !window.matchMedia("(max-width: 640px)").matches) {
+    levels.style.removeProperty("top");
+    levels.style.removeProperty("bottom");
+    levels.style.removeProperty("transform");
+    return;
+  }
+  const title = document.getElementById("tower-context-label");
+  const ctm = svg.getScreenCTM();
+  if (!title || !ctm) return;
+  const point = svg.createSVGPoint();
+  point.y = Math.max(...perimetrosEdificio(state.torre).map((p) => p.y));
+  const buildingBottom = point.matrixTransform(ctm).y;
+  const titleTop = title.getBoundingClientRect().top;
+  if (titleTop <= buildingBottom) return;
+  levels.style.top = `${(buildingBottom + titleTop) / 2}px`;
+  levels.style.bottom = "auto";
+  levels.style.transform = "translateY(-50%)";
+}
+
+/** Phones need width-based margins; 15vh would consume most of a portrait screen. */
+function buildingSidePadding(): number {
+  if (window.matchMedia("(max-width: 640px)").matches) return getCanvasContentSize().w * 0.05;
+  return window.matchMedia("(max-width: 1024px)").matches ? window.innerHeight * 0.15 : 48;
+}
+
+function openBuilding(torre: Torre): void {
+  if (state.torre) return;
+  buildingPreviousView = { ...state.view };
+  previousBodyOverflow = document.body.style.overflow;
+  document.body.style.overflow = "hidden";
+  svg.closest(".canvas-wrap")?.classList.add("building-open");
+  state.torre = torre;
+  state.nivelActivo = 1;
+  state.isPanning = false;
+  touchStart = null;
+  pinchDist = 0;
+  svg.style.cursor = "default";
+  const target = fitBuildingView(perimetrosEdificio(torre), getCanvasContentSize(), buildingSidePadding());
+  render();
+  void animateBuildingView(target);
+}
+
+function closeBuilding(): void {
+  if (!state.torre || buildingClosing) return;
+  buildingClosing = true;
+  floorAnimationGeneration++;
+  floorAnimation?.cancel();
+  floorAnimation = null;
+  floorOffsetY = 0;
+  floorOpacity = 1;
+  renderFloorMotion();
+  floorChanging = false;
+  towerLayer.style.removeProperty("pointer-events");
+  void animateBuildingView(buildingPreviousView ?? state.view, true).then((finished) => {
+    if (!finished) return;
+    state.torre = null;
+    svg.closest(".canvas-wrap")?.classList.remove("building-open");
+    document.body.style.overflow = previousBodyOverflow;
+    buildingPreviousView = null;
+    buildingClosing = false;
+    state.isPanning = false;
+    svg.style.cursor = "grab";
+    state.nivelActivo = 1;
+    state.lotModalLoteId = null;
+    state.contactModalLoteId = null;
+    render();
+  });
 }
 
 // ============ Render: points of interest ============
@@ -186,6 +538,7 @@ function renderPuntosLayer(): void {
   for (const punto of state.puntos) {
     const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
     group.setAttribute("class", "punto-marker");
+    if (state.torre) group.style.pointerEvents = "none";
 
     const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     circle.setAttribute("cx", String(punto.x));
@@ -205,6 +558,7 @@ function renderPuntosLayer(): void {
 
     group.addEventListener("click", (e) => {
       e.stopPropagation();
+      if (consumeSuppressedClick()) return;
       openPuntoModal(punto.id);
     });
     puntosLayer.appendChild(group);
@@ -214,7 +568,7 @@ function renderPuntosLayer(): void {
 function setupGalleryImage(
   viewer: HTMLElement,
   img: HTMLImageElement,
-): (path: string, direction?: -1 | 1) => void {
+): (path: string, direction?: -1 | 1, contain?: boolean) => void {
   const placeholder = document.createElement("div");
   placeholder.className = "gallery-image-placeholder";
   placeholder.setAttribute("role", "status");
@@ -247,7 +601,7 @@ function setupGalleryImage(
 
   let request = 0;
   let incoming: HTMLImageElement | null = null;
-  return (path: string, direction: -1 | 1 = 1): void => {
+  return (path: string, direction: -1 | 1 = 1, contain = false): void => {
     const currentRequest = ++request;
     incoming?.getAnimations().forEach((animation) => animation.cancel());
     incoming?.remove();
@@ -261,6 +615,8 @@ function setupGalleryImage(
     pending.decode().then(() => {
       if (currentRequest !== request) return;
       if (!hasCurrentImage) {
+        img.style.objectFit = contain ? "contain" : "cover";
+        img.classList.toggle("is-floor-plan", contain);
         img.src = path;
         viewer.classList.add("image-ready");
         viewer.setAttribute("aria-busy", "false");
@@ -270,6 +626,8 @@ function setupGalleryImage(
 
       const nextImage = document.createElement("img");
       nextImage.className = "lot-gallery-img lot-gallery-incoming";
+      nextImage.style.objectFit = contain ? "contain" : "cover";
+      nextImage.classList.toggle("is-floor-plan", contain);
       nextImage.src = path;
       nextImage.alt = "";
       nextImage.setAttribute("aria-hidden", "true");
@@ -280,8 +638,8 @@ function setupGalleryImage(
       const distance = direction * (reducedMotion ? 60 : 100);
       const animation = nextImage.animate(
         [
-          { transform: `translateX(${distance}%)`, opacity: 0 },
-          { transform: "translateX(0)", opacity: 1 },
+          { transform: `translate3d(${distance}%, 0, 0)`, opacity: 0 },
+          { transform: "translate3d(0, 0, 0)", opacity: 1 },
         ],
         {
           duration: reducedMotion ? 240 : 360,
@@ -291,8 +649,14 @@ function setupGalleryImage(
       );
       void animation.finished.then(() => {
         if (currentRequest !== request || incoming !== nextImage) return;
-        img.src = path;
-        nextImage.remove();
+        // Keep the decoded, animated element instead of swapping its pixels
+        // into another image at the end (which can cause a one-frame jump).
+        nextImage.alt = img.alt;
+        nextImage.removeAttribute("aria-hidden");
+        img.remove();
+        img = nextImage;
+        nextImage.classList.remove("lot-gallery-incoming");
+        animation.cancel();
         incoming = null;
         viewer.setAttribute("aria-busy", "false");
       }).catch(() => undefined);
@@ -459,11 +823,9 @@ function renderFilterUI(): void {
   }
   const hasActiveFilters =
     state.filter.status !== "all" || state.filter.modeloId !== null;
-  if (filterResetBtn) filterResetBtn.disabled = !hasActiveFilters;
   if (filterResetSlot) {
     filterResetSlot.classList.toggle("collapsed", !hasActiveFilters);
   }
-  svg.classList.toggle("has-active-filters", hasActiveFilters);
   renderPillCounts();
 }
 
@@ -490,10 +852,10 @@ function renderPillCounts(): void {
 function renderLotGallery(lote: LoteConModelo, plan: Plano): void {
   while (lotModalGallery.firstChild) lotModalGallery.removeChild(lotModalGallery.firstChild);
 
-  const images = lote.imagenes;
+  const { images, initialIndex } = lotGallery(lote);
   lotModalGallery.classList.toggle("has-images", images.length > 0);
   if (images.length > 0) {
-    renderImageGallery(lote, images);
+    renderImageGallery(lote, images, initialIndex);
     return;
   }
 
@@ -508,8 +870,6 @@ function renderLotZoom(lote: LoteConModelo, plan: Plano): void {
   const vbY = bbox.minY - padY;
   const vbW = bbox.w + 2 * padX;
   const vbH = bbox.h + 2 * padY;
-  const cx = (bbox.minX + bbox.maxX) / 2;
-  const cy = (bbox.minY + bbox.maxY) / 2;
 
   const svgEl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svgEl.setAttribute("viewBox", `${vbX} ${vbY} ${vbW} ${vbH}`);
@@ -537,29 +897,22 @@ function renderLotZoom(lote: LoteConModelo, plan: Plano): void {
   polygon.style.filter = `drop-shadow(0 0 ${Math.max(bbox.w / 12, 24)}px ${ESTADO_STROKE[lote.estado]})`;
   svgEl.appendChild(polygon);
 
-  const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
-  label.setAttribute("x", String(cx));
-  label.setAttribute("y", String(cy));
-  label.setAttribute("text-anchor", "middle");
-  label.setAttribute("dominant-baseline", "middle");
-  label.setAttribute("font-size", String(Math.max(Math.min(bbox.w, bbox.h) / 5, 28)));
-  label.setAttribute("font-weight", "800");
-  label.setAttribute("fill", "#fff");
-  label.setAttribute("stroke", "#000");
-  label.setAttribute("stroke-width", "2");
-  label.setAttribute("paint-order", "stroke fill");
-  label.style.pointerEvents = "none";
-  label.textContent = lote.numeroLote;
-  svgEl.appendChild(label);
+  const label = createLotLabel(lote, {
+    fontSize: Math.max(Math.min(bbox.w, bbox.h) / 5, 28),
+    fontWeight: "800",
+    strokeWidth: 2,
+  });
+  if (label) svgEl.appendChild(label);
 
   lotModalGallery.appendChild(svgEl);
 }
 
 function renderImageGallery(
   lote: LoteConModelo,
-  images: LoteConModelo["imagenes"],
+  images: ReturnType<typeof lotGallery>["images"],
+  initialIndex: number,
 ): void {
-  let current = 0;
+  let current = initialIndex;
 
   const gallery = document.createElement("div");
   gallery.className = "lot-gallery";
@@ -569,13 +922,13 @@ function renderImageGallery(
 
   const img = document.createElement("img");
   img.className = "lot-gallery-img";
-  img.alt = `Imagen del lote ${lote.numeroLote}`;
+  img.alt = `Imagen de ${lote.tipoVivienda === "apartamento" ? "apartamento" : "casa"} ${lote.numeroLote}`;
   const loadImage = setupGalleryImage(viewer, img);
-  loadImage(images[0].path);
+  loadImage(images[current].path, 1, images[current].planta);
 
   const counter = document.createElement("div");
   counter.className = "lot-gallery-counter";
-  counter.textContent = `1 / ${images.length}`;
+  counter.textContent = `${current + 1} / ${images.length}`;
 
   const prev = document.createElement("button");
   prev.type = "button";
@@ -603,10 +956,14 @@ function renderImageGallery(
   images.forEach((im, i) => {
     const thumb = document.createElement("button");
     thumb.type = "button";
-    thumb.className = "lot-gallery-thumb" + (i === 0 ? " active" : "");
-    thumb.setAttribute("aria-label", `Ver imagen ${i + 1}`);
+    thumb.className = "lot-gallery-thumb" + (i === current ? " active" : "");
+    thumb.setAttribute("aria-label", im.planta ? "Ver planta arquitectónica" : `Ver imagen ${i + 1}`);
     const thumbImg = document.createElement("img");
     thumbImg.src = im.path;
+    if (im.planta) {
+      thumbImg.style.objectFit = "contain";
+      thumbImg.classList.add("is-floor-plan");
+    }
     thumbImg.alt = "";
     thumb.appendChild(thumbImg);
     thumb.addEventListener("click", () => {
@@ -622,7 +979,7 @@ function renderImageGallery(
   lotModalGallery.appendChild(gallery);
 
   function update(direction: -1 | 1 = 1): void {
-    loadImage(images[current].path, direction);
+    loadImage(images[current].path, direction, images[current].planta);
     counter.textContent = `${current + 1} / ${images.length}`;
     thumbs.querySelectorAll<HTMLElement>(".lot-gallery-thumb").forEach((t, i) => {
       t.classList.toggle("active", i === current);
@@ -650,14 +1007,14 @@ function renderLotInfo(lote: LoteConModelo): void {
     <div class="info-header">
       <span class="status-badge status-${lote.estado}">${ESTADO_LABEL[lote.estado]}</span>
       <h2 class="info-title" id="lot-modal-title">${modelo ? escapeHtml(modelo.nombre) : "Vivienda sin modelo asignado"}</h2>
-      <p class="info-subtitle">Lote ${escapeHtml(lote.numeroLote)}${lote.grupo ? ` · ${escapeHtml(lote.grupo.nombre)} ${escapeHtml(lote.grupo.identificador)}` : ""}</p>
+      <p class="info-subtitle">${lote.tipoVivienda === "apartamento" ? "Apartamento" : "Casa"} ${escapeHtml(lote.numeroLote)}${lote.grupo ? ` · ${escapeHtml(grupoVisible(lote))}` : ""}${lote.tipoVivienda === "apartamento" ? ` · ${escapeHtml(lote.nombreNivel)} ${lote.nivel}` : ""}</p>
       ${modelo ? `<p class="info-model-price">${formatUSD(modelo.precioBase)}</p>` : ""}
     </div>
     <div class="info-body">
-      <dl class="lot-specs">
+      ${lote.tipoVivienda === "apartamento" ? "" : `<dl class="lot-specs">
         <div class="spec"><dt>Terreno</dt><dd>${lote.terrenoM2 !== null ? `${lote.terrenoM2} m²` : "—"}</dd></div>
         <div class="spec"><dt>Dimensiones</dt><dd>${lote.dimensionesLote ? escapeHtml(lote.dimensionesLote) : "—"}</dd></div>
-      </dl>
+      </dl>`}
 
       ${modelo
         ? `
@@ -665,7 +1022,7 @@ function renderLotInfo(lote: LoteConModelo): void {
           <div class="spec"><dt>Construcción</dt><dd>${modelo.construccionM2} m²</dd></div>
           <div class="spec"><dt>Habitaciones</dt><dd>${modelo.habitaciones}</dd></div>
           <div class="spec"><dt>Baños</dt><dd>${modelo.banos}</dd></div>
-          <div class="spec"><dt>Parqueos</dt><dd>${modelo.parqueos}</dd></div>
+          ${lote.tipoVivienda === "apartamento" ? "" : `<div class="spec"><dt>Parqueos</dt><dd>${modelo.parqueos}</dd></div>`}
         </dl>
         ${topFeatures.length > 0
           ? `
@@ -680,7 +1037,7 @@ function renderLotInfo(lote: LoteConModelo): void {
     </div>
     </div>
     <div class="info-footer">
-      <button type="button" class="info-cta" id="lot-cta-consultar">Consultar por este Lote</button>
+      <button type="button" class="info-cta" id="lot-cta-consultar">${lote.tipoVivienda === "apartamento" ? "Consultar por este apartamento" : "Consultar por esta casa"}</button>
     </div>
   `;
 
@@ -745,7 +1102,7 @@ function renderContactModal(): void {
   contactHeader.innerHTML = `
     <p class="contact-header-eyebrow">Formulario de contacto</p>
     <h2 class="contact-header-title">
-      Consulta sobre <strong>Casa ${escapeHtml(lote.numeroLote)}${lote.grupo ? ` · ${escapeHtml(lote.grupo.nombre)} ${escapeHtml(lote.grupo.identificador)}` : ""}</strong>${modeloPart}
+      Consulta sobre <strong>${lote.tipoVivienda === "apartamento" ? "Apartamento" : "Casa"} ${escapeHtml(lote.numeroLote)}${lote.grupo ? ` · ${escapeHtml(grupoVisible(lote))}` : ""}${lote.tipoVivienda === "apartamento" ? ` · ${escapeHtml(lote.nombreNivel)} ${lote.nivel}` : ""}</strong>${modeloPart}
     </h2>
   `;
 }
@@ -755,6 +1112,7 @@ function renderContactModal(): void {
 function render(): void {
   renderViewTransform();
   renderLotsLayer();
+  renderBuildingsLayer();
   renderPuntosLayer();
   renderFilterUI();
   renderLotModal();
@@ -782,6 +1140,7 @@ function resetFilters(): void {
 }
 
 function openLotModal(id: number): void {
+  if (buildingClosing) return;
   state.lotModalLoteId = id;
   state.contactModalLoteId = null;
   state.puntoModalId = null;
@@ -820,6 +1179,8 @@ function closeContactModal(): void {
 // ============ View transforms ============
 
 function startPan(clientX: number, clientY: number): void {
+  if (state.torre) return;
+  suppressNextClick = false;
   state.isPanning = true;
   state.panStart = {
     clientX,
@@ -831,11 +1192,13 @@ function startPan(clientX: number, clientY: number): void {
 }
 
 function panTo(clientX: number, clientY: number): void {
+  if (state.torre) return;
   state.view = panView(state.view, state.panStart, svg, clientX, clientY);
   renderViewTransform();
 }
 
 function zoomAtPoint(factor: number, clientX: number, clientY: number): void {
+  if (state.torre) return;
   const minFactor = getScale() / MAX_ZOOM;
   const safeFactor = Math.max(factor, minFactor);
   state.view = zoomViewAt(
@@ -861,6 +1224,7 @@ function setZoomPercent(percent: number): void {
 }
 
 function fitView(): void {
+  if (state.torre) return;
   state.view = makeFitView(state.initialView);
   renderViewTransform();
 }
@@ -868,6 +1232,8 @@ function fitView(): void {
 // ============ Event handlers ============
 
 function setupEventListeners(): void {
+  document.getElementById("exit-tower")?.addEventListener("click", closeBuilding);
+  document.getElementById("tower-shade")?.addEventListener("click", () => { if (!consumeSuppressedClick()) closeBuilding(); });
   document.querySelectorAll<HTMLElement>("[data-status]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const s = btn.dataset.status as FilterStatus | undefined;
@@ -898,7 +1264,10 @@ function setupEventListeners(): void {
   document.getElementById("zoom-fit")?.addEventListener("click", () => fitView());
   document.getElementById("zoom-in")?.addEventListener("click", () => setZoomPercent(getScale() * 125));
   document.getElementById("zoom-out")?.addEventListener("click", () => setZoomPercent(getScale() * 80));
-  window.addEventListener("resize", () => renderViewTransform());
+  window.addEventListener("resize", () => {
+    if (state.torre && !buildingClosing) { buildingAnimation++; focusBuilding(); }
+    renderViewTransform();
+  });
 
 	document.getElementById("lot-modal-close")?.addEventListener("click", closeLotModal);
 	lotModalBackdrop.addEventListener("click", (e) => {
@@ -928,6 +1297,8 @@ function setupEventListeners(): void {
       closeLotModal();
     } else if (state.puntoModalId !== null) {
       closePuntoModal();
+    } else if (state.torre) {
+      closeBuilding();
     }
   });
 
@@ -954,6 +1325,7 @@ function handleSvgMouseDown(e: MouseEvent): void {
 
 function handleDocumentMouseMove(e: MouseEvent): void {
   if (state.isPanning) {
+    if (Math.hypot(e.clientX - state.panStart.clientX, e.clientY - state.panStart.clientY) > 4) suppressNextClick = true;
     panTo(e.clientX, e.clientY);
   }
 }
@@ -980,6 +1352,7 @@ function touchMidpoint(a: Touch, b: Touch): { x: number; y: number } {
 }
 
 function handleTouchStart(e: TouchEvent): void {
+  if (state.torre) return;
   if (e.touches.length === 2) {
     state.isPanning = false;
     touchStart = null;
@@ -995,6 +1368,7 @@ function handleTouchStart(e: TouchEvent): void {
 }
 
 function handleTouchMove(e: TouchEvent): void {
+  if (state.torre) { e.preventDefault(); return; }
   if (e.touches.length === 2) {
     e.preventDefault();
     const dist = touchDistance(e.touches[0], e.touches[1]);
@@ -1016,6 +1390,7 @@ function handleTouchMove(e: TouchEvent): void {
 }
 
 function handleTouchEnd(e: TouchEvent): void {
+  if (state.torre) return;
   if (touchMoved) suppressNextClick = true;
   pinchDist = 0;
   if (e.touches.length === 1) {
@@ -1063,6 +1438,8 @@ export function initPublicMap(): void {
 
   svg = document.getElementById("canvas") as unknown as SVGSVGElement;
   lotsLayer = document.getElementById("lots-layer") as unknown as SVGGElement;
+  buildingsLayer = document.getElementById("buildings-layer") as unknown as SVGGElement;
+  towerLayer = document.getElementById("tower-layer") as unknown as SVGGElement;
   puntosLayer = document.getElementById("puntos-layer") as unknown as SVGGElement;
   lotModal = document.getElementById("lot-modal") as HTMLElement;
   lotModalBackdrop = document.getElementById("lot-modal-backdrop") as HTMLElement;
@@ -1085,6 +1462,8 @@ export function initPublicMap(): void {
   planAncho = initialData.plan.anchoPx;
   planAlto = initialData.plan.altoPx;
   state.lotes = initialData.lotes;
+  state.torres = initialData.torres ?? [];
+  opacidadPlanosNivel = initialData.opacidadPlanosNivel ?? 50;
   state.puntos = initialData.puntos ?? [];
   state.modelos = initialData.modelos;
 

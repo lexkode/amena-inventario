@@ -2,19 +2,19 @@
 
 ## Objetivo del MVP
 
-Ofrecer una web pública funcional para consultar la disponibilidad de lotes y un panel administrativo que permita mantener esa información actualizada.
+Ofrecer una web pública funcional para consultar la disponibilidad de viviendas y un panel administrativo que permita mantener esa información actualizada.
 
 ## Incluido
 
 ### Web pública
 
 - Visualización del plano activo.
-- Dibujo de lotes sobre el plano.
+- Dibujo de casas sobre el plano.
 - Colores por estado.
 - Filtro por estado.
 - Filtro por modelo.
 - Zoom y desplazamiento.
-- Modal de detalle del lote.
+- Modal de detalle de la vivienda.
 - Información del modelo asociado.
 
 ### Panel administrativo
@@ -23,10 +23,10 @@ Ofrecer una web pública funcional para consultar la disponibilidad de lotes y u
 - Protección de rutas `/admin`.
 - Listado, creación, edición y eliminación de modelos.
 - Subida y actualización del plano.
-- Editor visual de lotes.
-- Creación, edición y eliminación de lotes.
-- Cambio de estado del lote.
-- Asociación de un modelo a un lote.
+- Editor visual de casas.
+- Creación, edición y eliminación de casas.
+- Cambio de estado de la casa.
+- Asociación de un modelo a una casa.
 
 ### Datos
 
@@ -34,7 +34,7 @@ Ofrecer una web pública funcional para consultar la disponibilidad de lotes y u
 - Sesiones.
 - Planos.
 - Modelos.
-- Lotes.
+- Casas.
 - Migraciones Drizzle.
 - Seed inicial de modelos y administrador.
 
@@ -55,13 +55,13 @@ Ofrecer una web pública funcional para consultar la disponibilidad de lotes y u
 ## Criterios de aceptación
 
 - Un visitante puede abrir la web sin autenticarse.
-- El visitante puede identificar lotes por color y número.
-- El visitante puede consultar los datos de un lote.
+- El visitante puede identificar viviendas por color y número.
+- El visitante puede consultar los datos de una vivienda.
 - Un administrador puede iniciar y cerrar sesión.
 - Un administrador puede actualizar un modelo.
 - Un administrador puede subir un plano.
-- Un administrador puede dibujar un lote nuevo.
-- Un administrador puede editar el estado y la geometría de un lote.
+- Un administrador puede dibujar una casa nueva.
+- Un administrador puede editar el estado y la geometría de una casa.
 - Los cambios guardados aparecen en la web pública después de recargar.
 - Los datos sobreviven al reinicio del servidor.
 
@@ -71,7 +71,7 @@ Ofrecer una web pública funcional para consultar la disponibilidad de lotes y u
 - Rate limiting del login.
 - Autorización por rol.
 - Validación geométrica avanzada.
-- Restricción única para el número de lote.
+- Restricción única para el número de casa.
 - Validación segura del contenido de imágenes.
 - Limpieza de imágenes antiguas.
 - Tests automatizados.
