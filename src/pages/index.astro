@@ -164,7 +164,7 @@ const planCornerRadius = plan
                     </div>
                     <div class="filter-group">
                       <label for="modelo-filter" class="filter-label">
-                        Modelo de casa
+                        Modelo de vivienda
                       </label>
                       <select id="modelo-filter" class="select">
                         <option value="">Todos los modelos</option>
@@ -522,10 +522,14 @@ const planCornerRadius = plan
     }
     .pills {
       display: flex;
+      flex-direction: row;
       gap: 0.4rem;
       flex-wrap: wrap;
+      align-items: center;
     }
     .pill {
+      flex: 0 0 auto;
+      white-space: nowrap;
       border-width: 0px;
       border-radius: 6px;
       font-size: 13px;
