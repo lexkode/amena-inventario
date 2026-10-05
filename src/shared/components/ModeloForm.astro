@@ -18,6 +18,7 @@ const {
 } = Astro.props;
 
 const caracteristicasText = modelo?.caracteristicas.join("\n") ?? "";
+const isApartamento = modelo?.tipo === "apartamento";
 ---
 
 {error && <div class="alert" role="alert">{error}</div>}
@@ -39,10 +40,10 @@ const caracteristicasText = modelo?.caracteristicas.join("\n") ?? "";
 
   <div class="field full">
     <label for="tipo">Tipo</label>
-    <select id="tipo" name="tipo" required>
-      <option value="casa" selected={modelo?.tipo === "casa" || !modelo}>Casa</option>
-      <option value="apartamento" selected={modelo?.tipo === "apartamento"}>Apartamento</option>
-    </select>
+      <select id="tipo" name="tipo" required>
+        <option value="casa" selected={modelo?.tipo === "casa" || !modelo}>Casa</option>
+        <option value="apartamento" selected={modelo?.tipo === "apartamento"}>Apartamento</option>
+      </select>
   </div>
 
   <div class="field">
@@ -65,8 +66,16 @@ const caracteristicasText = modelo?.caracteristicas.join("\n") ?? "";
       type="number"
       step="0.01"
       min="0"
-      required
+      required={!isApartamento}
+      disabled={isApartamento}
       value={modelo?.terrenoM2 ?? ""}
+    />
+    <input
+      id="terrenoM2-apartamento"
+      type="hidden"
+      name="terrenoM2"
+      value="0"
+      disabled={!isApartamento}
     />
   </div>
   <div class="field">
@@ -152,6 +161,26 @@ const caracteristicasText = modelo?.caracteristicas.join("\n") ?? "";
   </div>
 </form>
 
+<script>
+  const tipoInput = document.querySelector<HTMLSelectElement>("#tipo");
+  const terrenoInput = document.querySelector<HTMLInputElement>("#terrenoM2");
+  const terrenoApartamentoInput = document.querySelector<HTMLInputElement>(
+    "#terrenoM2-apartamento",
+  );
+
+  function actualizarTerreno() {
+    const esApartamento = tipoInput?.value === "apartamento";
+    if (!terrenoInput || !terrenoApartamentoInput) return;
+
+    terrenoInput.disabled = esApartamento;
+    terrenoInput.required = !esApartamento;
+    terrenoApartamentoInput.disabled = !esApartamento;
+  }
+
+  tipoInput?.addEventListener("change", actualizarTerreno);
+  actualizarTerreno();
+</script>
+
 <style>
   .modelo-form {
     display: grid;
@@ -186,7 +215,7 @@ const caracteristicasText = modelo?.caracteristicas.join("\n") ?? "";
   .actions {
     display: flex;
     gap: 0.75rem;
-    justify-content: flex-end;
+    justify-content: flex-start;
     margin-top: 0.5rem;
   }
   @media (max-width: 720px) {
